@@ -4,6 +4,10 @@
  *
  * Sistema de eixos: x para a direita, y para o fundo, z para cima.
  * O encosto fica em y = 0 (lado mais distante da camera isometrica).
+ *
+ * Regras de ancoragem — todas as pernas usam o MESMO criterio:
+ * faces externas fixas em x = 0 / x = L e y = 0 / y = L.
+ * A espessura cresce sempre para dentro do pe.
  */
 
 import { CADEIRA } from './constantes.js';
@@ -13,63 +17,50 @@ function barra(x, y, z, dx, dy, dz) {
 }
 
 export function construirBarras(espessura, altura) {
-  const t = espessura;
-  const H = altura;
   const {
     L,
-    folgaAssento: g,
+    folga,
     tAssento,
+    alturaAbertura,
     alturaEncosto,
     tEncosto,
-    fracaoBasePainel,
-    mostrarTravessas,
-    fracaoTravessa,
-    fracaoTravessaEsp,
+    espessuraMaxima,
   } = CADEIRA;
 
-  const W = L + t;
-  const D = L + t;
-  const topoPerna = H;
-  const topoEncosto = H + tAssento + alturaEncosto;
+  const t = Math.min(espessura, espessuraMaxima);
+  const H = altura;
+
+  const zTopoAssento = H + tAssento;
+  const zTopoEncosto = zTopoAssento + alturaEncosto;
+  const zBaseEncosto = zTopoAssento + alturaAbertura;
 
   const barras = [];
 
-  // --- Pernas ---
-  // As dianteiras terminam na face inferior do assento (z = H).
-  // As traseiras sobem ate o topo do encosto e atravessam o assento,
-  // o que e construtivamente normal: o assento encaixa entre elas.
-  barras.push(barra(0,     D - t, 0, t, t, topoPerna));    // frente esquerda
-  barras.push(barra(W - t, D - t, 0, t, t, topoPerna));    // frente direita
-  barras.push(barra(0,     0,     0, t, t, topoEncosto));  // tras esquerda
-  barras.push(barra(W - t, 0,     0, t, t, topoEncosto));  // tras direita
+  // --- Pernas dianteiras: do piso ate a face inferior do assento ---
+  barras.push(barra(0, L - t, 0, t, t, H));      // frente esquerda
+  barras.push(barra(L - t, L - t, 0, t, t, H));  // frente direita
 
-  // --- Assento ---
-  barras.push(barra(-g, 0, H, W + 2 * g, D + g, tAssento));
+  // --- Pernas traseiras: divididas na altura do assento ---
+  // A divisao impede que a perna atravesse o tampo. Com volume compartilhado
+  // a ordenacao por profundidade troca de resultado conforme t varia.
+  barras.push(barra(0, 0, 0, t, t, H));      // tras esq., abaixo do assento
+  barras.push(barra(L - t, 0, 0, t, t, H));  // tras dir., abaixo do assento
 
-  // --- Painel do encosto ---
-  // Fica ENTRE os postes traseiros (x de t a W - t) e a face da frente
-  // coincide com a face da frente das pernas (y = t). Assim o painel le
-  // como parte da mesma estrutura, sem parecer peca solta ou recuada.
-  const tEnc = Math.min(t, tEncosto);
-  const zBasePainel = H + tAssento + alturaEncosto * fracaoBasePainel;
-  const altPainel = topoEncosto - zBasePainel;
+  const hPoste = zTopoEncosto - zTopoAssento;
+  barras.push(barra(0, 0, zTopoAssento, t, t, hPoste));      // tras esq., acima
+  barras.push(barra(L - t, 0, zTopoAssento, t, t, hPoste));  // tras dir., acima
 
+  // --- Assento: sobrepasse identico nos quatro lados ---
+  barras.push(
+    barra(-folga, -folga, H, L + 2 * folga, L + 2 * folga, tAssento)
+  );
+
+  // --- Encosto: chapa atras dos postes, largura total ---
+  // A posicao em y NAO depende de t: fica ancorada no plano de tras dos postes.
+  // Antes ela acompanhava t e o painel deslizava para frente ao engrossar a perna.
+  const altPainel = zTopoEncosto - zBaseEncosto;
   if (altPainel > 0) {
-    barras.push(barra(t, t - tEnc, zBasePainel, W - 2 * t, tEnc, altPainel));
-  }
-
-  // --- Travessas (opcionais) ---
-  if (mostrarTravessas) {
-    const zTrav = fracaoTravessa * H;
-    const tTrav = Math.max(10, fracaoTravessaEsp * t);
-    const off = (t - tTrav) / 2;
-
-    // Laterais, ligando perna dianteira e traseira do mesmo lado
-    barras.push(barra(off, t, zTrav, tTrav, D - 2 * t, tTrav));
-    barras.push(barra(W - t + off, t, zTrav, tTrav, D - 2 * t, tTrav));
-
-    // Frontal, entre as duas pernas dianteiras
-    barras.push(barra(t, D - t + off, zTrav, W - 2 * t, tTrav, tTrav));
+    barras.push(barra(0, -tEncosto, zBaseEncosto, L, tEncosto, altPainel));
   }
 
   return barras;
