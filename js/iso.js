@@ -86,16 +86,12 @@ function sombrear(hex, k) {
     .join(',')})`;
 }
 
-/** Todas as faces projetadas, ja ordenadas para pintura */
 export function buildFaces(barras, escala, origem, corBase) {
   const faces = [];
 
   for (const p of barras) {
-    // Profundidade da caixa inteira, medida no canto mais proximo da camera.
-    // A camera olha na direcao -(1,1,1), entao o canto de maiores coordenadas
-    // e o ponto mais perto. Usar o centro faz um corpo grande e central, como
-    // o assento, ser pintado antes de um corpo pequeno e deslocado, como a
-    // perna dianteira direita — e a peca menor aparece por cima do assento.
+    // Profundidade no canto mais proximo da camera.
+    // Usada para ordenar pecas DENTRO da mesma camada, nunca entre camadas.
     const prof = (p.x + p.dx) + (p.y + p.dy) + (p.z + p.dz);
 
     for (const f of facesDaCaixa(p)) {
@@ -104,6 +100,7 @@ export function buildFaces(barras, escala, origem, corBase) {
       faces.push({
         kind: f.kind,
         tela,
+        camada: p.camada ?? 0,
         prof,
         barras: p,
         fill: sombrear(corBase, k),
@@ -111,6 +108,14 @@ export function buildFaces(barras, escala, origem, corBase) {
       });
     }
   }
+
+  // Camada primeiro, profundidade depois.
+  // Motivo: um par simetrico de pecas tem profundidades muito diferentes
+  // (a peca da direita e sempre mais perto da camera). Com chave unica o par
+  // era pintado em lados opostos do assento, e o resultado mudava com t.
+  faces.sort((a, b) => (a.camada - b.camada) || (a.prof - b.prof));
+  return faces;
+}
 
   // Desenha longe primeiro. Todas as faces de uma mesma caixa compartilham
   // a chave, e como elas nao se sobrepoem entre si a ordem interna nao importa.
