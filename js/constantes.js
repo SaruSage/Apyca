@@ -23,3 +23,18 @@ export const HIPOTESES = {
   // Massa do assento + encosto, em kg (nao varia com as entradas do usuario)
   mAssento: 2.0,
 };
+
+/**
+ * Premissas construtivas da cadeira. Valem para qualquer material.
+ * Todas em milimetros.
+ */
+export const CADEIRA = {
+  L: 400,                  // distancia entre eixos das pernas
+  folgaAssento: 12,        // balanco lateral e frontal do assento
+  tAssento: 20,            // espessura do assento
+  alturaEncosto: 320,      // altura do encosto acima do assento
+  tEncosto: 20,            // espessura do painel do encosto
+  fracaoBasePainel: 0.30,  // onde o painel do encosto comeca (fracao da altura)
+  fracaoTravessa: 0.25,    // altura das travessas laterais (fracao de H)
+  fracaoTravessaEsp: 0.55, // espessura da travessa (fracao de t)
+};

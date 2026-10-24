@@ -177,3 +177,14 @@ body {
   padding-left: 18px;
   font-weight: 400;
 }
+
+.legenda {
+  width: 100%;
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--texto-fraco);
+  font-variant-numeric: tabular-nums;
+}
+
+.palco { flex-direction: column; }

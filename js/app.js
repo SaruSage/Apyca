@@ -1,5 +1,7 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
+import { construirBarras } from './chairModel.js';
+import { renderCadeira } from './render.js';
 
 const form = document.getElementById('form-cadeira');
 const selectMaterial = document.getElementById('material');
@@ -7,8 +9,8 @@ const campoEspessura = document.getElementById('espessura');
 const campoAltura = document.getElementById('altura');
 const campoMassa = document.getElementById('massa');
 const painel = document.getElementById('resultado');
+const palco = document.getElementById('palco');
 
-// Popula o select de materiais
 for (const mat of Object.values(MATERIAIS)) {
   const opt = document.createElement('option');
   opt.value = mat.id;
@@ -31,7 +33,7 @@ function grupo(titulo, linhas) {
   return `<div class="grupo"><h3>${titulo}</h3>${linhas.join('')}</div>`;
 }
 
-function renderizar(r) {
+function renderizarResultado(r) {
   if (!r.ok) {
     painel.innerHTML = `<div class="veredito veredito--erro">${r.erros.join(' ')}</div>`;
     return;
@@ -45,7 +47,7 @@ function renderizar(r) {
 
   const forcas = grupo('Esforcos', [
     linha('Carga total (P)', `${n(r.forcas.P, 1)} N`),
-    linha('Reacao por perna (media)', `${n(r.forcas.Nmedio, 1)} N`),
+    linha('Reacao media por perna', `${n(r.forcas.Nmedio, 1)} N`),
     linha('Reacao maxima (N)', `${n(r.forcas.Nmax, 1)} N`),
     linha('Momento na perna (M)', `${n(r.forcas.Mperna, 0)} N·mm`),
   ]);
@@ -53,7 +55,7 @@ function renderizar(r) {
   const tensoes = grupo('Tensoes normais', [
     linha('Axial (N/A)', `${n(r.tensoes.sigmaAxial, 3)} MPa`),
     linha('Flexao (M·c/I)', `${n(r.tensoes.sigmaFlexao, 3)} MPa`),
-    linha('Maxima (sigma)', `${n(r.tensoes.sigmaMax, 3)} MPa`),
+    linha('Maxima', `${n(r.tensoes.sigmaMax, 3)} MPa`),
     linha('Admissivel', `${n(r.tensoes.sigmaAdm, 3)} MPa`),
     linha('Utilizacao', `${n(r.tensoes.utilizacao * 100, 1)}%`),
   ]);
@@ -80,14 +82,32 @@ function renderizar(r) {
 }
 
 function simular() {
-  const resultado = calcular({
+  const espessuraMm = parseFloat(campoEspessura.value) * 10;
+  const alturaMm = parseFloat(campoAltura.value) * 10;
+  const massaKg = parseFloat(campoMassa.value);
+
+  const r = calcular({
     materialId: selectMaterial.value,
-    espessuraMm: parseFloat(campoEspessura.value) * 10,
-    alturaMm: parseFloat(campoAltura.value) * 10,
-    massaKg: parseFloat(campoMassa.value),
+    espessuraMm,
+    alturaMm,
+    massaKg,
   });
-  renderizar(resultado);
-  return resultado;
+
+  renderizarResultado(r);
+
+  if (r.ok) {
+    const material = r.entrada.material;
+    const barras = construirBarras(r.entrada.t, r.entrada.H);
+    const dims = renderCadeira(palco, barras, material);
+
+    palco.insertAdjacentHTML(
+      'beforeend',
+      `<p class="legenda">${n(dims.altura / 10, 1)} × ${n(dims.largura / 10, 1)} × ` +
+        `${n(dims.profundidade / 10, 1)} cm &nbsp;·&nbsp; material: ${material.nome}</p>`
+    );
+  }
+
+  return r;
 }
 
 form.addEventListener('submit', (ev) => {
@@ -95,7 +115,6 @@ form.addEventListener('submit', (ev) => {
   simular();
 });
 
-// Recalcula ao digitar, para a resposta ficar imediata
 form.addEventListener('input', simular);
 
 simular();
