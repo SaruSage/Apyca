@@ -91,20 +91,29 @@ export function buildFaces(barras, escala, origem, corBase) {
   const faces = [];
 
   for (const p of barras) {
+    // Profundidade da caixa inteira, medida no canto mais proximo da camera.
+    // A camera olha na direcao -(1,1,1), entao o canto de maiores coordenadas
+    // e o ponto mais perto. Usar o centro faz um corpo grande e central, como
+    // o assento, ser pintado antes de um corpo pequeno e deslocado, como a
+    // perna dianteira direita — e a peca menor aparece por cima do assento.
+    const prof = (p.x + p.dx) + (p.y + p.dy) + (p.z + p.dz);
+
     for (const f of facesDaCaixa(p)) {
       const tela = f.quad.map((pt) => project(pt, escala, origem));
-      const prof =
-        f.quad.reduce((s, pt) => s + pt[0] + pt[1] + pt[2], 0) / 4;
+      const k = SOMBRA[f.kind];
       faces.push({
         kind: f.kind,
         tela,
         prof,
         barras: p,
-        fill: sombrear(corBase, SOMBRA[f.kind]),
+        fill: sombrear(corBase, k),
+        contorno: sombrear(corBase, k * 0.72),
       });
     }
   }
 
+  // Desenha longe primeiro. Todas as faces de uma mesma caixa compartilham
+  // a chave, e como elas nao se sobrepoem entre si a ordem interna nao importa.
   faces.sort((a, b) => a.prof - b.prof);
   return faces;
 }

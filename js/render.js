@@ -57,7 +57,7 @@ export function renderCadeira(container, barras, material) {
   for (const f of faces) {
     conteudo.push(
       `<polygon points="${poly(f.tela)}" fill="${f.fill}" ` +
-        `stroke="${f.fill}" stroke-width="1" stroke-linejoin="round"/>`
+        `stroke="${f.contorno}" stroke-width="0.9" stroke-linejoin="round"/>`
     );
     if (material.id === 'madeira' && f.kind === 'top') {
       conteudo.push(veios(f.barras, escala, origem));

@@ -35,6 +35,10 @@ export const CADEIRA = {
   alturaEncosto: 320,      // altura do encosto acima do assento
   tEncosto: 20,            // espessura do painel do encosto
   fracaoBasePainel: 0.30,  // onde o painel do encosto comeca (fracao da altura)
-  fracaoTravessa: 0.25,    // altura das travessas laterais (fracao de H)
-  fracaoTravessaEsp: 0.55, // espessura da travessa (fracao de t)
+
+  // Travessas entre as pernas. Desligadas: a cadeira fica com as quatro pernas
+  // livres. Ligue para comparar os dois modelos na apresentacao.
+  mostrarTravessas: false,
+  fracaoTravessa: 0.25,
+  fracaoTravessaEsp: 0.55,
 };

@@ -22,42 +22,55 @@ export function construirBarras(espessura, altura) {
     alturaEncosto,
     tEncosto,
     fracaoBasePainel,
+    mostrarTravessas,
     fracaoTravessa,
     fracaoTravessaEsp,
   } = CADEIRA;
 
   const W = L + t;
   const D = L + t;
-  const topoFrente = H;
-  const topoTras = H + tAssento + alturaEncosto;
+  const topoPerna = H;
+  const topoEncosto = H + tAssento + alturaEncosto;
 
   const barras = [];
 
   // --- Pernas ---
-  barras.push(barra(0,     D - t, 0, t, t, topoFrente)); // frente esquerda
-  barras.push(barra(W - t, D - t, 0, t, t, topoFrente)); // frente direita
-  barras.push(barra(0,     0,     0, t, t, topoTras));   // tras esquerda
-  barras.push(barra(W - t, 0,     0, t, t, topoTras));   // tras direita
-
-  // --- Travessas laterais ---
-  const zTrav = fracaoTravessa * H;
-  const tTrav = Math.max(10, fracaoTravessaEsp * t);
-  const centro = (t - tTrav) / 2;
-  const compTrav = D - 2 * t;
-
-  barras.push(barra(centro, t, zTrav, tTrav, compTrav, tTrav));
-  barras.push(barra(W - t + centro, t, zTrav, tTrav, compTrav, tTrav));
-
-  // --- Travessa frontal ---
-  barras.push(barra(t, D - t + centro, zTrav, W - 2 * t, tTrav, tTrav));
+  // As dianteiras terminam na face inferior do assento (z = H).
+  // As traseiras sobem ate o topo do encosto e atravessam o assento,
+  // o que e construtivamente normal: o assento encaixa entre elas.
+  barras.push(barra(0,     D - t, 0, t, t, topoPerna));    // frente esquerda
+  barras.push(barra(W - t, D - t, 0, t, t, topoPerna));    // frente direita
+  barras.push(barra(0,     0,     0, t, t, topoEncosto));  // tras esquerda
+  barras.push(barra(W - t, 0,     0, t, t, topoEncosto));  // tras direita
 
   // --- Assento ---
   barras.push(barra(-g, 0, H, W + 2 * g, D + g, tAssento));
 
   // --- Painel do encosto ---
+  // Fica ENTRE os postes traseiros (x de t a W - t) e a face da frente
+  // coincide com a face da frente das pernas (y = t). Assim o painel le
+  // como parte da mesma estrutura, sem parecer peca solta ou recuada.
+  const tEnc = Math.min(t, tEncosto);
   const zBasePainel = H + tAssento + alturaEncosto * fracaoBasePainel;
-  const altPainel = topoTras - zBasePainel;
-  barras.push(barra(0, 0, zBasePainel, W, tEncosto, altPainel));
+  const altPainel = topoEncosto - zBasePainel;
+
+  if (altPainel > 0) {
+    barras.push(barra(t, t - tEnc, zBasePainel, W - 2 * t, tEnc, altPainel));
+  }
+
+  // --- Travessas (opcionais) ---
+  if (mostrarTravessas) {
+    const zTrav = fracaoTravessa * H;
+    const tTrav = Math.max(10, fracaoTravessaEsp * t);
+    const off = (t - tTrav) / 2;
+
+    // Laterais, ligando perna dianteira e traseira do mesmo lado
+    barras.push(barra(off, t, zTrav, tTrav, D - 2 * t, tTrav));
+    barras.push(barra(W - t + off, t, zTrav, tTrav, D - 2 * t, tTrav));
+
+    // Frontal, entre as duas pernas dianteiras
+    barras.push(barra(t, D - t + off, zTrav, W - 2 * t, tTrav, tTrav));
+  }
 
   return barras;
 }
