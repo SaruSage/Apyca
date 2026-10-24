@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Testes — Motor de calculo</title>
+  <style>
+    body {
+      background: #12161c; color: #e7edf5; font-family: ui-monospace, monospace;
+      padding: 32px; line-height: 1.6;
+    }
+    h1 { font-size: 1.2rem; }
+    .ok { color: #3ecf8e; }
+    .falha { color: #f2555a; }
+    .resumo { margin-top: 24px; padding: 12px 16px; border-radius: 8px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>Testes do motor de calculo</h1>
+  <div id="saida"></div>
+  <script type="module">
+    import { calcular } from '../js/solver.js';
+
+    const saida = document.getElementById('saida');
+    let passou = 0;
+    let falhou = 0;
+
+    function quase(real, esperado, tol = 1e-6) {
+      const escala = Math.max(1, Math.abs(esperado));
+      return Math.abs(real - esperado) <= tol * escala;
+    }
+
+    function verificar(nome, condicao, detalhe = '') {
+      const div = document.createElement('div');
+      if (condicao) {
+        passou++;
+        div.className = 'ok';
+        div.textContent = `PASS  ${nome}`;
+      } else {
+        falhou++;
+        div.className = 'falha';
+        div.textContent = `FAIL  ${nome}${detalhe ? ' — ' + detalhe : ''}`;
+      }
+      saida.appendChild(div);
+    }
+
+    function testarCaso(nome, entrada, esperado) {
+      const r = calcular(entrada);
+
+      if (!r.ok) {
+        verificar(nome, false, 'calculo retornou erro: ' + r.erros.join(' '));
+        return;
+      }
+
+      verificar(`${nome} · area`, quase(r.secao.A, esperado.A), `obtido ${r.secao.A}, esperado ${esperado.A}`);
+      verificar(`${nome} · reacao maxima`, quase(r.forcas.Nmax, esperado.Nmax), `obtido ${r.forcas.Nmax}, esperado ${esperado.Nmax}`);
+      verificar(`${nome} · momento na perna`, quase(r.forcas.Mperna, esperado.Mperna), `obtido ${r.forcas.Mperna}, esperado ${esperado.Mperna}`);
+      verificar(`${nome} · tensao axial`, quase(r.tensoes.sigmaAxial, esperado.sigmaAxial), `obtido ${r.tensoes.sigmaAxial}, esperado ${esperado.sigmaAxial}`);
+      verificar(`${nome} · tensao de flexao`, quase(r.tensoes.sigmaFlexao, esperado.sigmaFlexao), `obtido ${r.tensoes.sigmaFlexao}, esperado ${esperado.sigmaFlexao}`);
+      verificar(`${nome} · tensao maxima`, quase(r.tensoes.sigmaMax, esperado.sigmaMax), `obtido ${r.tensoes.sigmaMax}, esperado ${esperado.sigmaMax}`);
+      verificar(`${nome} · utilizacao`, quase(r.tensoes.utilizacao, esperado.utilizacao), `obtido ${r.tensoes.utilizacao}, esperado ${esperado.utilizacao}`);
+      verificar(`${nome} · esbeltez`, quase(r.flambagem.lambda, esperado.lambda), `obtido ${r.flambagem.lambda}, esperado ${esperado.lambda}`);
+      verificar(`${nome} · carga critica`, quase(r.flambagem.Pcr, esperado.Pcr), `obtido ${r.flambagem.Pcr}, esperado ${esperado.Pcr}`);
+      verificar(`${nome} · encurtamento`, quase(r.deformacao.deltaAxial, esperado.deltaAxial), `obtido ${r.deformacao.deltaAxial}, esperado ${esperado.deltaAxial}`);
+      verificar(`${nome} · aprovado`, r.veredito.aprovado === esperado.aprovado, `aprovado=${r.veredito.aprovado}`);
+    }
+
+    // ---------------------------------------------------------------
+    // Casos ancora, calculados a mao. Nao alterar sem refazer a conta.
+    // ---------------------------------------------------------------
+
+    // Caso 1 — madeira, t=40 mm, H=450 mm, m=100 kg
+    // P=981 N  A=1600  I=213333,33  W=10666,67
+    // Nmax=245,25+61,3125=306,5625  M=12262,5
+    // sigma=0,1916+1,1496=1,3412  sigmaAdm=20  ut=0,06706
+    // lambda=38,97  Pcr=98777  delta=0,009076
+    testarCaso(
+      'madeira t=40 H=450 m=100',
+      { materialId: 'madeira', espessuraMm: 40, alturaMm: 450, massaKg: 100 },
+      {
+        A: 1600,
+        Nmax: 306.5625,
+        Mperna: 12262.5,
+        sigmaAxial: 0.1916015625,
+        sigmaFlexao: 1.149609375,
+        sigmaMax: 1.3412109375,
+        utilizacao: 0.067060546875,
+        lambda: 450 / (40 / Math.sqrt(12)),
+        Pcr: (Math.PI ** 2 * 9500 * (40 ** 4 / 12)) / (450 ** 2),
+        deltaAxial: (306.5625 * 450) / (1600 * 9500),
+        aprovado: true,
+      }
+    );
+
+    // Caso 2 — aco, t=20 mm, H=450 mm, m=120 kg
+    // P=1177,2  A=400  I=13333,33  W=1333,33
+    // Nmax=294,3+73,575=367,875  M=14715
+    // sigma=0,9197+11,0363=11,9559  sigmaAdm=166,67  ut=0,07174
+    testarCaso(
+      'aco t=20 H=450 m=120',
+      { materialId: 'aco', espessuraMm: 20, alturaMm: 450, massaKg: 120 },
+      {
+        A: 400,
+        Nmax: 367.875,
+        Mperna: 14715,
+        sigmaAxial: 0.9196875,
+        sigmaFlexao: 11.03625,
+        sigmaMax: 11.9559375,
+        utilizacao: 11.9559375 / (250 / 1.5),
+        lambda: 450 / (20 / Math.sqrt(12)),
+        Pcr: (Math.PI ** 2 * 200000 * (20 ** 4 / 12)) / (450 ** 2),
+        deltaAxial: (367.875 * 450) / (400 * 200000),
+        aprovado: true,
+      }
+    );
+
+    // Caso 3 — aluminio, t=30 mm, H=500 mm, m=150 kg
+    // P=1471,5  A=900  I=67500  W=4500
+    // Nmax=367,875+91,96875=459,84375  M=18393,75
+    // sigma=0,5109+4,0875=4,5984  sigmaAdm=160  ut=0,02874
+    testarCaso(
+      'aluminio t=30 H=500 m=150',
+      { materialId: 'aluminio', espessuraMm: 30, alturaMm: 500, massaKg: 150 },
+      {
+        A: 900,
+        Nmax: 459.84375,
+        Mperna: 18393.75,
+        sigmaAxial: 0.5109375,
+        sigmaFlexao: 4.0875,
+        sigmaMax: 4.5984375,
+        utilizacao: 4.5984375 / 160,
+        lambda: 500 / (30 / Math.sqrt(12)),
+        Pcr: (Math.PI ** 2 * 69000 * (30 ** 4 / 12)) / (500 ** 2),
+        deltaAxial: (459.84375 * 500) / (900 * 69000),
+        aprovado: true,
+      }
+    );
+
+    // Caso 4 — reprovacao por tensao: madeira muito esbelta
+    // t=10 mm, H=900 mm, m=200 kg -> P=1962 N, A=100, W=1000/6
+    const casoRuim = calcular({
+      materialId: 'madeira', espessuraMm: 10, alturaMm: 900, massaKg: 200,
+    });
+    verificar('caso reprovado tem motivo listado', casoRuim.ok && !casoRuim.veredito.aprovado);
+
+    // Caso 5 — entradas invalidas
+    const invalido = calcular({ materialId: 'madeira', espessuraMm: 0, alturaMm: 450, massaKg: 90 });
+    verificar('espessura zero retorna erro', invalido.ok === false);
+
+    const semMaterial = calcular({ materialId: 'titânio', espessuraMm: 30, alturaMm: 450, massaKg: 90 });
+    verificar('material desconhecido retorna erro', semMaterial.ok === false);
+
+    // ---------------------------------------------------------------
+    const resumo = document.createElement('div');
+    resumo.className = 'resumo';
+    resumo.textContent = falhou === 0
+      ? `Todos os ${passou} testes passaram.`
+      : `${passou} passaram, ${falhou} falharam.`;
+    resumo.style.background = falhou === 0 ? 'rgba(62,207,142,.14)' : 'rgba(242,85,90,.14)';
+    resumo.style.color = falhou === 0 ? '#3ecf8e' : '#f2555a';
+    document.body.appendChild(resumo);
+  </script>
+</body>
+</html>
