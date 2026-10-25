@@ -39,6 +39,14 @@ function facesDaCaixa(p) {
 }
 
 export function computeView(barras, largura, altura, margem = 48) {
+  if (!Array.isArray(barras) || barras.length === 0) {
+    return {
+      escala: 1,
+      origem: [margem, margem],
+      bounds: { min: [0, 0, 0], max: [0, 0, 0] },
+    };
+  }
+
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
 
@@ -68,7 +76,13 @@ export function computeView(barras, largura, altura, margem = 48) {
 
   const utilL = largura - 2 * margem;
   const utilA = altura - 2 * margem;
-  const escala = Math.min(utilL / largProj, utilA / altProj);
+
+  const escalaX = largProj > 0 ? utilL / largProj : Infinity;
+  const escalaY = altProj > 0 ? utilA / altProj : Infinity;
+  const escalaBase = Number.isFinite(escalaX) || Number.isFinite(escalaY)
+    ? Math.min(escalaX, escalaY)
+    : 1;
+  const escala = Number.isFinite(escalaBase) && escalaBase > 0 ? escalaBase : 1;
 
   const origem = [
     margem + (utilL - largProj * escala) / 2 - Math.min(...xs) * escala,
@@ -79,7 +93,13 @@ export function computeView(barras, largura, altura, margem = 48) {
 }
 
 function sombrear(hex, k) {
-  const n = parseInt(hex.slice(1), 16);
+  const normalizado = (hex || '#ffffff').replace(/^#?([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/, '#$1$1$2$2$3$3');
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(normalizado);
+  if (!match) {
+    return 'rgb(255,255,255)';
+  }
+
+  const n = parseInt(match[1], 16);
   const canais = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   return `rgb(${canais
     .map((v) => Math.max(0, Math.min(255, Math.round(v * k))))
@@ -90,9 +110,8 @@ export function buildFaces(barras, escala, origem, corBase) {
   const faces = [];
 
   for (const p of barras) {
-    // Profundidade no canto mais proximo da camera.
-    // Usada para ordenar pecas DENTRO da mesma camada, nunca entre camadas.
     const prof = (p.x + p.dx) + (p.y + p.dy) + (p.z + p.dz);
+    const cor = p.cor || corBase;
 
     for (const f of facesDaCaixa(p)) {
       const tela = f.quad.map((pt) => project(pt, escala, origem));
@@ -103,22 +122,12 @@ export function buildFaces(barras, escala, origem, corBase) {
         camada: p.camada ?? 0,
         prof,
         barras: p,
-        fill: sombrear(corBase, k),
-        contorno: sombrear(corBase, k * 0.72),
+        fill: sombrear(cor, k),
+        contorno: sombrear(cor, k * 0.72),
       });
     }
   }
 
-  // Camada primeiro, profundidade depois.
-  // Motivo: um par simetrico de pecas tem profundidades muito diferentes
-  // (a peca da direita e sempre mais perto da camera). Com chave unica o par
-  // era pintado em lados opostos do assento, e o resultado mudava com t.
   faces.sort((a, b) => (a.camada - b.camada) || (a.prof - b.prof));
   return faces;
-}
-
-  // Desenha longe primeiro. Todas as faces de uma mesma caixa compartilham
-  // a chave, e como elas nao se sobrepoem entre si a ordem interna nao importa.
-  faces.sort((a, b) => a.prof - b.prof);
-  return faces;
-}
+};

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadeira A3 — Simulador Estrutural</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>Cadeira A3</h1>
+    <p class="subtitulo">Simulador de dimensionamento estrutural</p>
+  </header>
+
+  <main class="layout">
+    <section class="painel painel--entrada">
+      <h2>Entradas</h2>
+      <form id="form-cadeira" novalidate>
+        <div class="campo">
+          <label for="material">Material</label>
+          <select id="material" name="material"></select>
+        </div>
+
+        <div class="campo">
+          <label for="espessura">Espessura da perna (cm)</label>
+          <input id="espessura" name="espessura" type="number" min="0.5" max="15" step="0.5" value="4">
+        </div>
+
+        <div class="campo">
+          <label for="altura">Altura da perna (cm)</label>
+          <input id="altura" name="altura" type="number"
+                 min="20" max="120" step="1" value="45">
+        </div>
+
+        <div class="campo">
+          <label for="massa">Massa do usuário (kg)</label>
+          <input id="massa" name="massa" type="number"
+                 min="10" max="250" step="1" value="90">
+        </div>
+
+        <button type="submit" class="botao">Simular</button>
+      </form>
+    </section>
+
+    <section class="painel painel--visual">
+      <h2>Vista isométrica</h2>
+      <div id="palco" class="palco">
+        <p class="vazio">A vista isométrica entra no M2.</p>
+      </div>
+    </section>
+
+    <section class="painel painel--resultado">
+      <h2>Resultados</h2>
+      <div id="resultado" class="resultado">
+        <p class="vazio">Preencha as entradas e clique em Simular.</p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

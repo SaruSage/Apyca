@@ -39,6 +39,7 @@ function veios(barras, escala, origem) {
 export function renderCadeira(container, barras, material) {
   const { escala, origem, bounds } = computeView(barras, LARGURA, ALTURA, 48);
   const faces = buildFaces(barras, escala, origem, material.cor);
+  const mostrarVeios = material.render?.veios === true;
 
   const conteudo = [];
 
@@ -59,7 +60,7 @@ export function renderCadeira(container, barras, material) {
       `<polygon points="${poly(f.tela)}" fill="${f.fill}" ` +
         `stroke="${f.contorno}" stroke-width="0.9" stroke-linejoin="round"/>`
     );
-    if (material.id === 'madeira' && f.kind === 'top') {
+    if (mostrarVeios && f.kind === 'top') {
       conteudo.push(veios(f.barras, escala, origem));
     }
   }

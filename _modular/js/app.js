@@ -10,6 +10,7 @@ const campoAltura = document.getElementById('altura');
 const campoMassa = document.getElementById('massa');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
+const barras = construirBarras(r.entrada.t, r.entrada.H, material);
 
 for (const mat of Object.values(MATERIAIS)) {
   const opt = document.createElement('option');

@@ -27,14 +27,16 @@ export const HIPOTESES = {
 /**
  * Premissas construtivas. Todas em milimetros.
  * O pe da cadeira tem dimensao fixa; a espessura da perna cresce para dentro.
- * Assim a silhueta externa e o assento ficam parados quando t varia.
  */
 export const CADEIRA = {
-  L: 400,               // largura externa do pe (distancia entre faces externas)
-  folga: 20,            // sobrepasse do assento em relacao ao pe, igual nos 4 lados
-  tAssento: 20,         // espessura do tampo
-  alturaAbertura: 90,   // vao livre entre o topo do assento e a base do encosto
-  alturaEncosto: 320,   // do topo do assento ate o topo do encosto
-  tEncosto: 20,         // espessura da chapa do encosto
-  espessuraMaxima: 150, // acima disso as pernas se cruzam dentro do pe
+  L: 400,                        // largura externa do pe
+  folga: 20,                     // sobrepasse do assento em relacao ao pe
+
+  // Assento e encosto com METADE da espessura da perna. Mesma regra para os dois.
+  fracaoEspessuraAssento: 0.5,
+  fracaoEspessuraEncosto: 0.5,
+
+  alturaAbertura: 90,            // vao livre entre o topo do assento e a base do encosto
+  alturaEncosto: 320,            // do topo do assento ate o topo do encosto
+  espessuraMaxima: 150,          // acima disso as pernas se cruzam dentro do pe
 };
