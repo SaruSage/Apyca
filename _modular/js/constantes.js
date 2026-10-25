@@ -39,4 +39,7 @@ export const CADEIRA = {
   alturaAbertura: 90,            // vao livre entre o topo do assento e a base do encosto
   alturaEncosto: 320,            // do topo do assento ate o topo do encosto
   espessuraMaxima: 150,          // acima disso as pernas se cruzam dentro do pe
+    // O poste acima do assento termina nesta fracao da altura do encosto.
+  // 0,5 = apoia o encosto no meio da lateral. 1,0 = ate o topo (comportamento antigo).
+  fracaoApoioEncosto:0.5,
 };

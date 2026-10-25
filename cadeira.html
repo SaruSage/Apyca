@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadeira A3 — Simulador Estrutural</title>
+<style>
+  :root{
+    --fundo:#12161c; --painel:#1a2029; --borda:#2a3341; --texto:#e7edf5;
+    --fraco:#8b9aad; --acento:#4fa3ff; --ok:#3ecf8e; --erro:#f2555a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fundo);color:var(--texto);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+  .topo{padding:24px 32px 8px}
+  .topo h1{margin:0;font-size:1.6rem;letter-spacing:-.02em}
+  .sub{margin:4px 0 0;color:var(--fraco);font-size:.9rem}
+  .layout{display:grid;grid-template-columns:280px 1fr 340px;gap:16px;
+    padding:16px 32px 40px;align-items:start}
+  @media(max-width:1100px){.layout{grid-template-columns:1fr}}
+  .painel{background:var(--painel);border:1px solid var(--borda);border-radius:12px;padding:20px}
+  .painel h2{margin:0 0 16px;font-size:.78rem;text-transform:uppercase;
+    letter-spacing:.09em;color:var(--fraco);font-weight:600}
+  .campo{margin-bottom:14px}
+  .campo label{display:block;font-size:.82rem;color:var(--fraco);margin-bottom:5px}
+  .campo input,.campo select{width:100%;padding:9px 11px;background:#11161d;
+    border:1px solid var(--borda);border-radius:7px;color:var(--texto);
+    font-size:.95rem;font-family:inherit}
+  .campo input:focus,.campo select:focus{outline:none;border-color:var(--acento)}
+  .botao{width:100%;padding:11px;margin-top:6px;background:var(--acento);
+    color:#08121f;border:none;border-radius:8px;font-size:.95rem;
+    font-weight:650;cursor:pointer;font-family:inherit}
+  .palco{min-height:440px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;background:#0e1218;border-radius:8px}
+  .legenda{width:100%;margin:10px 0 0;text-align:center;font-size:.8rem;
+    color:var(--fraco);font-variant-numeric:tabular-nums}
+  .linha{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
+    border-bottom:1px solid rgba(42,51,65,.6);font-size:.88rem}
+  .linha:last-child{border-bottom:none}
+  .rotulo{color:var(--fraco)}
+  .valor{font-variant-numeric:tabular-nums;font-weight:600}
+  .grupo{margin-bottom:18px}
+  .grupo h3{margin:0 0 6px;font-size:.75rem;text-transform:uppercase;
+    letter-spacing:.07em;color:var(--acento);font-weight:600}
+  .veredito{margin-top:16px;padding:12px 14px;border-radius:8px;font-size:.88rem;font-weight:600}
+  .veredito--ok{background:rgba(62,207,142,.12);border:1px solid rgba(62,207,142,.4);color:var(--ok)}
+  .veredito--erro{background:rgba(242,85,90,.12);border:1px solid rgba(242,85,90,.4);color:var(--erro)}
+  .veredito ul{margin:8px 0 0;padding-left:18px;font-weight:400}
+  #erro-global{display:none;margin:0 32px 16px;padding:14px 16px;border-radius:8px;
+    background:rgba(242,85,90,.14);border:1px solid rgba(242,85,90,.5);
+    color:#ffd7d8;font-family:ui-monospace,monospace;font-size:.82rem;white-space:pre-wrap}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <h1>Cadeira A3</h1>
+  <p class="sub">Simulador de dimensionamento estrutural</p>
+</header>
+
+<div id="erro-global"></div>
+
+<main class="layout">
+  <section class="painel">
+    <h2>Entradas</h2>
+    <form id="form">
+      <div class="campo">
+        <label for="material">Material</label>
+        <select id="material"></select>
+      </div>
+      <div class="campo">
+        <label for="espessura">Espessura da perna (cm)</label>
+        <input id="espessura" type="number" min="0.5" max="15" step="0.5" value="4">
+      </div>
+      <div class="campo">
+        <label for="altura">Altura da perna (cm)</label>
+        <input id="altura" type="number" min="20" max="120" step="1" value="45">
+      </div>
+      <div class="campo">
+        <label for="massa">Massa do usuário (kg)</label>
+        <input id="massa" type="number" min="10" max="250" step="1" value="90">
+      </div>
+      <button type="submit" class="botao">Simular</button>
+    </form>
+  </section>
+
+  <section class="painel">
+    <h2>Vista isométrica</h2>
+    <div id="palco" class="palco"></div>
+  </section>
+
+  <section class="painel">
+    <h2>Resultados</h2>
+    <div id="resultado"></div>
+  </section>
+</main>
+
+<script>
+/* Painel de erro visivel: substitui o console */
+(function(){
+  var box = document.getElementById('erro-global');
+  function show(msg){
+    box.style.display = 'block';
+    box.textContent += msg + '\n';
+  }
+  window.addEventListener('error', function(e){
+    show('ERRO: ' + (e.message || 'falha de carregamento') +
+         (e.filename ? '\n  em ' + e.filename + ':' + e.lineno : ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    show('PROMISE: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+})();
+
+/* ============================ CONSTANTES ============================ */
+var G = 9.81;
+
+var HIPOTESES = { nPernas:4, L:400, e:50, K:1.0, mAssento:2.0 };
+
+var CADEIRA = {
+  L:400,
+  folga:20,
+  fracaoEspessuraAssento:0.5,
+  fracaoEspessuraEncosto:0.5,
+  alturaAbertura:90,
+  alturaEncosto:320,
+  espessuraMaxima:150
+};
+
+/* ============================= MATERIAIS ============================ */
+var CORES = { cinzaEscuro:'#4a4f55', vinhoEscuro:'#5c1f2b' };
+
+var MATERIAIS = {
+  madeira: {
+    id:'madeira', nome:'Madeira estrutural (C-40)',
+    E:9500, sigmaLimite:40, rho:600, CS:2.0, cor:'#a9713f',
+    render:{ pernas:'#a9713f', assento:'#a9713f',
+             encosto:{tipo:'painel', cor:'#a9713f'}, veios:true }
+  },
+  aco: {
+    id:'aco', nome:'Aco ASTM A36',
+    E:200000, sigmaLimite:250, rho:7850, CS:1.5, cor:'#8a9099',
+    render:{ pernas:'#8a9099', assento:CORES.cinzaEscuro,
+             encosto:{tipo:'ripas', cor:'#8a9099', n:3, fracao:0.2}, veios:false }
+  },
+  aluminio: {
+    id:'aluminio', nome:'Aluminio 6061-T6',
+    E:69000, sigmaLimite:240, rho:2700, CS:1.5, cor:'#c3c9cf',
+    render:{ pernas:'#c3c9cf', assento:CORES.cinzaEscuro,
+             encosto:{tipo:'painel', cor:CORES.vinhoEscuro}, veios:false }
+  }
+};
+
+/* ============================= GEOMETRIA ============================ */
+function areaSecao(t){ return t*t; }
+function inerciaSecao(t){ return Math.pow(t,4)/12; }
+function distFibra(t){ return t/2; }
+function modResistente(t){ return inerciaSecao(t)/distFibra(t); }
+function raioGiracao(t){ return t/Math.sqrt(12); }
+function esbeltez(H,t,K){ return (K*H)/raioGiracao(t); }
+function cargaCriticaEuler(E,t,H,K){
+  return (Math.PI*Math.PI*E*inerciaSecao(t))/Math.pow(K*H,2);
+}
+
+/* ============================== SOLVER ============================== */
+function calcular(inp){
+  var erros = [];
+  if(!(inp.espessuraMm>0)) erros.push('A espessura deve ser maior que zero.');
+  if(!(inp.alturaMm>0)) erros.push('A altura deve ser maior que zero.');
+  if(!(inp.massaKg>0)) erros.push('A massa deve ser maior que zero.');
+  var material = MATERIAIS[inp.materialId];
+  if(!material) erros.push('Material desconhecido.');
+  if(erros.length) return { ok:false, erros:erros };
+
+  var t = inp.espessuraMm, H = inp.alturaMm, m = inp.massaKg;
+  var n = HIPOTESES.nPernas, L = HIPOTESES.L, e = HIPOTESES.e, K = HIPOTESES.K;
+
+  var A = areaSecao(t);
+  var I = inerciaSecao(t);
+  var c = distFibra(t);
+  var W = modResistente(t);
+
+  var P = m*G;
+  var Nmedio = P/n;
+  var dN = (P*e)/(2*L);
+  var Nmax = Nmedio + dN;
+  var Nmin = Math.max(0, Nmedio - dN);
+  var levantou = dN > Nmedio;
+  var Mperna = (P*e)/n;
+
+  var sigmaAxial = Nmax/A;
+  var sigmaFlexao = Mperna/W;
+  var sigmaMax = sigmaAxial + sigmaFlexao;
+  var sigmaAdm = material.sigmaLimite/material.CS;
+  var utilizacao = sigmaMax/sigmaAdm;
+
+  var lambda = esbeltez(H,t,K);
+  var Pcr = cargaCriticaEuler(material.E,t,H,K);
+  var NcrAdm = Pcr/material.CS;
+  var utFlamb = Nmax/NcrAdm;
+
+  var delta = (Nmax*H)/(A*material.E);
+
+  var volPernas = (n*A*H)/1e9;
+  var massaPernas = volPernas*material.rho;
+  var massaTotal = massaPernas + HIPOTESES.mAssento;
+
+  var motivos = [];
+  if(utilizacao>1) motivos.push('Tensao ' + fmt(sigmaMax) + ' MPa acima da admissivel ' + fmt(sigmaAdm) + ' MPa.');
+  if(utFlamb>1) motivos.push('Flambagem: ' + fmt(Nmax) + ' N acima de ' + fmt(NcrAdm) + ' N.');
+  if(levantou) motivos.push('A excentricidade levanta as pernas do lado oposto.');
+
+  return {
+    ok:true,
+    entrada:{ material:material, t:t, H:H, m:m },
+    secao:{ A:A, I:I, W:W, c:c, lambda:lambda },
+    forcas:{ P:P, Nmedio:Nmedio, dN:dN, Nmax:Nmax, Nmin:Nmin, Mperna:Mperna },
+    tensoes:{ sigmaAxial:sigmaAxial, sigmaFlexao:sigmaFlexao, sigmaMax:sigmaMax,
+              sigmaAdm:sigmaAdm, utilizacao:utilizacao },
+    flambagem:{ lambda:lambda, Pcr:Pcr, NcrAdm:NcrAdm, utilizacao:utFlamb },
+    deformacao:{ delta:delta },
+    massa:{ pernas:massaPernas, total:massaTotal },
+    veredito:{ aprovado: motivos.length===0, motivos:motivos }
+  };
+}
+
+function fmt(v){
+  return v.toLocaleString('pt-BR',{maximumFractionDigits:2});
+}
+
+/* =========================== MODELO 3D ============================== */
+function barra(x,y,z,dx,dy,dz,camada,cor){
+  return { x:x, y:y, z:z, dx:dx, dy:dy, dz:dz, camada:camada, cor:cor };
+}
+
+function encostoRipas(x0, larg, zBase, alt, tEnc, cor, n, fracao){
+  var unidade = alt/(2*n-1);
+  var tRipa = fracao*tEnc;
+  var out = [];
+  for(var i=0;i<n;i++){
+    out.push(barra(x0,0,zBase+i*2*unidade,larg,tRipa,unidade,3,cor));
+  }
+  return out;
+}
+
+function construirBarras(espessura, altura, material){
+  var L = CADEIRA.L;
+  var folga = CADEIRA.folga;
+  var render = (material && material.render) || MATERIAIS.madeira.render;
+
+  var t = Math.min(espessura, CADEIRA.espessuraMaxima);
+  var H = altura;
+
+  var tAssento = CADEIRA.fracaoEspessuraAssento*t;
+  var tEnc = CADEIRA.fracaoEspessuraEncosto*t;
+
+  var zTopoAssento = H + tAssento;
+  var zTopoEncosto = zTopoAssento + CADEIRA.alturaEncosto;
+  var zBaseEncosto = zTopoAssento + CADEIRA.alturaAbertura;
+
+  var b = [];
+
+  /* camada 0: pernas abaixo do assento */
+  b.push(barra(0,        L-t, 0, t, t, H, 0, render.pernas));
+  b.push(barra(L-t,      L-t, 0, t, t, H, 0, render.pernas));
+  b.push(barra(0,        0,   0, t, t, H, 0, render.pernas));
+  b.push(barra(L-t,      0,   0, t, t, H, 0, render.pernas));
+
+  /* camada 2: assento */
+  b.push(barra(-folga, -folga, H, L+2*folga, L+2*folga, tAssento, 2, render.assento));
+
+  /* camada 3: postes e encosto */
+  var hPoste = zTopoEncosto - zTopoAssento;
+  b.push(barra(0,   0, zTopoAssento, t, t, hPoste, 3, render.pernas));
+  b.push(barra(L-t, 0, zTopoAssento, t, t, hPoste, 3, render.pernas));
+
+  var largPainel = L - 2*t;
+  var altPainel = zTopoEncosto - zBaseEncosto;
+  var spec = render.encosto || { tipo:'painel', cor:render.pernas };
+  var corEnc = spec.cor || render.pernas;
+
+  if(altPainel>0 && largPainel>0){
+    if(spec.tipo === 'ripas'){
+      var ripas = encostoRipas(t, largPainel, zBaseEncosto, altPainel,
+                               tEnc, corEnc, spec.n||3, spec.fracao||0.2);
+      for(var k=0;k<ripas.length;k++) b.push(ripas[k]);
+    } else {
+      b.push(barra(t, 0, zBaseEncosto, largPainel, tEnc, altPainel, 3, corEnc));
+    }
+  }
+
+  return b;
+}
+
+/* ========================== PROJECAO ISO ============================ */
+var COS30 = Math.cos(Math.PI/6);
+var SOMBRA = { top:1.16, front:0.94, side:0.70 };
+
+function project(p, escala, origem){
+  return [
+    origem[0] + (p[0]-p[1])*COS30*escala,
+    origem[1] + ((p[0]+p[1])*0.5 - p[2])*escala
+  ];
+}
+
+function facesDaCaixa(p){
+  var X = p.x+p.dx, Y = p.y+p.dy, Z = p.z+p.dz;
+  return [
+    { kind:'top',   quad:[[p.x,p.y,Z],[X,p.y,Z],[X,Y,Z],[p.x,Y,Z]] },
+    { kind:'front', quad:[[p.x,Y,p.z],[X,Y,p.z],[X,Y,Z],[p.x,Y,Z]] },
+    { kind:'side',  quad:[[X,p.y,p.z],[X,Y,p.z],[X,Y,Z],[X,p.y,Z]] }
+  ];
+}
+
+function computeView(barras, largura, altura, margem){
+  var min = [Infinity,Infinity,Infinity];
+  var max = [-Infinity,-Infinity,-Infinity];
+  for(var i=0;i<barras.length;i++){
+    var b = barras[i];
+    min[0]=Math.min(min[0],b.x); max[0]=Math.max(max[0],b.x+b.dx);
+    min[1]=Math.min(min[1],b.y); max[1]=Math.max(max[1],b.y+b.dy);
+    min[2]=Math.min(min[2],b.z); max[2]=Math.max(max[2],b.z+b.dz);
+  }
+  var cantos = [];
+  var xs0=[min[0],max[0]], ys0=[min[1],max[1]], zs0=[min[2],max[2]];
+  for(var a=0;a<2;a++) for(var c2=0;c2<2;c2++) for(var d=0;d<2;d++){
+    cantos.push(project([xs0[a],ys0[c2],zs0[d]],1,[0,0]));
+  }
+  var px = cantos.map(function(c){return c[0];});
+  var py = cantos.map(function(c){return c[1];});
+  var lw = Math.max.apply(null,px)-Math.min.apply(null,px);
+  var lh = Math.max.apply(null,py)-Math.min.apply(null,py);
+
+  var utilL = largura-2*margem, utilA = altura-2*margem;
+  var escala = Math.min(utilL/lw, utilA/lh);
+  var origem = [
+    margem + (utilL-lw*escala)/2 - Math.min.apply(null,px)*escala,
+    margem + (utilA-lh*escala)/2 - Math.min.apply(null,py)*escala
+  ];
+  return { escala:escala, origem:origem, bounds:{min:min,max:max} };
+}
+
+function sombrear(hex,k){
+  var s = hex.replace('#','');
+  if(s.length===3) s = s[0]+s[0]+s[1]+s[1]+s[2]+s[2];
+  var n = parseInt(s,16);
+  var r = (n>>16)&255, g = (n>>8)&255, bl = n&255;
+  return 'rgb(' + [r,g,bl].map(function(v){
+    return Math.max(0,Math.min(255,Math.round(v*k)));
+  }).join(',') + ')';
+}
+
+function buildFaces(barras, escala, origem, corBase){
+  var faces = [];
+  for(var i=0;i<barras.length;i++){
+    var p = barras[i];
+    var prof = (p.x+p.dx)+(p.y+p.dy)+(p.z+p.dz);
+    var cor = p.cor || corBase;
+    var fs = facesDaCaixa(p);
+    for(var j=0;j<fs.length;j++){
+      var f = fs[j], k = SOMBRA[f.kind];
+      faces.push({
+        kind:f.kind,
+        tela:f.quad.map(function(pt){ return project(pt,escala,origem); }),
+        camada:p.camada||0,
+        prof:prof,
+        barras:p,
+        fill:sombrear(cor,k),
+        contorno:sombrear(cor,k*0.72)
+      });
+    }
+  }
+  faces.sort(function(a,b){
+    return (a.camada-b.camada) || (a.prof-b.prof);
+  });
+  return faces;
+}
+
+/* ============================= RENDER =============================== */
+var LARGURA_SVG = 860, ALTURA_SVG = 620;
+
+function poly(pts){
+  return pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+}
+
+function veios(b, escala, origem){
+  var menor = Math.min(b.dx,b.dy);
+  var n = Math.min(7, Math.max(2, Math.round(menor/14)));
+  var z = b.z + b.dz;
+  var out = '';
+  for(var i=1;i<=n;i++){
+    var k = i/(n+1);
+    var y = b.y + b.dy*k;
+    var a = project([b.x,y,z],escala,origem);
+    var c = project([b.x+b.dx,y,z],escala,origem);
+    var op = 0.08 + 0.05*((i*37)%5)/4;
+    out += '<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" '+
+           'x2="'+c[0].toFixed(1)+'" y2="'+c[1].toFixed(1)+'" '+
+           'stroke="#000" stroke-opacity="'+op.toFixed(3)+'" '+
+           'stroke-width="1.1" stroke-linecap="round"/>';
+  }
+  return out;
+}
+
+function renderCadeira(container, barras, material){
+  var view = computeView(barras, LARGURA_SVG, ALTURA_SVG, 48);
+  var faces = buildFaces(barras, view.escala, view.origem, material.cor);
+  var mostrarVeios = material.render && material.render.veios === true;
+  var conteudo = [];
+
+  var bd = view.bounds;
+  var m = 0.16*(bd.max[0]-bd.min[0]);
+  var sombra = [
+    [bd.min[0]-m, bd.min[1]-m, 0],
+    [bd.max[0]+m, bd.min[1]-m, 0],
+    [bd.max[0]+m, bd.max[1]+m, 0],
+    [bd.min[0]-m, bd.max[1]+m, 0]
+  ].map(function(c){ return project(c, view.escala, view.origem); });
+
+  conteudo.push('<polygon points="'+poly(sombra)+'" fill="#000" fill-opacity="0.5" filter="url(#borrao)"/>');
+
+  for(var i=0;i<faces.length;i++){
+    var f = faces[i];
+    conteudo.push('<polygon points="'+poly(f.tela)+'" fill="'+f.fill+'" '+
+      'stroke="'+f.contorno+'" stroke-width="0.9" stroke-linejoin="round"/>');
+    if(mostrarVeios && f.kind === 'top'){
+      conteudo.push(veios(f.barras, view.escala, view.origem));
+    }
+  }
+
+  container.innerHTML =
+    '<svg viewBox="0 0 '+LARGURA_SVG+' '+ALTURA_SVG+'" width="100%" role="img" '+
+    'aria-label="Vista isometrica da cadeira">'+
+      '<defs><filter id="borrao" x="-40%" y="-40%" width="180%" height="180%">'+
+      '<feGaussianBlur stdDeviation="12"/></filter></defs>'+
+      conteudo.join('')+
+    '</svg>';
+
+  return {
+    largura: bd.max[0]-bd.min[0],
+    profundidade: bd.max[1]-bd.min[1],
+    altura: bd.max[2]-bd.min[2]
+  };
+}
+
+/* =============================== APP ================================ */
+(function(){
+  var form = document.getElementById('form');
+  var sel = document.getElementById('material');
+  var inEsp = document.getElementById('espessura');
+  var inAlt = document.getElementById('altura');
+  var inMas = document.getElementById('massa');
+  var painel = document.getElementById('resultado');
+  var palco = document.getElementById('palco');
+
+  Object.keys(MATERIAIS).forEach(function(id){
+    var o = document.createElement('option');
+    o.value = id;
+    o.textContent = MATERIAIS[id].nome;
+    sel.appendChild(o);
+  });
+
+  function num(v,casas){
+    return v.toLocaleString('pt-BR',{
+      minimumFractionDigits:casas, maximumFractionDigits:casas
+    });
+  }
+  function linha(rot,val){
+    return '<div class="linha"><span class="rotulo">'+rot+'</span>'+
+           '<span class="valor">'+val+'</span></div>';
+  }
+  function grupo(tit,linhas){
+    return '<div class="grupo"><h3>'+tit+'</h3>'+linhas.join('')+'</div>';
+  }
+
+  function renderResultado(r){
+    if(!r.ok){
+      painel.innerHTML = '<div class="veredito veredito--erro">'+r.erros.join(' ')+'</div>';
+      return;
+    }
+    var h = '';
+    h += grupo('Secao da perna',[
+      linha('Area (A)', num(r.secao.A,0)+' mm²'),
+      linha('Inercia (I)', num(r.secao.I,0)+' mm⁴'),
+      linha('Modulo resistente (W)', num(r.secao.W,0)+' mm³')
+    ]);
+    h += grupo('Esforcos',[
+      linha('Carga total (P)', num(r.forcas.P,1)+' N'),
+      linha('Reacao media por perna', num(r.forcas.Nmedio,1)+' N'),
+      linha('Reacao maxima (N)', num(r.forcas.Nmax,1)+' N'),
+      linha('Momento na perna (M)', num(r.forcas.Mperna,0)+' N·mm')
+    ]);
+    h += grupo('Tensoes normais',[
+      linha('Axial (N/A)', num(r.tensoes.sigmaAxial,3)+' MPa'),
+      linha('Flexao (M·c/I)', num(r.tensoes.sigmaFlexao,3)+' MPa'),
+      linha('Maxima', num(r.tensoes.sigmaMax,3)+' MPa'),
+      linha('Admissivel', num(r.tensoes.sigmaAdm,3)+' MPa'),
+      linha('Utilizacao', num(r.tensoes.utilizacao*100,1)+'%')
+    ]);
+    h += grupo('Flambagem',[
+      linha('Indice de esbeltez', num(r.flambagem.lambda,1)),
+      linha('Carga critica (Pcr)', num(r.flambagem.Pcr/1000,2)+' kN'),
+      linha('Utilizacao', num(r.flambagem.utilizacao*100,1)+'%')
+    ]);
+    h += grupo('Deformacao e massa',[
+      linha('Encurtamento axial', num(r.deformacao.delta,4)+' mm'),
+      linha('Massa das pernas', num(r.massa.pernas,2)+' kg'),
+      linha('Massa total', num(r.massa.total,2)+' kg')
+    ]);
+    if(r.veredito.aprovado){
+      h += '<div class="veredito veredito--ok">Configuracao aprovada em todos os criterios.</div>';
+    } else {
+      h += '<div class="veredito veredito--erro">Configuracao reprovada.<ul>'+
+           r.veredito.motivos.map(function(mt){ return '<li>'+mt+'</li>'; }).join('')+
+           '</ul></div>';
+    }
+    painel.innerHTML = h;
+  }
+
+  function simular(){
+    var tMm = parseFloat(inEsp.value)*10;
+    var hMm = parseFloat(inAlt.value)*10;
+    var mMassa = parseFloat(inMas.value);
+
+    var r = calcular({
+      materialId: sel.value, espessuraMm: tMm,
+      alturaMm: hMm, massaKg: mMassa
+    });
+    renderResultado(r);
+
+    if(!r.ok) return r;
+
+    var material = r.entrada.material;
+    var barras = construirBarras(r.entrada.t, r.entrada.H, material);
+    var dims = renderCadeira(palco, barras, material);
+
+    var p = document.createElement('p');
+    p.className = 'legenda';
+    p.textContent = num(dims.altura/10,1)+' × '+num(dims.largura/10,1)+' × '+
+                    num(dims.profundidade/10,1)+' cm · material: '+material.nome;
+    palco.appendChild(p);
+
+    return r;
+  }
+
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    simular();
+  });
+  form.addEventListener('input', simular);
+
+  simular();
+})();
+</script>
+</body>
+</html>

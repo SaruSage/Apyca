@@ -16,8 +16,108 @@
 
 import { CADEIRA } from './constantes.js';
 
-function barra(x, y, z, dx, dy, dz, camada, cor) {
-  return { x, y, z, dx, dy, dz, camada, cor };
+function caixa(x,y,z,dx,dy,dz,camada,cor){
+  return {tipo:'caixa', x:x,y:y,z:z,dx:dx,dy:dy,dz:dz,camada:camada,cor:cor};
+}
+function cilindro(cx,cy,r,z0,h,camada,cor){
+  return {tipo:'cilindro', cx:cx,cy:cy,r:r,z0:z0,h:h,camada:camada,cor:cor};
+}
+function bboxPeca(p){
+  if(p.tipo === 'cilindro'){
+    return { min:[p.cx-p.r, p.cy-p.r, p.z0], max:[p.cx+p.r, p.cy+p.r, p.z0+p.h] };
+  }
+  return { min:[p.x,p.y,p.z], max:[p.x+p.dx,p.y+p.dy,p.z+p.dz] };
+}
+
+function encostoRipas(x0, larg, zBase, alt, prof, cor, n, fracao){
+  var unidade = alt/(2*n-1);
+  var pRipa = fracao*prof;
+  var out = [];
+  for(var i=0;i<n;i++){
+    out.push(caixa(x0, 0, zBase+i*2*unidade, larg, pRipa, unidade, 3, cor));
+  }
+  return out;
+}
+
+function construirBarras(espessura, altura, material, forma, numPernas){
+  var L = CADEIRA.L, folga = CADEIRA.folga;
+  var render = (material && material.render) || MATERIAIS.madeira.render;
+  var redonda = forma === 'redonda';
+  var n = numPernas === 1 ? 1 : 4;
+
+  var t = Math.min(espessura, CADEIRA.espessuraMaxima);
+  var H = altura;
+
+  var tAssento = CADEIRA.fracaoEspessuraAssento*t;
+  var tEnc = CADEIRA.fracaoEspessuraEncosto*t;
+
+  var zTopoAssento = H + tAssento;
+  var zTopoEncosto = zTopoAssento + CADEIRA.alturaEncosto;
+  var zBaseEncosto = zTopoAssento + CADEIRA.alturaAbertura;
+
+  var b = [];
+
+  function perna(x, y, z0, h, camada){
+    if(redonda){
+      b.push(cilindro(x + t/2, y + t/2, t/2, z0, h, camada, render.pernas));
+    } else {
+      b.push(caixa(x, y, z0, t, t, h, camada, render.pernas));
+    }
+  }
+
+  /* Pernas abaixo do assento. O envelope externo continua sendo 0..L. */
+  if(n === 4){
+    perna(0,   L-t, 0, H, 0);
+    perna(L-t, L-t, 0, H, 0);
+    perna(0,   0,   0, H, 0);
+    perna(L-t, 0,   0, H, 0);
+  } else {
+    perna(L/2-t/2, L/2-t/2, 0, H, 0);
+  }
+
+  /* Assento */
+  b.push(caixa(-folga, -folga, H, L+2*folga, L+2*folga, tAssento, 2, render.assento));
+
+  /* Postes acima do assento: terminam no MEIO da altura do encosto. */
+  var altPainel = zTopoEncosto - zBaseEncosto;
+  var zTopoPoste = zBaseEncosto + altPainel*CADEIRA.fracaoApoioEncosto;
+  var hPoste = zTopoPoste - zTopoAssento;
+
+  if(n === 4){
+    perna(0,   0, zTopoAssento, hPoste, 3);
+    perna(L-t, 0, zTopoAssento, hPoste, 3);
+  } else {
+    perna(L/2-t/2, L/2-t/2, zTopoAssento, hPoste, 3);
+  }
+
+  /* Encosto */
+  var largPainel = L - 2*t;
+  var spec = render.encosto || { tipo:'painel', cor:render.pernas };
+  var corEnc = spec.cor || render.pernas;
+
+  if(altPainel>0 && largPainel>0){
+    if(spec.tipo === 'ripas'){
+      var ripas = encostoRipas(t, largPainel, zBaseEncosto, altPainel,
+                               tEnc, corEnc, spec.n||3, spec.fracao||0.2);
+      for(var k=0;k<ripas.length;k++) b.push(ripas[k]);
+    } else {
+      b.push(caixa(t, 0, zBaseEncosto, largPainel, tEnc, altPainel, 3, corEnc));
+    }
+  }
+
+  return b;
+}
+
+function dimensoesExternas(barras){
+  var min=[Infinity,Infinity,Infinity], max=[-Infinity,-Infinity,-Infinity];
+  for(var i=0;i<barras.length;i++){
+    var bb = bboxPeca(barras[i]);
+    for(var a=0;a<3;a++){
+      if(bb.min[a]<min[a]) min[a]=bb.min[a];
+      if(bb.max[a]>max[a]) max[a]=bb.max[a];
+    }
+  }
+  return { largura:max[0]-min[0], profundidade:max[1]-min[1], altura:max[2]-min[2] };
 }
 
 const RENDER_PADRAO = {

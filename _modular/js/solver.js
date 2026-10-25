@@ -25,86 +25,78 @@ import {
   cargaCriticaEuler,
 } from './geometry.js';
 
-export function calcular({ materialId, espessuraMm, alturaMm, massaKg }) {
-  const erros = [];
-  if (!Number.isFinite(espessuraMm) || espessuraMm <= 0) erros.push('A espessura da perna deve ser maior que zero.');
-  if (!Number.isFinite(alturaMm) || alturaMm <= 0) erros.push('A altura da perna deve ser maior que zero.');
-  if (!Number.isFinite(massaKg) || massaKg <= 0) erros.push('A massa do usuario deve ser maior que zero.');
+function calcular(inp){
+  var erros = [];
+  if(!(inp.espessuraMm>0)) erros.push('A espessura deve ser maior que zero.');
+  if(!(inp.alturaMm>0)) erros.push('A altura deve ser maior que zero.');
+  if(!(inp.massaKg>0)) erros.push('A massa deve ser maior que zero.');
+  var material = MATERIAIS[inp.materialId];
+  if(!material) erros.push('Material desconhecido.');
+  if(erros.length) return { ok:false, erros:erros };
 
-  let material;
-  try {
-    material = getMaterial(materialId);
-  } catch {
-    erros.push('Material desconhecido.');
+  var forma = inp.forma === 'redonda' ? 'redonda' : 'quadrada';
+  var n = inp.numPernas === 1 ? 1 : 4;
+
+  var t = inp.espessuraMm, H = inp.alturaMm, m = inp.massaKg;
+  var L = HIPOTESES.L, e = HIPOTESES.e, K = HIPOTESES.K;
+
+  var sec = propriedadesSecao(t, forma);
+  var A = sec.A, I = sec.I, c = sec.c, W = sec.W;
+
+  var P = m*G;
+  var Nmedio, dN, Nmax, Mperna, levantou = false;
+
+  if(n === 1){
+    /* Pedestal central: a coluna recebe a carga total e o momento total.
+       Nao existe pegada de 4 apoios para distribuir a excentricidade. */
+    Nmedio = P;
+    dN = 0;
+    Nmax = P;
+    Mperna = P*e;
+  } else {
+    /* Quatro apoios num quadrado de lado L: N = P/4 +/- P*e/(2L).
+       Cada perna recebe M = P*e/4. */
+    Nmedio = P/n;
+    dN = (P*e)/(2*L);
+    Nmax = Nmedio + dN;
+    Mperna = (P*e)/n;
+    levantou = dN > Nmedio;
   }
+  var Nmin = Math.max(0, Nmedio - dN);
 
-  if (erros.length > 0) {
-    return { ok: false, erros };
-  }
+  var sigmaAxial = Nmax/A;
+  var sigmaFlexao = Mperna/W;
+  var sigmaMax = sigmaAxial + sigmaFlexao;
+  var sigmaAdm = material.sigmaLimite/material.CS;
+  var utilizacao = sigmaMax/sigmaAdm;
 
-  const t = espessuraMm;
-  const H = alturaMm;
-  const m = massaKg;
-  const { nPernas: n, L, e, K } = HIPOTESES;
+  var lambda = (K*H)/sec.r;
+  var Pcr = (Math.PI*Math.PI*material.E*I)/Math.pow(K*H,2);
+  var NcrAdm = Pcr/material.CS;
+  var utFlamb = Nmax/NcrAdm;
 
-  // === Secao ===
-  const A = area(t);
-  const I = inercia(t);
-  const c = distanciaFibra(t);
-  const W = moduloResistente(t);
+  var delta = (Nmax*H)/(A*material.E);
 
-  // === Forcas ===
-  const P = m * G;                  // N
-  const Nmedio = P / n;             // N
-  const dN = (P * e) / (2 * L);     // N
-  const Nmax = Nmedio + dN;         // N
-  const Nmin = Math.max(0, Nmedio - dN); // perna nao resiste tracao: levanta
-  const levantou = Nmin === 0 && dN > Nmedio;
-  const Mperna = (P * e) / n;       // N.mm
+  var volPernas = (n*A*H)/1e9;
+  var massaPernas = volPernas*material.rho;
+  var massaTotal = massaPernas + HIPOTESES.mAssento;
 
-  // === Tensoes ===
-  const sigmaAxial = Nmax / A;      // MPa
-  const sigmaFlexao = Mperna / W;   // MPa
-  const sigmaMax = sigmaAxial + sigmaFlexao;
-  const sigmaAdm = tensaoAdmissivel(material);
-  const utilizacao = sigmaMax / sigmaAdm;
-
-  // === Flambagem ===
-  const lambda = esbeltez(H, t, K);
-  const Pcr = cargaCriticaEuler(material.E, t, H, K);
-  const NcrAdm = Pcr / material.CS;
-  const utilizacaoFlambagem = Nmax / NcrAdm;
-
-  // === Deformacao ===
-  const deltaAxial = (Nmax * H) / (A * material.E); // mm
-
-  // === Massa ===
-  const volumePernasM3 = (n * A * H) / 1e9;
-  const massaPernas = volumePernasM3 * material.rho;
-  const massaTotal = massaPernas + HIPOTESES.mAssento;
-
-  // === Veredito ===
-  const motivos = [];
-  if (utilizacao > 1) {
-    motivos.push(`Tensao normal ${fmt(sigmaMax)} MPa acima da admissivel ${fmt(sigmaAdm)} MPa.`);
-  }
-  if (utilizacaoFlambagem > 1) {
-    motivos.push(`Flambagem: carga ${fmt(Nmax)} N acima da admissivel ${fmt(NcrAdm)} N.`);
-  }
-  if (levantou) {
-    motivos.push('A excentricidade e alta o bastante para levantar as pernas do lado oposto.');
-  }
+  var motivos = [];
+  if(utilizacao>1) motivos.push('Tensao normal '+fmt(sigmaMax)+' MPa acima da admissivel '+fmt(sigmaAdm)+' MPa.');
+  if(utFlamb>1) motivos.push('Flambagem: '+fmt(Nmax)+' N acima de '+fmt(NcrAdm)+' N.');
+  if(levantou) motivos.push('A excentricidade levanta as pernas do lado oposto.');
 
   return {
-    ok: true,
-    entrada: { material, t, H, m },
-    secao: { A, I, W, c, lambda },
-    forcas: { P, Nmedio, dN, Nmax, Nmin, Mperna, levantou },
-    tensoes: { sigmaAxial, sigmaFlexao, sigmaMax, sigmaAdm, utilizacao },
-    flambagem: { lambda, Pcr, NcrAdm, utilizacaoFlambagem },
-    deformacao: { deltaAxial },
-    massa: { pernas: massaPernas, total: massaTotal },
-    veredito: { aprovado: motivos.length === 0, motivos },
+    ok:true,
+    entrada:{ material:material, t:t, H:H, m:m, forma:forma, numPernas:n },
+    secao:{ A:A, I:I, W:W, c:c, r:sec.r, lambda:lambda },
+    forcas:{ P:P, Nmedio:Nmedio, dN:dN, Nmax:Nmax, Nmin:Nmin, Mperna:Mperna },
+    tensoes:{ sigmaAxial:sigmaAxial, sigmaFlexao:sigmaFlexao, sigmaMax:sigmaMax,
+              sigmaAdm:sigmaAdm, utilizacao:utilizacao },
+    flambagem:{ lambda:lambda, Pcr:Pcr, NcrAdm:NcrAdm, utilizacao:utFlamb },
+    deformacao:{ delta:delta },
+    massa:{ pernas:massaPernas, total:massaTotal },
+    veredito:{ aprovado: motivos.length===0, motivos:motivos }
   };
 }
 
