@@ -41,9 +41,13 @@ export const CADEIRA = {
    * Lado da base da piramide como FRACAO DO DIAMETRO do cone.
    * 1,0   -> lado 400 mm (mesmo diametro)
    * 2/3   -> lado ~266,7 mm
-   *
-   * ATENCAO: o braco de tombamento da piramide e metade desse lado.
-   * Reduzir esta fracao reduz a estabilidade na mesma proporcao.
    */
-  fracaoLadoPiramide: 2 / 3
+  fracaoLadoPiramide: 2 / 3,
+
+  /*
+   * Limite de flecha do assento em balanco, como divisor do proprio balanco.
+   * 150 significa flecha maxima = a/150.
+   * Diminua para exigir mais rigidez (200, 300) ou aumente para relaxar.
+   */
+  divisorFlechaAssento: 150
 };

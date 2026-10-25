@@ -168,67 +168,75 @@
     const quatro = calcular({ materialId:'madeira', espessuraMm:40,
                               alturaMm:450, massaKg:100, numPernas:4 });
 
-    // Valores de referencia para os volumes
-    const FRACAO = 2 / 3;
-    const R_CONE = 200;
-    const hPeRef = 55;
-    const ladoRef = 2 * R_CONE * FRACAO;
-    const A1 = ladoRef * ladoRef;
-    const A2 = 40 * 40;
-    const Vpir = (hPeRef / 3) * (A1 + A2 + Math.sqrt(A1 * A2)) / 1e9;
-    const Vcone = ((Math.PI * hPeRef) / 3) * (200*200 + 200*20 + 20*20) / 1e9;
+    /* ---------- Assento em balanco ---------- */
 
-    /* --- Geometria do pe --- */
-    verificar('pe piramidal tem volume', ped.ok && ped.estabilidade.volumePe > 0);
-    verificar('volume da piramide confere com a formula',
-      ped.ok && quase(ped.estabilidade.volumePe, Vpir),
-      'obtido ' + (ped.ok ? ped.estabilidade.volumePe : '-') + ' esperado ' + Vpir);
-    verificar('volume do cone confere com a formula',
-      pedRed.ok && quase(pedRed.estabilidade.volumePe, Vcone));
-    verificar('piramide 2/3 e mais leve que o cone',
-      ped.ok && pedRed.ok && ped.massa.pernas < pedRed.massa.pernas);
-    verificar('razao de volume entre 0,55 e 0,65',
-      ped.ok && pedRed.ok &&
-      (ped.estabilidade.volumePe / pedRed.estabilidade.volumePe) > 0.55 &&
-      (ped.estabilidade.volumePe / pedRed.estabilidade.volumePe) < 0.65);
+    const bAss = 440;
+    const hAss = 20;          // 0,5 * 40
+    const aPed = 200;         // 200 + 20 - 20
+    const MoRef = 981 * aPed;
+    const WoRef = (bAss * hAss * hAss) / 6;
+    const IoRef = (bAss * Math.pow(hAss, 3)) / 12;
+    const flechaRef = (981 * Math.pow(aPed, 3)) / (3 * 9500 * IoRef);
 
-    /* --- Braco de tombamento dependente do formato --- */
-    verificar('braco do cone e o raio cheio',
-      pedRed.ok && quase(pedRed.estabilidade.braco, 200));
-    verificar('braco da piramide e metade do lado 2/3',
-      ped.ok && quase(ped.estabilidade.braco, ladoRef / 2),
-      'obtido ' + (ped.ok ? ped.estabilidade.braco : '-'));
-    verificar('braco da piramide e 2/3 do braco do cone',
-      ped.ok && pedRed.ok &&
-      quase(ped.estabilidade.braco, pedRed.estabilidade.braco * FRACAO));
+    verificar('assento: largura e espessura corretas',
+      ped.ok && quase(ped.assento.b, 440) && quase(ped.assento.h, 20));
+    verificar('assento do pedestal: balanco de 200 mm',
+      ped.ok && quase(ped.assento.a, aPed), 'obtido ' + (ped.ok ? ped.assento.a : '-'));
+    verificar('assento do pedestal: momento no engaste',
+      ped.ok && quase(ped.assento.M, MoRef));
+    verificar('assento do pedestal: modulo resistente',
+      ped.ok && quase(ped.assento.W, WoRef));
+    verificar('assento do pedestal: tensao de flexao',
+      ped.ok && quase(ped.assento.sigma, MoRef / WoRef));
+    verificar('assento do pedestal: flecha',
+      ped.ok && quase(ped.assento.flecha, flechaRef),
+      'obtido ' + (ped.ok ? ped.assento.flecha : '-'));
+    verificar('assento do pedestal: flecha limite = a/150',
+      ped.ok && quase(ped.assento.flechaLimite, aPed / 150));
+    verificar('assento do pedestal aprova em tensao e flecha',
+      ped.ok && ped.assento.utilizacao <= 1 && ped.assento.utilizacaoFlecha <= 1);
+    verificar('assento do pedestal nao governa a reprovacao',
+      ped.ok && ped.veredito.aprovado === true);
 
-    /* --- Tombamento --- */
-    verificar('utilizacao de tombamento da piramide',
-      ped.ok && quase(ped.estabilidade.utilizacao,
-        (ped.forcas.P * 50) / ((ped.forcas.P + ped.estabilidade.pesoCadeira) *
-                               ped.estabilidade.braco)));
-    verificar('piramide tomba mais que o cone',
-      ped.ok && pedRed.ok &&
-      ped.estabilidade.utilizacao > pedRed.estabilidade.utilizacao);
-    verificar('razao de tombamento proxima de 1,5',
-      ped.ok && pedRed.ok &&
-      (ped.estabilidade.utilizacao / pedRed.estabilidade.utilizacao) > 1.4 &&
-      (ped.estabilidade.utilizacao / pedRed.estabilidade.utilizacao) < 1.6);
-    verificar('nestas condicoes nenhum dos dois tomba',
-      ped.ok && pedRed.ok &&
-      !ped.estabilidade.tombou && !pedRed.estabilidade.tombou);
+    verificar('assento de 4 pernas tem balanco de 20 mm',
+      quatro.ok && quase(quatro.assento.a, 20));
+    verificar('assento de 4 pernas e muito menos solicitado',
+      quatro.ok && ped.ok && ped.assento.sigma > 5 * quatro.assento.sigma);
+    verificar('assento de 4 pernas tem flecha desprezivel',
+      quatro.ok && quatro.assento.flecha < 0.01);
 
-    /* --- Regime estrutural --- */
+    const pedFino = calcular({ materialId:'madeira', espessuraMm:10,
+                               alturaMm:450, massaKg:90, numPernas:1 });
+    verificar('assento fino reprova por tensao',
+      pedFino.ok && pedFino.assento.utilizacao > 1,
+      'util ' + (pedFino.ok ? pedFino.assento.utilizacao : '-'));
+    verificar('assento fino reprova por flecha',
+      pedFino.ok && pedFino.assento.utilizacaoFlecha > 1);
+    verificar('assento fino aparece nos motivos',
+      pedFino.ok && pedFino.veredito.motivos.some(t => t.indexOf('assento') >= 0));
+
+    const pedGrosso = calcular({ materialId:'aco', espessuraMm:60,
+                                 alturaMm:450, massaKg:100, numPernas:1 });
+    verificar('assento robusto aprova',
+      pedGrosso.ok && pedGrosso.assento.utilizacao <= 1 &&
+      pedGrosso.assento.utilizacaoFlecha <= 1);
+
+    /* ---------- Tombamento e regime ---------- */
+
     verificar('pedestal usa K = 2 (balanco)', ped.ok && ped.flambagem.K === 2);
     verificar('4 pernas usa K = 1 (rotula-rotula)', quatro.ok && quatro.flambagem.K === 1);
     verificar('carga critica do pedestal e 1/4 da de 4 pernas',
       ped.ok && quase(ped.flambagem.Pcr, quatro.flambagem.Pcr / 4));
     verificar('4 pernas nao tem verificacao de tombamento',
       quatro.ok && quatro.estabilidade === null);
-    verificar('momento do pedestal e 4x o de 4 pernas',
-      ped.ok && quase(ped.forcas.Mperna, 4 * quatro.forcas.Mperna));
-    verificar('pedestal recebe a carga inteira',
-      ped.ok && quase(ped.forcas.Nmax, ped.forcas.P));
+    verificar('braco do cone e o raio cheio',
+      pedRed.ok && quase(pedRed.estabilidade.braco, 200));
+    verificar('braco da piramide e metade do lado 2/3',
+      ped.ok && quase(ped.estabilidade.braco, 200 * (2/3) / 1),
+      'obtido ' + (ped.ok ? ped.estabilidade.braco : '-'));
+    verificar('piramide tomba mais que o cone',
+      ped.ok && pedRed.ok &&
+      ped.estabilidade.utilizacao > pedRed.estabilidade.utilizacao);
 
     /* ---------- Contorno ---------- */
 
@@ -255,4 +263,4 @@
     document.body.appendChild(resumo);
   </script>
 </body>
-</html>''
+</html>

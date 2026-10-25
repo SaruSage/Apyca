@@ -26,7 +26,6 @@ const btnImprimirMemorial = document.getElementById('memorial-imprimir');
  */
 const gavetasAbertas = new Map();
 
-/* Último resultado válido, para o memorial. */
 let ultimoResultado = null;
 let ultimasDims = null;
 
@@ -119,6 +118,16 @@ function renderResultado(r){
     linha('Utilização', n(r.flambagem.utilizacaoFlambagem * 100, 1) + '%')
   ], false);
 
+  h += gaveta('assento', 'Assento em balanço', [
+    linha('Balanço (a)', n(r.assento.a, 1) + ' mm'),
+    linha('Momento no engaste (M)', n(r.assento.M, 0) + ' N·mm'),
+    linha('Tensão de flexão', n(r.assento.sigma, 3) + ' MPa'),
+    linha('Utilização (tensão)', n(r.assento.utilizacao * 100, 1) + '%'),
+    linha('Flecha', n(r.assento.flecha, 3) + ' mm'),
+    linha('Flecha limite', n(r.assento.flechaLimite, 3) + ' mm'),
+    linha('Utilização (flecha)', n(r.assento.utilizacaoFlecha * 100, 1) + '%')
+  ], false);
+
   if (r.estabilidade) {
     h += gaveta('estabilidade', 'Estabilidade ao tombamento', [
       linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),
@@ -173,7 +182,6 @@ btnAbrirMemorial.addEventListener('click', () => {
 });
 
 btnFecharMemorial.addEventListener('click', () => dialogMemorial.close());
-
 btnImprimirMemorial.addEventListener('click', () => window.print());
 
 function simular(){
