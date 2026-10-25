@@ -6,48 +6,35 @@
 export const G = 9.81;
 
 export const HIPOTESES = {
-  nPernas: 4,        // valor padrao quando o formulario nao informa
-  L: 400,            // lado do quadrado formado pelos eixos das pernas, mm
-  e: 50,             // excentricidade de projeto do centro de carga, mm
-
-  // Fator de comprimento efetivo da flambagem.
-  // 4 pernas: rotula-rotula nos extremos da perna.
+  nPernas: 4,
+  L: 400,
+  e: 50,
   K: 1.0,
-  // 1 perna: coluna engastada na base e livre no topo (balanco).
   KPedestal: 2.0,
-
-  mAssento: 2.0      // massa do assento + encosto, kg
+  mAssento: 2.0
 };
 
-/**
- * Premissas construtivas. Todas em mm.
- * O pe da cadeira tem dimensao fixa; a espessura da perna cresce para dentro.
- * Assento e encosto tem METADE da espessura da perna.
- */
 export const CADEIRA = {
-  L: 400,                        // largura externa do pe
-  folga: 20,                     // sobrepasse do assento em relacao ao pe
-  fracaoEspessuraAssento: 0.5,   // assento = 0,5 * t
-  fracaoEspessuraEncosto: 0.5,   // encosto = 0,5 * t
-  alturaAbertura: 90,            // vao livre entre assento e base do encosto
-  alturaEncosto: 320,            // do topo do assento ate o topo do encosto
-  espessuraMaxima: 150,          // acima disso as pernas se cruzam no centro
+  L: 400,
+  folga: 20,
+  fracaoEspessuraAssento: 0.5,
+  fracaoEspessuraEncosto: 0.5,
+  alturaAbertura: 90,
+  alturaEncosto: 320,
+  espessuraMaxima: 150,
 
-  // Base do pedestal, usada apenas na cadeira de 1 perna.
-  coneRaioBase: 200,             // raio do cone na base, mm
-  coneAltura: 55,                // altura do pe, mm
-
-  /*
-   * Lado da base da piramide como FRACAO DO DIAMETRO do cone.
-   * 1,0   -> lado 400 mm (mesmo diametro)
-   * 2/3   -> lado ~266,7 mm
-   */
+  coneRaioBase: 200,
+  coneAltura: 55,
   fracaoLadoPiramide: 2 / 3,
 
+  divisorFlechaAssento: 150,
+
   /*
-   * Limite de flecha do assento em balanco, como divisor do proprio balanco.
-   * 150 significa flecha maxima = a/150.
-   * Diminua para exigir mais rigidez (200, 300) ou aumente para relaxar.
+   * Parede do perfil vazado, em MILIMETROS.
+   * Valor absoluto, nao fracao de t: e assim que o perfil e comprado.
+   * A parede precisa ficar entre 0 e t/2 — o solver valida e reprova fora
+   * dessa faixa em vez de corrigir em silencio.
    */
-  divisorFlechaAssento: 150
+  paredePadrao: 3.0,
+  paredeMinima: 0.5
 };

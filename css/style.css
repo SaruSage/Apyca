@@ -268,3 +268,5 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
   .mem-tab{font-size:.75rem}
   .mem-tab thead{display:table-header-group}
 }
+
+.campo[hidden]{display:none}

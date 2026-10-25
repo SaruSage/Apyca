@@ -22,18 +22,25 @@
           <label for="material">Material</label>
           <select id="material" name="material"></select>
         </div>
+
         <div class="campo">
-          <label for="espessura">Espessura da perna (cm)</label>
-          <input id="espessura" name="espessura" type="number" min="0.5" max="15" step="0.5" value="4">
+          <label for="espessura">Dimensão externa da perna (cm)</label>
+          <input id="espessura" name="espessura" type="number"
+                 min="0.5" max="15" step="0.5" value="4">
         </div>
+
         <div class="campo">
           <label for="altura">Altura da perna (cm)</label>
-          <input id="altura" name="altura" type="number" min="20" max="120" step="1" value="45">
+          <input id="altura" name="altura" type="number"
+                 min="20" max="120" step="1" value="45">
         </div>
+
         <div class="campo">
           <label for="massa">Massa do usuário (kg)</label>
-          <input id="massa" name="massa" type="number" min="10" max="250" step="1" value="90">
+          <input id="massa" name="massa" type="number"
+                 min="10" max="250" step="1" value="90">
         </div>
+
         <div class="campo">
           <label for="forma">Formato da perna</label>
           <select id="forma" name="forma">
@@ -41,6 +48,21 @@
             <option value="redonda">Redonda</option>
           </select>
         </div>
+
+        <div class="campo">
+          <label for="secao">Seção</label>
+          <select id="secao" name="secao">
+            <option value="macica">Maciça</option>
+            <option value="tubular">Tubular (vazada)</option>
+          </select>
+        </div>
+
+        <div class="campo" id="grupo-parede" hidden>
+          <label for="parede">Parede do tubo (mm)</label>
+          <input id="parede" name="parede" type="number"
+                 min="0.5" max="75" step="0.5" value="3">
+        </div>
+
         <div class="campo">
           <label for="numPernas">Número de pernas</label>
           <select id="numPernas" name="numPernas">
@@ -48,6 +70,7 @@
             <option value="1">1 perna (pedestal)</option>
           </select>
         </div>
+
         <button type="submit" class="botao">Simular</button>
       </form>
     </section>

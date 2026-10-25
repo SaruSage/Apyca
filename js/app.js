@@ -4,12 +4,16 @@ import { construirBarras } from './chairModel.js';
 import { renderCadeira } from './render.js';
 import { gerarMemorial } from './memorial.js';
 
+/* ---------- Elementos ---------- */
 const form = document.getElementById('form-cadeira');
 const selectMaterial = document.getElementById('material');
 const campoEspessura = document.getElementById('espessura');
 const campoAltura = document.getElementById('altura');
 const campoMassa = document.getElementById('massa');
 const campoForma = document.getElementById('forma');
+const campoSecao = document.getElementById('secao');
+const campoParede = document.getElementById('parede');
+const grupoParede = document.getElementById('grupo-parede');
 const campoPernas = document.getElementById('numPernas');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
@@ -20,6 +24,7 @@ const btnAbrirMemorial = document.getElementById('abrir-memorial');
 const btnFecharMemorial = document.getElementById('memorial-fechar');
 const btnImprimirMemorial = document.getElementById('memorial-imprimir');
 
+/* ---------- Estado ---------- */
 /*
  * Estado das gavetas. Precisa viver fora do HTML: o formulário dispara
  * "input" a cada tecla e o painel é reconstruído inteiro.
@@ -29,6 +34,7 @@ const gavetasAbertas = new Map();
 let ultimoResultado = null;
 let ultimasDims = null;
 
+/* ---------- População do select de materiais ---------- */
 for (const mat of Object.values(MATERIAIS)) {
   const opt = document.createElement('option');
   opt.value = mat.id;
@@ -36,15 +42,15 @@ for (const mat of Object.values(MATERIAIS)) {
   selectMaterial.appendChild(opt);
 }
 
-/** Formata número no padrão brasileiro. */
+/* ---------- Formatação ---------- */
 function n(valor, casas = 2){
+  if (!Number.isFinite(valor)) return '—';
   return valor.toLocaleString('pt-BR', {
     minimumFractionDigits: casas,
     maximumFractionDigits: casas
   });
 }
 
-/** Uma linha do painel: rótulo à esquerda, valor à direita. */
 function linha(rotulo, valor){
   return '<div class="linha">' +
     '<span class="rotulo">' + rotulo + '</span>' +
@@ -52,7 +58,6 @@ function linha(rotulo, valor){
     '</div>';
 }
 
-/** Uma gaveta recolhível com título e linhas. */
 function gaveta(chave, titulo, linhas, abertaPorPadrao){
   if (!gavetasAbertas.has(chave)) {
     gavetasAbertas.set(chave, abertaPorPadrao);
@@ -75,6 +80,7 @@ function gaveta(chave, titulo, linhas, abertaPorPadrao){
   '</div>';
 }
 
+/* ---------- Painel de resultados ---------- */
 function renderResultado(r){
   if (!r.ok) {
     painel.innerHTML = '<div class="veredito veredito--erro">' +
@@ -83,18 +89,26 @@ function renderResultado(r){
   }
 
   const nomeForma = r.entrada.forma === 'redonda' ? 'Redonda' : 'Quadrada';
+  const nomeSecao = r.entrada.vazada ? 'Tubular (vazada)' : 'Maciça';
   const nomePernas = r.entrada.numPernas === 1 ? '1 (pedestal central)' : '4';
 
-  let h = '';
-
-  h += gaveta('secao', 'Seção e apoios', [
+  const lSecao = [
     linha('Formato', nomeForma),
+    linha('Seção', nomeSecao),
     linha('Número de pernas', nomePernas),
     linha('Área (A)', n(r.secao.A, 0) + ' mm²'),
     linha('Inércia (I)', n(r.secao.I, 0) + ' mm⁴'),
     linha('Módulo resistente (W)', n(r.secao.W, 0) + ' mm³'),
     linha('Raio de giração (r)', n(r.secao.r, 3) + ' mm')
-  ], true);
+  ];
+  if (r.entrada.vazada) {
+    lSecao.push(linha('Parede (ep)', n(r.secao.parede, 2) + ' mm'));
+    lSecao.push(linha('Dimensão interna', n(r.secao.interna, 1) + ' mm'));
+  }
+
+  let h = '';
+
+  h += gaveta('secao', 'Seção e apoios', lSecao, true);
 
   h += gaveta('esforcos', 'Esforços', [
     linha('Carga total (P)', n(r.forcas.P, 1) + ' N'),
@@ -111,12 +125,20 @@ function renderResultado(r){
     linha('Utilização', n(r.tensoes.utilizacao * 100, 1) + '%')
   ], false);
 
-  h += gaveta('flambagem', 'Flambagem', [
+  h += gaveta('flambagem', 'Flambagem global', [
     linha('K (comprimento efetivo)', n(r.flambagem.K, 2)),
     linha('Índice de esbeltez', n(r.flambagem.lambda, 1)),
     linha('Carga crítica (Pcr)', n(r.flambagem.Pcr / 1000, 2) + ' kN'),
     linha('Utilização', n(r.flambagem.utilizacaoFlambagem * 100, 1) + '%')
   ], false);
+
+  if (r.flambagemLocal) {
+    h += gaveta('local', 'Flambagem local da parede', [
+      linha('Relação (t − 2ep)/ep', n(r.flambagemLocal.lambdaLocal, 2)),
+      linha('Limite 1,40√(E/σ)', n(r.flambagemLocal.lambdaLimite, 2)),
+      linha('Utilização', n(r.flambagemLocal.utilizacao * 100, 1) + '%')
+    ], false);
+  }
 
   h += gaveta('assento', 'Assento em balanço', [
     linha('Balanço (a)', n(r.assento.a, 1) + ' mm'),
@@ -148,14 +170,14 @@ function renderResultado(r){
       'Configuração aprovada em todos os critérios.</div>';
   } else {
     h += '<div class="veredito veredito--erro">Configuração reprovada.<ul>' +
-      r.veredito.motivos.map(m => '<li>' + m + '</li>').join('') +
+      r.veredito.motivos.map(motivo => '<li>' + motivo + '</li>').join('') +
       '</ul></div>';
   }
 
   painel.innerHTML = h;
 }
 
-/* Delegação: um único listener que sobrevive a todos os re-renders. */
+/* ---------- Gavetas: um único listener que sobrevive aos re-renders ---------- */
 painel.addEventListener('click', (ev) => {
   const cabecalho = ev.target.closest('.gaveta__cabecalho');
   if (!cabecalho) return;
@@ -174,7 +196,7 @@ painel.addEventListener('click', (ev) => {
   gavetasAbertas.set(chave, abrir);
 });
 
-/* Memorial */
+/* ---------- Memorial ---------- */
 btnAbrirMemorial.addEventListener('click', () => {
   if (!ultimoResultado) return;
   conteudoMemorial.innerHTML = gerarMemorial(ultimoResultado, ultimasDims);
@@ -184,36 +206,61 @@ btnAbrirMemorial.addEventListener('click', () => {
 btnFecharMemorial.addEventListener('click', () => dialogMemorial.close());
 btnImprimirMemorial.addEventListener('click', () => window.print());
 
+/* ---------- Campo de parede só faz sentido na seção tubular ---------- */
+function atualizarParede(){
+  grupoParede.hidden = campoSecao.value !== 'tubular';
+}
+
+campoSecao.addEventListener('change', atualizarParede);
+
+/* ---------- Simulação ---------- */
 function simular(){
+  atualizarParede();
+
   const espessuraMm = parseFloat(campoEspessura.value) * 10;
   const alturaMm = parseFloat(campoAltura.value) * 10;
   const massaKg = parseFloat(campoMassa.value);
 
   const r = calcular({
     materialId: selectMaterial.value,
-    espessuraMm,
-    alturaMm,
-    massaKg,
+    espessuraMm: espessuraMm,
+    alturaMm: alturaMm,
+    massaKg: massaKg,
     forma: campoForma.value,
-    numPernas: parseInt(campoPernas.value, 10)
+    numPernas: parseInt(campoPernas.value, 10),
+    vazada: campoSecao.value === 'tubular',
+    paredeMm: parseFloat(campoParede.value)
   });
 
   renderResultado(r);
   ultimoResultado = r;
   ultimasDims = null;
 
-  if (!r.ok) return r;
+  if (!r.ok) {
+    palco.innerHTML = '';
+    return r;
+  }
 
   const material = r.entrada.material;
-  const barras = construirBarras(r.entrada.t, r.entrada.H, material,
-                                 r.entrada.forma, r.entrada.numPernas);
+
+  const barras = construirBarras(
+    r.entrada.t,
+    r.entrada.H,
+    material,
+    r.entrada.forma,
+    r.entrada.numPernas,
+    r.entrada.vazada,
+    r.entrada.parede
+  );
+
   const dims = renderCadeira(palco, barras, material);
   ultimasDims = dims;
 
   const p = document.createElement('p');
   p.className = 'legenda';
-  p.textContent = n(dims.altura / 10, 1) + ' × ' + n(dims.largura / 10, 1) +
-    ' × ' + n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+  p.textContent = n(dims.altura / 10, 1) + ' × ' +
+                  n(dims.largura / 10, 1) + ' × ' +
+                  n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
   palco.appendChild(p);
 
   return r;

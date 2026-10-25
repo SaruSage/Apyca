@@ -1,41 +1,27 @@
 /**
  * Nucleo de calculo. Funcao pura: nao toca no DOM.
  *
- * REGIMES ESTRUTURAIS
+ * A secao pode ser macica ou vazada, quadrada ou redonda.
+ * Quando vazada, a espessura da parede vem em mm e e validada aqui:
+ * precisa ser maior que zero e menor que t/2.
  *
- * 4 PERNAS — quadrado de lado L.
- *   Nmax = P/4 + P*e/(2L)      cada perna recebe M = P*e/4
- *   Flambagem: perna entre apoios, K = 1,0.
+ * REGIMES
+ *   4 pernas: Nmax = P/4 + P*e/(2L), M = P*e/4, K = 1,0
+ *   1 perna : N = P, M = P*e, K = 2,0 (balanco)
  *
- * 1 PERNA — pedestal central.
- *   N = P                      M = P*e
- *   Flambagem: coluna engastada na base e livre no topo, K = 2,0.
- *   Risco: tombamento.
- *
- * ASSENTO EM BALANCO
- *   Verificado nos dois regimes, com o balanco geometrico de cada um:
- *     1 perna -> a = (L/2 + folga) - t/2   (da face da coluna ate a borda)
- *     4 pernas -> a = folga                (so o sobrepasse externo)
- *   Carga na ponta: P, o caso de alguem sentado na borda do assento.
- *     Ma = P*a
- *     Wa = b*h^2/6 com b = L + 2*folga e h = 0,5*t
- *     sigma_a = Ma/Wa
- *     delta_a = P*a^3/(3*E*Ia)
- *   O assento e tratado como faixa de largura b. A placa real redistribui,
- *   entao o modelo e uma simplificacao declarada.
- *
- * TOMBAMENTO
- *   M_tomb  = P * e
- *   M_estab = (P + W) * R_est
- *   R_est e o menor braco resistente da base (raio no cone, semiapotema na
- *   piramide).
+ * VERIFICACOES
+ *   tensao na perna      sigma = N/A + M*c/I
+ *   flambagem global     Euler com K do regime
+ *   flambagem local      (t-2ep)/ep contra 1,40*raiz(E/sigmaLim) — so vazada
+ *   assento em balanco   Ma = P*a, delta = P*a^3/(3EI)
+ *   tombamento           M_tomb/M_estab (so no pedestal)
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
 import { propriedadesSecao } from './geometry.js';
 
-/** Volume do pe, em m³. Redondo: cone. Quadrado: piramide. */
+/** Volume do pe do pedestal, em m³. Sempre macico. */
 function volumePe(h, R, t, forma){
   if (forma === 'redonda') {
     const rb = R, rt = t / 2;
@@ -53,7 +39,8 @@ function bracoEstabilidade(R, forma){
   return R * CADEIRA.fracaoLadoPiramide;
 }
 
-export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, numPernas }) {
+export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
+                           forma, numPernas, vazada, paredeMm }){
   const erros = [];
   if (!Number.isFinite(espessuraMm) || espessuraMm <= 0) {
     erros.push('A espessura da perna deve ser maior que zero.');
@@ -63,6 +50,18 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
   }
   if (!Number.isFinite(massaKg) || massaKg <= 0) {
     erros.push('A massa do usuario deve ser maior que zero.');
+  }
+
+  const vazadaFinal = vazada === true;
+
+  if (vazadaFinal) {
+    if (!Number.isFinite(paredeMm) || paredeMm <= 0) {
+      erros.push('A parede do perfil tubular deve ser maior que zero.');
+    } else if (Number.isFinite(espessuraMm) && paredeMm >= espessuraMm / 2) {
+      erros.push('A parede deve ser menor que metade da dimensao externa ' +
+                 '(t/2 = ' + (espessuraMm / 2).toLocaleString('pt-BR') +
+                 ' mm). Acima disso o furo desaparece.');
+    }
   }
 
   let material;
@@ -84,7 +83,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
 
   const K = n === 1 ? HIPOTESES.KPedestal : HIPOTESES.K;
 
-  const sec = propriedadesSecao(t, formaFinal);
+  const sec = propriedadesSecao(t, formaFinal, vazadaFinal, paredeMm);
   const { A, I, W, c } = sec;
 
   const P = m * G;
@@ -93,11 +92,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
   let levantou = false;
 
   if (n === 1) {
-    Nmedio = P;
-    dN = 0;
-    Nmax = P;
-    Nmin = P;
-    Mperna = P * e;
+    Nmedio = P; dN = 0; Nmax = P; Nmin = P; Mperna = P * e;
   } else {
     Nmedio = P / n;
     dN = (P * e) / (2 * L);
@@ -119,18 +114,31 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
   const massaTotal = massaPernas + HIPOTESES.mAssento;
   const pesoCadeira = massaTotal * G;
 
-  // ---------- Tensoes na perna ----------
+  // ---------- Tensoes ----------
   const sigmaAxial = Nmax / A;
   const sigmaFlexao = Mperna / W;
   const sigmaMax = sigmaAxial + sigmaFlexao;
   const sigmaAdm = tensaoAdmissivel(material);
   const utilizacao = sigmaMax / sigmaAdm;
 
-  // ---------- Flambagem ----------
+  // ---------- Flambagem global ----------
   const lambda = (K * H) / sec.r;
   const Pcr = (Math.PI ** 2 * material.E * I) / Math.pow(K * H, 2);
   const NcrAdm = Pcr / material.CS;
   const utilizacaoFlambagem = Nmax / NcrAdm;
+
+  // ---------- Flambagem local da parede ----------
+  let flambagemLocal = null;
+  if (vazadaFinal) {
+    const lambdaLocal = sec.interna / sec.parede;
+    const lambdaLimite = 1.40 * Math.sqrt(material.E / material.sigmaLimite);
+    flambagemLocal = {
+      lambdaLocal,
+      lambdaLimite,
+      utilizacao: lambdaLocal / lambdaLimite,
+      esbelta: lambdaLocal > lambdaLimite
+    };
+  }
 
   const deltaAxial = (Nmax * H) / (A * material.E);
 
@@ -150,24 +158,18 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
   const flechaAssento = (P * Math.pow(aBalanco, 3)) / (3 * material.E * Ia);
 
   const flechaLimite = aBalanco / CADEIRA.divisorFlechaAssento;
-  const utilizacaoAssento = sigmaAssento / sigmaAdm;
-  const utilizacaoFlechaAssento = flechaAssento / flechaLimite;
 
   const assento = {
-    a: aBalanco,
-    b: bAssento,
-    h: hAssento,
-    M: Ma,
-    W: Wa,
-    I: Ia,
+    a: aBalanco, b: bAssento, h: hAssento,
+    M: Ma, W: Wa, I: Ia,
     sigma: sigmaAssento,
     flecha: flechaAssento,
     flechaLimite,
-    utilizacao: utilizacaoAssento,
-    utilizacaoFlecha: utilizacaoFlechaAssento
+    utilizacao: sigmaAssento / sigmaAdm,
+    utilizacaoFlecha: flechaAssento / flechaLimite
   };
 
-  // ---------- Estabilidade ao tombamento (so no pedestal) ----------
+  // ---------- Tombamento ----------
   let estabilidade = null;
   if (n === 1) {
     const R_est = bracoEstabilidade(R, formaFinal);
@@ -189,13 +191,18 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
                  fmt(sigmaAdm) + ' MPa.');
   }
   if (utilizacaoFlambagem > 1) {
-    motivos.push('Flambagem: ' + fmt(Nmax) + ' N acima de ' + fmt(NcrAdm) + ' N.');
+    motivos.push('Flambagem global: ' + fmt(Nmax) + ' N acima de ' + fmt(NcrAdm) + ' N.');
   }
-  if (utilizacaoAssento > 1) {
+  if (flambagemLocal && flambagemLocal.esbelta) {
+    motivos.push('Parede esbelta: relacao ' + fmt(flambagemLocal.lambdaLocal) +
+                 ' acima do limite de ' + fmt(flambagemLocal.lambdaLimite) +
+                 '. Aumente a parede ou reduza a dimensao externa.');
+  }
+  if (assento.utilizacao > 1) {
     motivos.push('Tensao de ' + fmt(sigmaAssento) + ' MPa no assento em balanco, ' +
                  'acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
   }
-  if (utilizacaoFlechaAssento > 1) {
+  if (assento.utilizacaoFlecha > 1) {
     motivos.push('Flecha de ' + fmt(flechaAssento) + ' mm no assento, acima do ' +
                  'limite de ' + fmt(flechaLimite) + ' mm.');
   }
@@ -208,13 +215,26 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
 
   return {
     ok: true,
-    entrada: { material, t, H, m, forma: formaFinal, numPernas: n },
-    secao: { A, I, W, c, r: sec.r, lambda },
+    entrada: {
+      material, t, H, m,
+      forma: formaFinal,
+      numPernas: n,
+      vazada: vazadaFinal,
+      parede: vazadaFinal ? sec.parede : 0
+    },
+    secao: {
+      A, I, W, c,
+      r: sec.r,
+      parede: sec.parede,
+      interna: sec.interna,
+      lambda
+    },
     forcas: { P, Nmedio, dN, Nmax, Nmin, Mperna, levantou },
     assento,
     estabilidade,
     tensoes: { sigmaAxial, sigmaFlexao, sigmaMax, sigmaAdm, utilizacao },
     flambagem: { K, lambda, Pcr, NcrAdm, utilizacaoFlambagem },
+    flambagemLocal,
     deformacao: { deltaAxial },
     massa: { pernas: massaPernas, total: massaTotal },
     veredito: { aprovado: motivos.length === 0, motivos }
