@@ -1,42 +1,29 @@
 /**
- * Constantes físicas e hipóteses de projeto.
- * Unidades internas: comprimento em mm, força em N, tensão em MPa (N/mm²), massa em kg.
- * Toda hipótese aqui deve ser justificada no memorial de cálculo.
+ * Constantes fisicas e hipoteses de projeto.
+ * Unidades internas: comprimento em mm, forca em N, tensao em MPa, massa em kg.
  */
 
-export const G = 9.81; // m/s²
+export const G = 9.81;
 
 export const HIPOTESES = {
-  // Numero de pernas da cadeira (premissa de projeto)
-  nPernas: 4,
-
-  // Lado do quadrado formado pelos eixos das pernas, em mm
-  L: 400,
-
-  // Excentricidade de projeto do centro de carga em relacao ao centro do assento, em mm.
-  // Representa o usuario sentado fora do centro. Valor conservador a validar.
-  e: 50,
-
-  // Fator de comprimento efetivo da perna tratada como coluna (1.0 = biarticulada)
-  K: 1.0,
-
-  // Massa do assento + encosto, em kg (nao varia com as entradas do usuario)
-  mAssento: 2.0,
+  nPernas: 4,   // numero de apoios (fixo nesta versao)
+  L: 400,       // lado do quadrado formado pelos eixos das pernas, mm
+  e: 50,        // excentricidade de projeto do centro de carga, mm
+  K: 1.0,       // fator de comprimento efetivo da coluna
+  mAssento: 2.0 // massa do assento + encosto, kg
 };
 
 /**
- * Premissas construtivas. Todas em milimetros.
+ * Premissas construtivas. Todas em mm.
  * O pe da cadeira tem dimensao fixa; a espessura da perna cresce para dentro.
+ * Assento e encosto tem METADE da espessura da perna.
  */
 export const CADEIRA = {
   L: 400,                        // largura externa do pe
   folga: 20,                     // sobrepasse do assento em relacao ao pe
-
-  // Assento e encosto com METADE da espessura da perna. Mesma regra para os dois.
-  fracaoEspessuraAssento: 0.5,
-  fracaoEspessuraEncosto: 0.5,
-
-  alturaAbertura: 90,            // vao livre entre o topo do assento e a base do encosto
+  fracaoEspessuraAssento: 0.5,   // assento = 0,5 * t
+  fracaoEspessuraEncosto: 0.5,   // encosto = 0,5 * t
+  alturaAbertura: 90,            // vao livre entre assento e base do encosto
   alturaEncosto: 320,            // do topo do assento ate o topo do encosto
-  espessuraMaxima: 150,          // acima disso as pernas se cruzam dentro do pe
+  espessuraMaxima: 150           // acima disso as pernas se cruzam no centro
 };
