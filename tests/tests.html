@@ -47,20 +47,31 @@
         return;
       }
       verificar(nome + ' · area', quase(r.secao.A, esperado.A), 'obtido ' + r.secao.A);
-      verificar(nome + ' · reacao maxima', quase(r.forcas.Nmax, esperado.Nmax), 'obtido ' + r.forcas.Nmax);
-      verificar(nome + ' · momento', quase(r.forcas.Mperna, esperado.Mperna), 'obtido ' + r.forcas.Mperna);
-      verificar(nome + ' · tensao axial', quase(r.tensoes.sigmaAxial, esperado.sigmaAxial), 'obtido ' + r.tensoes.sigmaAxial);
-      verificar(nome + ' · flexao', quase(r.tensoes.sigmaFlexao, esperado.sigmaFlexao), 'obtido ' + r.tensoes.sigmaFlexao);
-      verificar(nome + ' · tensao maxima', quase(r.tensoes.sigmaMax, esperado.sigmaMax), 'obtido ' + r.tensoes.sigmaMax);
-      verificar(nome + ' · utilizacao', quase(r.tensoes.utilizacao, esperado.utilizacao), 'obtido ' + r.tensoes.utilizacao);
-      verificar(nome + ' · esbeltez', quase(r.flambagem.lambda, esperado.lambda), 'obtido ' + r.flambagem.lambda);
-      verificar(nome + ' · carga critica', quase(r.flambagem.Pcr, esperado.Pcr), 'obtido ' + r.flambagem.Pcr);
-      verificar(nome + ' · encurtamento', quase(r.deformacao.deltaAxial, esperado.deltaAxial), 'obtido ' + r.deformacao.deltaAxial);
+      verificar(nome + ' · reacao maxima', quase(r.forcas.Nmax, esperado.Nmax),
+        'obtido ' + r.forcas.Nmax);
+      verificar(nome + ' · momento', quase(r.forcas.Mperna, esperado.Mperna),
+        'obtido ' + r.forcas.Mperna);
+      verificar(nome + ' · tensao axial', quase(r.tensoes.sigmaAxial, esperado.sigmaAxial),
+        'obtido ' + r.tensoes.sigmaAxial);
+      verificar(nome + ' · flexao', quase(r.tensoes.sigmaFlexao, esperado.sigmaFlexao),
+        'obtido ' + r.tensoes.sigmaFlexao);
+      verificar(nome + ' · tensao maxima', quase(r.tensoes.sigmaMax, esperado.sigmaMax),
+        'obtido ' + r.tensoes.sigmaMax);
+      verificar(nome + ' · utilizacao', quase(r.tensoes.utilizacao, esperado.utilizacao),
+        'obtido ' + r.tensoes.utilizacao);
+      verificar(nome + ' · esbeltez', quase(r.flambagem.lambda, esperado.lambda),
+        'obtido ' + r.flambagem.lambda);
+      verificar(nome + ' · carga critica', quase(r.flambagem.Pcr, esperado.Pcr),
+        'obtido ' + r.flambagem.Pcr);
+      verificar(nome + ' · encurtamento', quase(r.deformacao.deltaAxial, esperado.deltaAxial),
+        'obtido ' + r.deformacao.deltaAxial);
       verificar(nome + ' · aprovado', r.veredito.aprovado === esperado.aprovado);
     }
 
+    /* ---------- Casos de secao QUADRADA (nao-regressao) ---------- */
+
     // Caso 1 — madeira, t=40, H=450, m=100
-    testarCaso('madeira t=40 H=450 m=100',
+    testarCaso('madeira quadrada t=40 H=450 m=100',
       { materialId:'madeira', espessuraMm:40, alturaMm:450, massaKg:100 },
       {
         A:1600,
@@ -77,7 +88,7 @@
       });
 
     // Caso 2 — aco, t=20, H=450, m=120
-    testarCaso('aco t=20 H=450 m=120',
+    testarCaso('aco quadrada t=20 H=450 m=120',
       { materialId:'aco', espessuraMm:20, alturaMm:450, massaKg:120 },
       {
         A:400,
@@ -94,7 +105,7 @@
       });
 
     // Caso 3 — aluminio, t=30, H=500, m=150
-    testarCaso('aluminio t=30 H=500 m=150',
+    testarCaso('aluminio quadrada t=30 H=500 m=150',
       { materialId:'aluminio', espessuraMm:30, alturaMm:500, massaKg:150 },
       {
         A:900,
@@ -110,15 +121,42 @@
         aprovado:true
       });
 
-    // Caso 4 — reprovacao
-    const ruim = calcular({ materialId:'madeira', espessuraMm:10, alturaMm:900, massaKg:200 });
+    /* ---------- Caso de secao REDONDA ---------- */
+
+    // Caso 4 — aluminio redonda, t=30, H=500, m=150
+    // A = pi*t^2/4 ; I = pi*t^4/64 ; c = 15 ; r = t/4
+    const Ared = Math.PI * 30 * 30 / 4;
+    const Ired = Math.PI * Math.pow(30, 4) / 64;
+    const Wred = Ired / 15;
+
+    testarCaso('aluminio redonda t=30 H=500 m=150',
+      { materialId:'aluminio', espessuraMm:30, alturaMm:500, massaKg:150, forma:'redonda' },
+      {
+        A: Ared,
+        Nmax: 459.84375,
+        Mperna: 18393.75,
+        sigmaAxial: 459.84375 / Ared,
+        sigmaFlexao: 18393.75 / Wred,
+        sigmaMax: (459.84375 / Ared) + (18393.75 / Wred),
+        utilizacao: ((459.84375 / Ared) + (18393.75 / Wred)) / 160,
+        lambda: 500 / (30 / 4),
+        Pcr: (Math.PI**2 * 69000 * Ired) / (500**2),
+        deltaAxial: (459.84375 * 500) / (Ared * 69000),
+        aprovado: true
+      });
+
+    /* ---------- Casos de contorno ---------- */
+
+    const ruim = calcular({ materialId:'madeira', espessuraMm:10,
+                            alturaMm:900, massaKg:200 });
     verificar('caso reprovado tem motivo', ruim.ok && !ruim.veredito.aprovado);
 
-    // Caso 5 — entradas invalidas
-    const inv = calcular({ materialId:'madeira', espessuraMm:0, alturaMm:450, massaKg:90 });
+    const inv = calcular({ materialId:'madeira', espessuraMm:0,
+                           alturaMm:450, massaKg:90 });
     verificar('espessura zero retorna erro', inv.ok === false);
 
-    const semMat = calcular({ materialId:'titanio', espessuraMm:30, alturaMm:450, massaKg:90 });
+    const semMat = calcular({ materialId:'titanio', espessuraMm:30,
+                              alturaMm:450, massaKg:90 });
     verificar('material desconhecido retorna erro', semMat.ok === false);
 
     const resumo = document.createElement('div');
@@ -126,7 +164,8 @@
     resumo.textContent = falhou === 0
       ? 'Todos os ' + passou + ' testes passaram.'
       : passou + ' passaram, ' + falhou + ' falharam.';
-    resumo.style.background = falhou === 0 ? 'rgba(62,207,142,.14)' : 'rgba(242,85,90,.14)';
+    resumo.style.background = falhou === 0
+      ? 'rgba(62,207,142,.14)' : 'rgba(242,85,90,.14)';
     resumo.style.color = falhou === 0 ? '#3ecf8e' : '#f2555a';
     document.body.appendChild(resumo);
   </script>

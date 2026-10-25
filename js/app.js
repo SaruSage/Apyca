@@ -8,6 +8,7 @@ const selectMaterial = document.getElementById('material');
 const campoEspessura = document.getElementById('espessura');
 const campoAltura = document.getElementById('altura');
 const campoMassa = document.getElementById('massa');
+const campoForma = document.getElementById('forma');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 
@@ -41,11 +42,15 @@ function renderResultado(r){
     return;
   }
 
+  const nomeForma = r.entrada.forma === 'redonda' ? 'Redonda' : 'Quadrada';
+
   let h = '';
   h += grupo('Secao da perna', [
+    linha('Formato', nomeForma),
     linha('Area (A)', n(r.secao.A, 0) + ' mm²'),
     linha('Inercia (I)', n(r.secao.I, 0) + ' mm⁴'),
-    linha('Modulo resistente (W)', n(r.secao.W, 0) + ' mm³')
+    linha('Modulo resistente (W)', n(r.secao.W, 0) + ' mm³'),
+    linha('Raio de giracao (r)', n(r.secao.r, 3) + ' mm')
   ]);
   h += grupo('Esforcos', [
     linha('Carga total (P)', n(r.forcas.P, 1) + ' N'),
@@ -90,14 +95,15 @@ function simular(){
     materialId: selectMaterial.value,
     espessuraMm,
     alturaMm,
-    massaKg
+    massaKg,
+    forma: campoForma.value
   });
 
   renderResultado(r);
   if (!r.ok) return r;
 
   const material = r.entrada.material;
-  const barras = construirBarras(r.entrada.t, r.entrada.H, material);
+  const barras = construirBarras(r.entrada.t, r.entrada.H, material, r.entrada.forma);
   const dims = renderCadeira(palco, barras, material);
 
   const p = document.createElement('p');

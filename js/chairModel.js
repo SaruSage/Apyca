@@ -1,6 +1,10 @@
 /**
- * Converte as entradas na lista de barras 3D da cadeira.
- * Nao sabe nada de tela: devolve paralelepipedos em milimetros.
+ * Converte as entradas na lista de pecas 3D da cadeira.
+ * Nao sabe nada de tela: devolve primitivos em milimetros.
+ *
+ * Dois primitivos:
+ *   caixa    — paralelepipedo alinhado aos eixos
+ *   cilindro — prisma de eixo vertical (r, z0, h)
  *
  * Eixos: x para a direita, y para o fundo, z para cima.
  * O encosto fica em y = 0 (lado mais distante da camera isometrica).
@@ -19,8 +23,26 @@
 
 import { CADEIRA } from './constantes.js';
 
-function barra(x, y, z, dx, dy, dz, camada, cor){
-  return { x, y, z, dx, dy, dz, camada, cor };
+export function caixa(x, y, z, dx, dy, dz, camada, cor){
+  return { tipo: 'caixa', x, y, z, dx, dy, dz, camada, cor };
+}
+
+export function cilindro(cx, cy, r, z0, h, camada, cor){
+  return { tipo: 'cilindro', cx, cy, r, z0, h, camada, cor };
+}
+
+/** Caixa envolvente de uma peca, qualquer que seja o tipo. */
+export function bboxPeca(p){
+  if (p.tipo === 'cilindro') {
+    return {
+      min: [p.cx - p.r, p.cy - p.r, p.z0],
+      max: [p.cx + p.r, p.cy + p.r, p.z0 + p.h]
+    };
+  }
+  return {
+    min: [p.x, p.y, p.z],
+    max: [p.x + p.dx, p.y + p.dy, p.z + p.dz]
+  };
 }
 
 const RENDER_PADRAO = {
@@ -36,18 +58,19 @@ function encostoRipas(x0, y0, larg, zBase, alt, prof, cor, n, fracao){
   const pRipa = fracao * prof;
   const out = [];
   for (let i = 0; i < n; i++) {
-    out.push(barra(x0, y0, zBase + i * 2 * unidade, larg, pRipa, unidade, 3, cor));
+    out.push(caixa(x0, y0, zBase + i * 2 * unidade, larg, pRipa, unidade, 3, cor));
   }
   return out;
 }
 
-export function construirBarras(espessura, altura, material){
+export function construirBarras(espessura, altura, material, forma = 'quadrada'){
   const {
     L, folga, fracaoEspessuraAssento, fracaoEspessuraEncosto,
     alturaAbertura, alturaEncosto, espessuraMaxima
   } = CADEIRA;
 
   const render = (material && material.render) || RENDER_PADRAO;
+  const redonda = forma === 'redonda';
   const t = Math.min(espessura, espessuraMaxima);
   const H = altura;
 
@@ -60,20 +83,36 @@ export function construirBarras(espessura, altura, material){
 
   const barras = [];
 
+  /*
+   * Uma perna apoiada no canto (x, y) do pe, com base em z0 e altura h.
+   *
+   * Quadrada: ocupa o quadrado de lado t a partir de (x, y).
+   * Redonda : circulo de diametro t INSCRITO nesse mesmo quadrado. O centro
+   *           vai para (x + t/2, y + t/2), entao o envelope externo continua
+   *           indo de 0 a L nos dois eixos e a cadeira nao muda de tamanho.
+   */
+  function perna(x, y, z0, h, camada){
+    if (redonda) {
+      barras.push(cilindro(x + t/2, y + t/2, t/2, z0, h, camada, render.pernas));
+    } else {
+      barras.push(caixa(x, y, z0, t, t, h, camada, render.pernas));
+    }
+  }
+
   // Camada 0: pernas abaixo do assento
-  barras.push(barra(0,     L - t, 0, t, t, H, 0, render.pernas));
-  barras.push(barra(L - t, L - t, 0, t, t, H, 0, render.pernas));
-  barras.push(barra(0,     0,     0, t, t, H, 0, render.pernas));
-  barras.push(barra(L - t, 0,     0, t, t, H, 0, render.pernas));
+  perna(0,     L - t, 0, H, 0);
+  perna(L - t, L - t, 0, H, 0);
+  perna(0,     0,     0, H, 0);
+  perna(L - t, 0,     0, H, 0);
 
   // Camada 2: assento
-  barras.push(barra(-folga, -folga, H,
+  barras.push(caixa(-folga, -folga, H,
                     L + 2 * folga, L + 2 * folga, tAssento, 2, render.assento));
 
   // Camada 3: postes acima do assento
   const hPoste = zTopoEncosto - zTopoAssento;
-  barras.push(barra(0,     0, zTopoAssento, t, t, hPoste, 3, render.pernas));
-  barras.push(barra(L - t, 0, zTopoAssento, t, t, hPoste, 3, render.pernas));
+  perna(0,     0, zTopoAssento, hPoste, 3);
+  perna(L - t, 0, zTopoAssento, hPoste, 3);
 
   // Camada 3: encosto, entre as pernas, face de tras fixa em y = 0
   const largPainel = L - 2 * t;
@@ -86,22 +125,25 @@ export function construirBarras(espessura, altura, material){
       barras.push(...encostoRipas(t, 0, largPainel, zBaseEncosto, altPainel,
                                   tEnc, corEnc, spec.n || 3, spec.fracao || 0.2));
     } else {
-      barras.push(barra(t, 0, zBaseEncosto, largPainel, tEnc, altPainel, 3, corEnc));
+      barras.push(caixa(t, 0, zBaseEncosto, largPainel, tEnc, altPainel, 3, corEnc));
     }
   }
 
   return barras;
 }
 
-/** Dimensoes externas do modelo, em mm. */
 export function dimensoesExternas(barras){
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
+
   for (const b of barras) {
-    min[0] = Math.min(min[0], b.x);        max[0] = Math.max(max[0], b.x + b.dx);
-    min[1] = Math.min(min[1], b.y);        max[1] = Math.max(max[1], b.y + b.dy);
-    min[2] = Math.min(min[2], b.z);        max[2] = Math.max(max[2], b.z + b.dz);
+    const bb = bboxPeca(b);
+    for (let a = 0; a < 3; a++) {
+      min[a] = Math.min(min[a], bb.min[a]);
+      max[a] = Math.max(max[a], bb.max[a]);
+    }
   }
+
   return {
     largura: max[0] - min[0],
     profundidade: max[1] - min[1],

@@ -10,16 +10,16 @@
  * 4. sigma = N/A + M*c/I.
  * 5. Flambagem pela carga critica de Euler.
  * 6. Deformacao axial: delta = N*H/(A*E).
+ *
+ * A secao pode ser quadrada ou redonda. Tudo que depende da forma da secao
+ * (A, I, W, r) vem de propriedadesSecao: nenhuma formula e repetida aqui.
  */
 
 import { G, HIPOTESES } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
-import {
-  area, inercia, distanciaFibra, moduloResistente,
-  esbeltez, cargaCriticaEuler
-} from './geometry.js';
+import { propriedadesSecao } from './geometry.js';
 
-export function calcular({ materialId, espessuraMm, alturaMm, massaKg }) {
+export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma }) {
   const erros = [];
   if (!Number.isFinite(espessuraMm) || espessuraMm <= 0) {
     erros.push('A espessura da perna deve ser maior que zero.');
@@ -40,15 +40,15 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg }) {
 
   if (erros.length > 0) return { ok: false, erros };
 
+  const formaFinal = forma === 'redonda' ? 'redonda' : 'quadrada';
+
   const t = espessuraMm;
   const H = alturaMm;
   const m = massaKg;
   const { nPernas: n, L, e, K } = HIPOTESES;
 
-  const A = area(t);
-  const I = inercia(t);
-  const c = distanciaFibra(t);
-  const W = moduloResistente(t);
+  const sec = propriedadesSecao(t, formaFinal);
+  const { A, I, W, c } = sec;
 
   const P = m * G;
   const Nmedio = P / n;
@@ -64,8 +64,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg }) {
   const sigmaAdm = tensaoAdmissivel(material);
   const utilizacao = sigmaMax / sigmaAdm;
 
-  const lambda = esbeltez(H, t, K);
-  const Pcr = cargaCriticaEuler(material.E, t, H, K);
+  const lambda = (K * H) / sec.r;
+  const Pcr = (Math.PI ** 2 * material.E * I) / Math.pow(K * H, 2);
   const NcrAdm = Pcr / material.CS;
   const utilizacaoFlambagem = Nmax / NcrAdm;
 
@@ -77,7 +77,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg }) {
 
   const motivos = [];
   if (utilizacao > 1) {
-    motivos.push('Tensao ' + fmt(sigmaMax) + ' MPa acima da admissivel ' + fmt(sigmaAdm) + ' MPa.');
+    motivos.push('Tensao ' + fmt(sigmaMax) + ' MPa acima da admissivel ' +
+                 fmt(sigmaAdm) + ' MPa.');
   }
   if (utilizacaoFlambagem > 1) {
     motivos.push('Flambagem: ' + fmt(Nmax) + ' N acima de ' + fmt(NcrAdm) + ' N.');
@@ -88,8 +89,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg }) {
 
   return {
     ok: true,
-    entrada: { material, t, H, m },
-    secao: { A, I, W, c, lambda },
+    entrada: { material, t, H, m, forma: formaFinal },
+    secao: { A, I, W, c, r: sec.r, lambda },
     forcas: { P, Nmedio, dN, Nmax, Nmin, Mperna, levantou },
     tensoes: { sigmaAxial, sigmaFlexao, sigmaMax, sigmaAdm, utilizacao },
     flambagem: { lambda, Pcr, NcrAdm, utilizacaoFlambagem },
