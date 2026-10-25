@@ -2,6 +2,7 @@ import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
 import { construirBarras } from './chairModel.js';
 import { renderCadeira } from './render.js';
+import { animarRuina, animarJoinhas } from './animacao.js';
 import { gerarMemorial } from './memorial.js';
 
 /* ---------- Elementos ---------- */
@@ -17,6 +18,9 @@ const grupoParede = document.getElementById('grupo-parede');
 const campoPernas = document.getElementById('numPernas');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
+const situacao = document.getElementById('situacao');
+const legenda = document.getElementById('legenda');
+const botaoAnimar = document.getElementById('botao-animar');
 
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
@@ -25,16 +29,13 @@ const btnFecharMemorial = document.getElementById('memorial-fechar');
 const btnImprimirMemorial = document.getElementById('memorial-imprimir');
 
 /* ---------- Estado ---------- */
-/*
- * Estado das gavetas. Precisa viver fora do HTML: o formulário dispara
- * "input" a cada tecla e o painel é reconstruído inteiro.
- */
 const gavetasAbertas = new Map();
 
 let ultimoResultado = null;
 let ultimasDims = null;
+let ultimasBarras = null;
+let pararAnimacao = null;
 
-/* ---------- População do select de materiais ---------- */
 for (const mat of Object.values(MATERIAIS)) {
   const opt = document.createElement('option');
   opt.value = mat.id;
@@ -78,6 +79,86 @@ function gaveta(chave, titulo, linhas, abertaPorPadrao){
       linhas.join('') +
     '</div>' +
   '</div>';
+}
+
+/* ---------- Diagnóstico em linguagem simples ---------- */
+
+/** Maior utilização entre todas as verificações. */
+function utilizacaoMaxima(r){
+  const us = [
+    r.tensoes.utilizacao,
+    r.flambagem.utilizacaoFlambagem,
+    r.assento.utilizacao,
+    r.assento.utilizacaoFlecha
+  ];
+  if (r.flambagemLocal) us.push(r.flambagemLocal.utilizacao);
+  if (r.assentoVao) {
+    us.push(r.assentoVao.utilizacao, r.assentoVao.utilizacaoFlecha);
+  }
+  if (r.estabilidade) us.push(r.estabilidade.utilizacao);
+  return Math.max(...us);
+}
+
+function mensagemSegura(r){
+  const u = utilizacaoMaxima(r);
+  const folga = Math.max(0, (1 - u) * 100);
+  return 'Estrutura aprovada. A peça mais solicitada trabalha a ' +
+    (u * 100).toFixed(0) + '% do que o material suporta, então sobram ' +
+    folga.toFixed(0) + '% de folga.';
+}
+
+function mensagemRisco(r){
+  if (r.tensoes.utilizacao > 1) {
+    return 'A perna entorta: o esforço passa do que o material aguenta.';
+  }
+  if (r.flambagem.utilizacaoFlambagem > 1) {
+    return 'A perna enverga como um canudo: fina e alta demais para esse peso.';
+  }
+  if (r.flambagemLocal && r.flambagemLocal.esbelta) {
+    return 'A parede do tubo é fina demais: ela amassa antes de a perna ceder.';
+  }
+  if (r.assento.utilizacao > 1) {
+    return 'O assento quebra na beirada, no ponto mais longe do apoio.';
+  }
+  if (r.assento.utilizacaoFlecha > 1) {
+    return 'O assento afunda demais na beirada — dá para sentir a cadeira ceder.';
+  }
+  if (r.assentoVao && r.assentoVao.utilizacao > 1) {
+    return 'O assento racha no meio, entre as pernas.';
+  }
+  if (r.assentoVao && r.assentoVao.utilizacaoFlecha > 1) {
+    return 'O assento afunda no meio, entre as pernas.';
+  }
+  if (r.forcas.levantou) {
+    return 'A cadeira emborca: o peso na beirada levanta as pernas do lado oposto.';
+  }
+  if (r.estabilidade && r.estabilidade.tombou) {
+    return 'A cadeira tomba: a base é pequena para peso tão fora do centro.';
+  }
+  return 'Configuração fora dos limites de segurança.';
+}
+
+function aplicarSituacao(r){
+  palco.classList.remove('palco--seguro', 'palco--risco');
+  situacao.classList.remove('situacao--ok', 'situacao--risco');
+  situacao.hidden = false;
+
+  if (!r.ok) {
+    palco.classList.add('palco--risco');
+    situacao.classList.add('situacao--risco');
+    situacao.textContent = r.erros[0];
+    return;
+  }
+
+  if (r.veredito.aprovado) {
+    palco.classList.add('palco--seguro');
+    situacao.classList.add('situacao--ok');
+    situacao.textContent = mensagemSegura(r);
+  } else {
+    palco.classList.add('palco--risco');
+    situacao.classList.add('situacao--risco');
+    situacao.textContent = mensagemRisco(r);
+  }
 }
 
 /* ---------- Painel de resultados ---------- */
@@ -190,7 +271,7 @@ function renderResultado(r){
   painel.innerHTML = h;
 }
 
-/* ---------- Gavetas: um único listener que sobrevive aos re-renders ---------- */
+/* ---------- Gavetas ---------- */
 painel.addEventListener('click', (ev) => {
   const cabecalho = ev.target.closest('.gaveta__cabecalho');
   if (!cabecalho) return;
@@ -219,15 +300,29 @@ btnAbrirMemorial.addEventListener('click', () => {
 btnFecharMemorial.addEventListener('click', () => dialogMemorial.close());
 btnImprimirMemorial.addEventListener('click', () => window.print());
 
-/* ---------- Campo de parede só faz sentido na seção tubular ---------- */
+/* ---------- Campo de parede ---------- */
 function atualizarParede(){
   grupoParede.hidden = campoSecao.value !== 'tubular';
 }
 
 campoSecao.addEventListener('change', atualizarParede);
 
+/* ---------- Desenho estático ---------- */
+function desenharEstatica(){
+  if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
+
+  const material = ultimoResultado.entrada.material;
+  const dims = renderCadeira(palco, ultimasBarras, material);
+
+  ultimasDims = dims;
+  legenda.textContent = n(dims.altura / 10, 1) + ' × ' +
+                        n(dims.largura / 10, 1) + ' × ' +
+                        n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+}
+
 /* ---------- Simulação ---------- */
 function simular(){
+  if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
   atualizarParede();
 
   const espessuraMm = parseFloat(campoEspessura.value) * 10;
@@ -246,40 +341,73 @@ function simular(){
   });
 
   renderResultado(r);
+  aplicarSituacao(r);
+
   ultimoResultado = r;
   ultimasDims = null;
+  ultimasBarras = null;
 
   if (!r.ok) {
     palco.innerHTML = '';
+    legenda.textContent = '';
     return r;
   }
 
-  const material = r.entrada.material;
-
-  const barras = construirBarras(
+  ultimasBarras = construirBarras(
     r.entrada.t,
     r.entrada.H,
-    material,
+    r.entrada.material,
     r.entrada.forma,
     r.entrada.numPernas,
     r.entrada.vazada,
     r.entrada.parede
   );
 
-  const dims = renderCadeira(palco, barras, material);
-  ultimasDims = dims;
-
-  const p = document.createElement('p');
-  p.className = 'legenda';
-  p.textContent = n(dims.altura / 10, 1) + ' × ' +
-                  n(dims.largura / 10, 1) + ' × ' +
-                  n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
-  palco.appendChild(p);
-
+  desenharEstatica();
   return r;
 }
 
-form.addEventListener('submit', ev => { ev.preventDefault(); simular(); });
+/* ---------- Botão Animar ----------
+ * Aprovado  -> só joinhas nas beiradas. A cadeira não é tocada.
+ * Reprovado -> a cadeira desmonta e cai. Ao terminar, volta ao estado íntegro.
+ */
+function acionarAnimar(){
+  if (!ultimoResultado || !ultimoResultado.ok) return;
+
+  if (ultimoResultado.veredito.aprovado) {
+    animarJoinhas();
+    return;
+  }
+
+  if (!ultimasBarras) return;
+  if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
+
+  const alvo = ultimoResultado;
+
+  pararAnimacao = animarRuina(
+    palco,
+    ultimasBarras,
+    ultimoResultado.entrada.material,
+    {
+      largura: 860,
+      altura: 620,
+      aoTerminar: () => {
+        pararAnimacao = null;
+        window.setTimeout(() => {
+          if (ultimoResultado === alvo) desenharEstatica();
+        }, 800);
+      }
+    }
+  );
+}
+
+botaoAnimar.addEventListener('click', acionarAnimar);
+
+form.addEventListener('submit', ev => {
+  ev.preventDefault();
+  acionarAnimar();
+});
+
 form.addEventListener('input', simular);
 
 simular();

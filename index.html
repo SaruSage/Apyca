@@ -67,13 +67,16 @@
           </select>
         </div>
 
-        <button type="submit" class="botao">Simular</button>
+        <button type="button" class="botao botao--animar" id="botao-animar">Animar</button>
+        <button type="submit" class="botao-oculto" tabindex="-1" aria-hidden="true">Animar</button>
       </form>
     </section>
 
     <section class="painel painel--vista">
       <h2>Vista isométrica</h2>
       <div id="palco" class="palco"></div>
+      <p id="situacao" class="situacao" hidden></p>
+      <p id="legenda" class="legenda"></p>
 
       <div class="identidade">
         <h1 class="identidade__nome">Apyca</h1>

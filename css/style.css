@@ -4,18 +4,8 @@
 }
 *{box-sizing:border-box}
 
-/*
- * A calha da barra de rolagem fica SEMPRE reservada.
- * Sem isso, no instante em que a barra aparece o viewport perde ~15 px de
- * largura, a coluna "1fr" do grid encolhe e o desenho da cadeira muda de
- * tamanho. Reservar a calha elimina o deslocamento na raiz.
- *
- * Navegador muito antigo sem suporte a scrollbar-gutter: descomente a linha
- * abaixo, que reserva a calha por outro caminho.
- */
 html{
   scrollbar-gutter:stable;
-  /* overflow-y:scroll; */
 }
 
 body{
@@ -53,12 +43,7 @@ body{
   font-weight:600;
 }
 
-/* ---------- Painel de resultados ----------
-   max-height = 100vh - 56px, e não -32px.
-   Com top:16px a borda inferior fica em 100vh - 40px, sobrando 40px no rodapé
-   (16 já usados pelo topo + 24 do padding do layout). O valor antigo deixava
-   8px de estouro e era isso que fazia a barra da página nascer ao abrir a
-   segunda gaveta. */
+/* ---------- Painel de resultados ---------- */
 .painel--resultados{
   position:sticky;
   top:16px;
@@ -66,15 +51,12 @@ body{
   display:flex;
   flex-direction:column;
 }
-
 .resultado{
   flex:1 1 auto;
   min-height:0;
   overflow-y:auto;
   overflow-x:hidden;
   padding-right:8px;
-  /* Mesma lógica, agora na rolagem interna: a barra própria do painel não
-     empurra os valores para a esquerda quando aparece. */
   scrollbar-gutter:stable;
   scrollbar-width:thin;
   scrollbar-color:var(--borda) transparent;
@@ -212,6 +194,25 @@ body{
   letter-spacing:.04em;
   text-transform:uppercase;
 }
+.botao--animar{
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  font-size:.82rem;
+}
+
+/* Submit invisível: garante que Enter no formulário dispare a ação,
+   sem duplicar o disparo do botão visível. */
+.botao-oculto{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+  white-space:nowrap;
+  border:0;
+}
 
 /* ---------- Palco ---------- */
 .palco{
@@ -222,12 +223,45 @@ body{
   min-height:clamp(300px,46vh,480px);
   background:#0e1218;
   border-radius:8px;
+  border:2px solid transparent;
+  transition:border-color .25s ease, box-shadow .25s ease;
 }
 .palco svg{display:block;width:100%;height:auto}
 
+.palco--seguro{
+  border-color:rgba(62,207,142,.85);
+  box-shadow:0 0 0 1px rgba(62,207,142,.3),
+             0 0 26px rgba(62,207,142,.18) inset;
+}
+.palco--risco{
+  border-color:rgba(242,85,90,.9);
+  box-shadow:0 0 0 1px rgba(242,85,90,.3),
+             0 0 26px rgba(242,85,90,.18) inset;
+}
+
+/* ---------- Situação em linguagem simples ---------- */
+.situacao{
+  margin:12px 0 0;
+  padding:10px 14px;
+  border-radius:8px;
+  font-size:.82rem;
+  line-height:1.45;
+  text-align:center;
+}
+.situacao[hidden]{display:none}
+.situacao--ok{
+  background:rgba(62,207,142,.12);
+  border:1px solid rgba(62,207,142,.4);
+  color:var(--ok);
+}
+.situacao--risco{
+  background:rgba(242,85,90,.12);
+  border:1px solid rgba(242,85,90,.4);
+  color:var(--erro);
+}
+
 .legenda{
-  width:100%;
-  margin:10px 0 0;
+  margin:8px 0 0;
   text-align:center;
   font-size:.8rem;
   color:var(--fraco);
@@ -252,6 +286,48 @@ body{
   margin:5px 0 0;
   font-size:.82rem;
   color:var(--fraco);
+}
+
+/* ---------- Joinhas flutuantes ----------
+   Camada fixa sobre toda a tela, sem capturar clique. As bolhas sobem
+   pelas beiradas: faixa esquerda, faixa direita e faixa de baixo. */
+.joinhas{
+  position:fixed;
+  inset:0;
+  z-index:80;
+  pointer-events:none;
+  overflow:hidden;
+}
+.joinha{
+  position:absolute;
+  bottom:-14vh;
+  line-height:1;
+  opacity:0;
+  will-change:transform,opacity;
+  filter:drop-shadow(0 3px 8px rgba(0,0,0,.45));
+  animation:joinha-sobe var(--dur,2200ms) cubic-bezier(.22,.68,.32,1)
+            var(--atraso,0ms) forwards;
+}
+@keyframes joinha-sobe{
+  0%{
+    opacity:0;
+    transform:translate3d(0,0,0) scale(.55) rotate(0deg);
+  }
+  14%{opacity:1}
+  68%{
+    opacity:1;
+    transform:translate3d(calc(var(--deriva,0px) * .55),-72vh,0)
+              scale(1) rotate(calc(var(--giro,0deg) * .5));
+  }
+  100%{
+    opacity:0;
+    transform:translate3d(var(--deriva,0px),-118vh,0)
+              scale(1.06) rotate(var(--giro,0deg));
+  }
+}
+
+@media(prefers-reduced-motion: reduce){
+  .joinha{animation:none;opacity:0}
 }
 
 /* ---------- Faixa de erro ---------- */
@@ -406,6 +482,8 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
 
   body{background:#fff;color:#000}
   body > *:not(dialog.memorial){display:none !important}
+
+  .joinhas{display:none !important}
 
   dialog.memorial{
     position:static;

@@ -1,15 +1,12 @@
 /**
- * Desenho da cadeira em SVG isométrico.
+ * Montagem do SVG da cadeira.
  *
- * svgCadeira devolve a STRING do SVG, sem tocar no DOM.
- * renderCadeira injeta essa string no palco da página.
- *
- * A separação existe porque o memorial precisa do MESMO desenho em papel
- * branco, com fundo transparente. Reaproveitar o código garante que a figura
- * do documento e a da tela nunca divirjam.
+ * montarSVG e o nivel baixo: recebe faces JA projetadas e devolve a string.
+ * svgCadeira e o nivel alto, usado na tela e no memorial.
+ * A animacao usa montarSVG diretamente, um quadro por vez.
  */
 
-import { buildFaces, computeView, project } from './iso.js';
+import { computeView, faces3D, filtrarOrdenar, projetarFaces, project } from './iso.js';
 import { dimensoesExternas } from './chairModel.js';
 
 const LARGURA = 860;
@@ -19,8 +16,9 @@ function poly(pontos){
   return pontos.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
 }
 
-/** Veio da madeira: linhas finas sobre as faces horizontais de uma CAIXA. */
-function veios(b, escala, origem){
+/** Veio da madeira sobre a face horizontal de uma CAIXA. */
+function veios(caixa, escala, origem){
+  const b = caixa;
   const menor = Math.min(b.dx, b.dy);
   const n = Math.min(7, Math.max(2, Math.round(menor / 14)));
   const z = b.z + b.dz;
@@ -43,18 +41,45 @@ function veios(b, escala, origem){
   return linhas.join('');
 }
 
-/**
- * SVG da cadeira como string.
- *
- * opcoes:
- *   largura, altura  — viewBox interno (padrao 860 x 620)
- *   margem           — respiro em unidades do viewBox
- *   idFiltro         — id do filtro de desfoque. PRECISA ser unico por
- *                      documento: dois "borrao" no mesmo HTML e o segundo
- *                      seria ignorado pelo navegador.
- *   opacidadeSombra  — 0,5 no painel escuro; ~0,16 no papel branco
- *   veios            — sobrescreve a preferencia do material
- */
+export function montarSVG({ largura, altura, idFiltro, sombra,
+                            opacidadeSombra, faces, veiosFn }){
+  const partes = [];
+
+  if (sombra) {
+    partes.push('<polygon points="' + poly(sombra) + '" fill="#000" ' +
+      'fill-opacity="' + opacidadeSombra + '" filter="url(#' + idFiltro + ')"/>');
+  }
+
+  for (const f of faces) {
+    partes.push('<polygon points="' + poly(f.tela) + '" fill="' + f.fill + '" ' +
+      'stroke="' + f.contorno + '" stroke-width="0.9" stroke-linejoin="round"/>');
+
+    if (veiosFn && f.kind === 'top' && f.caixa) {
+      partes.push(veiosFn(f.caixa));
+    }
+  }
+
+  return '<svg viewBox="0 0 ' + largura + ' ' + altura + '" width="100%" ' +
+    'role="img" aria-label="Vista isometrica da cadeira">' +
+      '<defs><filter id="' + idFiltro + '" x="-40%" y="-40%" ' +
+      'width="180%" height="180%">' +
+        '<feGaussianBlur stdDeviation="12"/>' +
+      '</filter></defs>' +
+      partes.join('') +
+    '</svg>';
+}
+
+/** Poligono da sombra no piso, a partir dos limites da cadeira. */
+export function sombraNoPiso(bounds, escala, origem, folga = 0.16){
+  const m = folga * (bounds.max[0] - bounds.min[0]);
+  return [
+    [bounds.min[0] - m, bounds.min[1] - m, 0],
+    [bounds.max[0] + m, bounds.min[1] - m, 0],
+    [bounds.max[0] + m, bounds.max[1] + m, 0],
+    [bounds.min[0] - m, bounds.max[1] + m, 0]
+  ].map(c => project(c, escala, origem));
+}
+
 export function svgCadeira(barras, material, opcoes = {}){
   const largura = opcoes.largura || LARGURA;
   const altura = opcoes.altura || ALTURA;
@@ -67,40 +92,21 @@ export function svgCadeira(barras, material, opcoes = {}){
     ? (material.render && material.render.veios === true)
     : opcoes.veios;
 
-  const { escala, origem, bounds } = computeView(barras, largura, altura, margem);
-  const faces = buildFaces(barras, escala, origem, material.cor);
-  const conteudo = [];
+  const vista = computeView(barras, largura, altura, margem);
+  const faces = projetarFaces(
+    filtrarOrdenar(faces3D(barras, material.cor)),
+    vista.escala, vista.origem, 'estatico'
+  );
 
-  // Sombra no piso, antes de tudo
-  const m = 0.16 * (bounds.max[0] - bounds.min[0]);
-  const sombra = [
-    [bounds.min[0] - m, bounds.min[1] - m, 0],
-    [bounds.max[0] + m, bounds.min[1] - m, 0],
-    [bounds.max[0] + m, bounds.max[1] + m, 0],
-    [bounds.min[0] - m, bounds.max[1] + m, 0]
-  ].map(c => project(c, escala, origem));
+  const sombra = sombraNoPiso(vista.bounds, vista.escala, vista.origem);
 
-  conteudo.push('<polygon points="' + poly(sombra) + '" fill="#000" ' +
-    'fill-opacity="' + opacidadeSombra + '" filter="url(#' + idFiltro + ')"/>');
+  const veiosFn = mostrarVeios
+    ? (b) => veios(b, vista.escala, vista.origem)
+    : null;
 
-  for (const f of faces) {
-    conteudo.push('<polygon points="' + poly(f.tela) + '" fill="' + f.fill + '" ' +
-      'stroke="' + f.contorno + '" stroke-width="0.9" stroke-linejoin="round"/>');
-
-    // Veio so em face horizontal de caixa: cilindro e cone nao tem veio
-    if (mostrarVeios && f.kind === 'top' && f.tipo === 'caixa') {
-      conteudo.push(veios(f.barras, escala, origem));
-    }
-  }
-
-  return '<svg viewBox="0 0 ' + largura + ' ' + altura + '" width="100%" ' +
-    'role="img" aria-label="Vista isometrica da cadeira">' +
-      '<defs><filter id="' + idFiltro + '" x="-40%" y="-40%" ' +
-      'width="180%" height="180%">' +
-        '<feGaussianBlur stdDeviation="12"/>' +
-      '</filter></defs>' +
-      conteudo.join('') +
-    '</svg>';
+  return montarSVG({
+    largura, altura, idFiltro, sombra, opacidadeSombra, faces, veiosFn
+  });
 }
 
 /** Injeta o desenho no palco da pagina e devolve as dimensoes externas. */
