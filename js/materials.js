@@ -1,12 +1,12 @@
 /**
- * Propriedades mecanicas dos materiais.
- * E e sigmaLimite em MPa; rho em kg/m3; CS e o coeficiente de seguranca.
- * O bloco "render" e apenas apresentacao: nunca use em calculo.
+ * Propriedades mecânicas dos materiais.
+ * E e sigmaLimite em MPa; rho em kg/m³; CS é o coeficiente de segurança.
+ * O bloco "render" é apenas apresentação: nunca use em cálculo.
  */
 
 export const CORES = {
-  cinzaEscuro: '#4a4f55',   // assento de aco e de aluminio
-  vinhoEscuro: '#5c1f2b'    // encosto de aluminio
+  cinzaEscuro: '#4a4f55',
+  vinhoEscuro: '#5c1f2b'
 };
 
 export const MATERIAIS = {
@@ -23,7 +23,7 @@ export const MATERIAIS = {
   },
   aco: {
     id: 'aco',
-    nome: 'Aco ASTM A36',
+    nome: 'Aço ASTM A36',
     E: 200000, sigmaLimite: 250, rho: 7850, CS: 1.5, cor: '#8a9099',
     render: {
       pernas: '#8a9099',
@@ -34,7 +34,7 @@ export const MATERIAIS = {
   },
   aluminio: {
     id: 'aluminio',
-    nome: 'Aluminio 6061-T6',
+    nome: 'Alumínio 6061-T6',
     E: 69000, sigmaLimite: 240, rho: 2700, CS: 1.5, cor: '#c3c9cf',
     render: {
       pernas: '#c3c9cf',

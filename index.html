@@ -57,11 +57,28 @@
       <div id="palco" class="palco"></div>
     </section>
 
-    <section class="painel">
-      <h2>Resultados</h2>
+    <section class="painel painel--resultados">
+      <div class="painel__cabecalho">
+        <h2>Resultados</h2>
+        <button type="button" class="botao botao--secundario botao--mini"
+                id="abrir-memorial">Memorial</button>
+      </div>
       <div id="resultado" class="resultado"></div>
     </section>
   </main>
+
+  <dialog id="memorial-dialog" class="memorial">
+    <div class="memorial__barra">
+      <strong>Memorial de cálculo</strong>
+      <div class="memorial__acoes">
+        <button type="button" class="botao botao--secundario"
+                id="memorial-imprimir">Imprimir</button>
+        <button type="button" class="botao botao--secundario"
+                id="memorial-fechar">Fechar</button>
+      </div>
+    </div>
+    <div class="memorial__conteudo" id="memorial-conteudo"></div>
+  </dialog>
 
   <script>
   (function(){

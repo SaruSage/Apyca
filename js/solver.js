@@ -1,47 +1,35 @@
 /**
- * Nucleo de calculo. Funcao pura: nao toca no DOM.
+ * Núcleo de cálculo. Função pura: não toca no DOM.
  *
  * REGIMES ESTRUTURAIS
  *
  * 4 PERNAS — quadrado de lado L.
- *   Nmax = P/4 + P*e/(2L)      cada perna recebe M = P*e/4
+ *   Nmáx = P/4 + P·e/(2L)      cada perna recebe M = P·e/4
  *   Flambagem: perna entre apoios, K = 1,0.
  *   Risco: a excentricidade levanta as pernas do lado oposto.
  *
  * 1 PERNA — pedestal central.
- *   N = P                      M = P*e
+ *   N = P                      M = P·e
  *   Flambagem: coluna engastada na base e livre no topo, K = 2,0.
  *   Risco: tombamento.
  *
- * PE DO PEDESTAL
- *   Redondo : tronco de cone de raio coneRaioBase.
- *   Quadrado: tronco de piramide de lado fracaoLadoPiramide * diametro.
- *   Volumes:
- *     V_cone     = (pi*h/3)(R^2 + R*rt + rt^2)
- *     V_piramide = (h/3)(A1 + A2 + raiz(A1*A2))
- *
  * TOMBAMENTO
- *   M_tomb  = P * e
- *   M_estab = (P + W) * R_est
+ *   M_tomb  = P · e
+ *   M_estab = (P + W) · R_est
  *
- *   R_est e o menor braco resistente da base:
- *     Cone     -> R (o raio, igual em toda direcao)
- *     Piramide -> ladoBase/2 (direcao perpendicular as faces)
- *                 nas diagonais o braco e maior, logo este e o pior caso
+ *   R_est é o menor braço resistente da base:
+ *     Cone     -> R (o raio, igual em toda direção)
+ *     Pirâmide -> ladoBase/2 (perpendicular às faces)
  *
- *   Usar o raio do CONE para a piramide seria nao conservador: seria
- *   superestimar a estabilidade em 1/fracaoLadoPiramide.
- *
- * Em ambos os casos:
- *   sigma = N/A + M*c/I
- *   delta = N*H/(A*E)
+ *   Usar o raio do cone na pirâmide superestimaria a estabilidade em
+ *   1/fracaoLadoPiramide. Por isso o braço depende do formato.
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
 import { propriedadesSecao } from './geometry.js';
 
-/** Volume do pe, em m³. Redondo: cone. Quadrado: piramide. */
+/** Volume do pé, em m³. Redondo: cone. Quadrado: pirâmide. */
 function volumePe(h, R, t, forma){
   if (forma === 'redonda') {
     const rb = R, rt = t / 2;
@@ -53,10 +41,7 @@ function volumePe(h, R, t, forma){
   return (h / 3) * (A1 + A2 + Math.sqrt(A1 * A2)) / 1e9;
 }
 
-/**
- * Menor braco resistente da base, em mm.
- * E este valor que entra no momento estabilizador do tombamento.
- */
+/** Menor braço resistente da base, em mm. */
 function bracoEstabilidade(R, forma){
   if (forma === 'redonda') return R;
   return R * CADEIRA.fracaoLadoPiramide;
@@ -71,7 +56,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
     erros.push('A altura da perna deve ser maior que zero.');
   }
   if (!Number.isFinite(massaKg) || massaKg <= 0) {
-    erros.push('A massa do usuario deve ser maior que zero.');
+    erros.push('A massa do usuário deve ser maior que zero.');
   }
 
   let material;
@@ -117,7 +102,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
     levantou = dN > Nmedio;
   }
 
-  // ---------- Massa: coluna prismatica + pe ----------
+  // ---------- Massa: coluna prismática + pé ----------
   const hPe = n === 1 ? Math.min(CADEIRA.coneAltura, H * 0.4) : 0;
   const hColuna = H - hPe;
   const R = CADEIRA.coneRaioBase;
@@ -129,7 +114,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
   const massaTotal = massaPernas + HIPOTESES.mAssento;
   const pesoCadeira = massaTotal * G;
 
-  // ---------- Tensoes ----------
+  // ---------- Tensões ----------
   const sigmaAxial = Nmax / A;
   const sigmaFlexao = Mperna / W;
   const sigmaMax = sigmaAxial + sigmaFlexao;
@@ -144,7 +129,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
 
   const deltaAxial = (Nmax * H) / (A * material.E);
 
-  // ---------- Estabilidade ao tombamento (so no pedestal) ----------
+  // ---------- Estabilidade ao tombamento (só no pedestal) ----------
   let estabilidade = null;
   if (n === 1) {
     const R_est = bracoEstabilidade(R, formaFinal);
@@ -162,7 +147,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
 
   const motivos = [];
   if (utilizacao > 1) {
-    motivos.push('Tensao ' + fmt(sigmaMax) + ' MPa acima da admissivel ' +
+    motivos.push('Tensão de ' + fmt(sigmaMax) + ' MPa acima da admissível de ' +
                  fmt(sigmaAdm) + ' MPa.');
   }
   if (utilizacaoFlambagem > 1) {
@@ -172,7 +157,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg, forma, nu
     motivos.push('A excentricidade levanta as pernas do lado oposto.');
   }
   if (estabilidade && estabilidade.tombou) {
-    motivos.push('A resultante cai fora da base do pedestal: tombamento.');
+    motivos.push('A resultante cai fora da base do pedestal: risco de tombamento.');
   }
 
   return {
