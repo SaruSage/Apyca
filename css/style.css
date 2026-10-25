@@ -172,6 +172,35 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
 .memorial__conteudo .mem-sub{color:#5a6472;font-size:.85rem;margin:0 0 24px;
   padding-bottom:12px;border-bottom:1px solid #cfd6e0}
 
+/* ---------- Figura da cadeira ----------
+   Sem fundo: o SVG nao desenha retangulo, entao aparece apenas a peca e a
+   sombra sobre o branco do documento. */
+.mem-figura{
+  margin:0 auto 26px;
+  text-align:center;
+  break-inside:avoid;
+}
+.mem-figura__palco{
+  display:block;
+  width:100%;
+  max-width:360px;
+  margin:0 auto;
+  padding:0;
+  border:none;
+  background:transparent;
+  line-height:0;
+}
+.mem-figura__palco svg{display:block;width:100%;height:auto}
+.mem-figura__legenda{
+  margin:8px 0 0;
+  font-size:.76rem;
+  color:#4a5460;
+  line-height:1.4;
+  font-variant-numeric:tabular-nums;
+}
+.mem-figura__legenda strong{color:#2a3440}
+.mem-figura__eixos{color:#6b7480;font-size:.71rem}
+
 .mem-sec{margin:0 0 24px}
 
 .mem-sec h2{
@@ -234,6 +263,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
   .memorial__barra{display:none !important}
   .memorial__conteudo{max-height:none;overflow:visible;padding:0}
 
+  .mem-figura__palco{max-width:76mm}
   .mem-sec{break-inside:avoid}
   .mem-tab{font-size:.75rem}
   .mem-tab thead{display:table-header-group}

@@ -1,13 +1,17 @@
 /**
  * Memorial de cálculo imprimível.
  *
- * Recebe o objeto de resultado do solver e as dimensões externas do modelo e
- * devolve uma string HTML de documento. Não faz cálculo nenhum: apenas
- * formata o que o solver já produziu, mostrando expressão, substituição e
- * resultado de cada verificação.
+ * Recebe o resultado do solver e devolve uma string HTML de documento.
+ * Não faz cálculo estrutural: apenas formata o que o solver já produziu,
+ * mostrando expressão, substituição e resultado de cada verificação.
+ *
+ * A figura da cadeira é gerada aqui, com o MESMO código do desenho da tela,
+ * sobre fundo transparente e com sombra clara — o papel é branco.
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
+import { construirBarras, dimensoesExternas } from './chairModel.js';
+import { svgCadeira } from './render.js';
 
 function num(v, casas = 2){
   if (!Number.isFinite(v)) return '—';
@@ -51,7 +55,41 @@ function secao(titulo, corpo){
   return '<section class="mem-sec"><h2>' + titulo + '</h2>' + corpo + '</section>';
 }
 
-export function gerarMemorial(r, dims){
+/**
+ * Figura da cadeira.
+ *
+ * Fundo transparente: o SVG não desenha retângulo de fundo, então no papel
+ * aparece apenas a peça e a sombra. A sombra vai a 0,16 porque no branco o
+ * preto a 50% do painel escuro leria como mancha.
+ */
+function figuraCadeira(r){
+  const material = r.entrada.material;
+  const barras = construirBarras(r.entrada.t, r.entrada.H, material,
+                                 r.entrada.forma, r.entrada.numPernas);
+  const dims = dimensoesExternas(barras);
+
+  const svg = svgCadeira(barras, material, {
+    largura: 860,
+    altura: 620,
+    margem: 40,
+    idFiltro: 'borrao-memorial',
+    opacidadeSombra: 0.16
+  });
+
+  const legenda = num(dims.largura / 10, 1) + ' × ' +
+                  num(dims.profundidade / 10, 1) + ' × ' +
+                  num(dims.altura / 10, 1) + ' cm';
+
+  return '<figure class="mem-figura">' +
+    '<div class="mem-figura__palco">' + svg + '</div>' +
+    '<figcaption class="mem-figura__legenda">' +
+      '<strong>Figura 1</strong> — ' + legenda +
+      ' <span class="mem-figura__eixos">(largura × profundidade × altura)</span>' +
+    '</figcaption>' +
+  '</figure>';
+}
+
+export function gerarMemorial(r, dimsExternas){
   const hoje = new Date().toLocaleDateString('pt-BR', {
     day: '2-digit', month: 'long', year: 'numeric'
   });
@@ -85,6 +123,9 @@ export function gerarMemorial(r, dims){
   h += '<h1>Memorial de cálculo estrutural</h1>';
   h += '<p class="mem-sub">Cadeira A3 · ' + hoje + '</p>';
 
+  /* ---------- Figura ---------- */
+  h += figuraCadeira(r);
+
   /* ---------- 1. Entrada ---------- */
   const linhasEntrada = [
     linha('Material', mat.nome),
@@ -98,15 +139,16 @@ export function gerarMemorial(r, dims){
     linha('Massa do usuário (m)', num(m, 1) + ' kg'),
     linha('Número de pernas', pernas)
   ];
-  if (dims) {
+  if (dimsExternas) {
     linhasEntrada.push(linha('Dimensões externas',
-      num(dims.altura / 10, 1) + ' × ' + num(dims.largura / 10, 1) + ' × ' +
-      num(dims.profundidade / 10, 1) + ' cm'));
+      num(dimsExternas.altura / 10, 1) + ' × ' +
+      num(dimsExternas.largura / 10, 1) + ' × ' +
+      num(dimsExternas.profundidade / 10, 1) + ' cm'));
   }
-  h += secao('1. Dados de entrada', tabelaSimples('Configuração analisada', linhasEntrada));
+  h += secao('1. Dados de entrada',
+    tabelaSimples('Configuração analisada', linhasEntrada));
 
   /* ---------- 2. Premissas ---------- */
-  const KPed = HIPOTESES.KPedestal;
   let linhasPrem = [
     linha('Aceleração da gravidade (g)', num(G, 2) + ' m/s²'),
     linha('Lado do quadro de pernas (L)', num(HIPOTESES.L, 0) + ' mm'),
@@ -120,32 +162,34 @@ export function gerarMemorial(r, dims){
     linhasPrem.push(linha('Fração do lado da pirâmide',
       num(CADEIRA.fracaoLadoPiramide, 3) + ' do diâmetro do cone'));
   }
-  h += secao('2. Premissas de projeto', tabelaSimples('Hipóteses adotadas', linhasPrem));
+  h += secao('2. Premissas de projeto',
+    tabelaSimples('Hipóteses adotadas', linhasPrem));
 
   /* ---------- 3. Propriedades da seção ---------- */
   const exprA = r.entrada.forma === 'redonda' ? 'π·t²/4' : 't²';
   const exprI = r.entrada.forma === 'redonda' ? 'π·t⁴/64' : 't⁴/12';
 
-  h += secao('3. Propriedades da seção transversal', tabelaCalc('Área, inércia e resistência', [
-    cl('Área (A)', exprA,
-      r.entrada.forma === 'redonda'
-        ? 'π·' + num(t, 1) + '²/4'
-        : num(t, 1) + '²',
-      num(r.secao.A, 2), 'mm²'),
-    cl('Momento de inércia (I)', exprI,
-      r.entrada.forma === 'redonda'
-        ? 'π·' + num(t, 1) + '⁴/64'
-        : num(t, 1) + '⁴/12',
-      num(r.secao.I, 2), 'mm⁴'),
-    cl('Distância à fibra extrema (c)', 't/2',
-      num(t, 1) + '/2', num(r.secao.c, 2), 'mm'),
-    cl('Módulo resistente (W)', 'I/c',
-      num(r.secao.I, 2) + '/' + num(r.secao.c, 2),
-      num(r.secao.W, 2), 'mm³'),
-    cl('Raio de giração (r)', '√(I/A)',
-      '√(' + num(r.secao.I, 2) + '/' + num(r.secao.A, 2) + ')',
-      num(r.secao.r, 3), 'mm')
-  ]));
+  h += secao('3. Propriedades da seção transversal',
+    tabelaCalc('Área, inércia e resistência', [
+      cl('Área (A)', exprA,
+        r.entrada.forma === 'redonda'
+          ? 'π·' + num(t, 1) + '²/4'
+          : num(t, 1) + '²',
+        num(r.secao.A, 2), 'mm²'),
+      cl('Momento de inércia (I)', exprI,
+        r.entrada.forma === 'redonda'
+          ? 'π·' + num(t, 1) + '⁴/64'
+          : num(t, 1) + '⁴/12',
+        num(r.secao.I, 2), 'mm⁴'),
+      cl('Distância à fibra extrema (c)', 't/2',
+        num(t, 1) + '/2', num(r.secao.c, 2), 'mm'),
+      cl('Módulo resistente (W)', 'I/c',
+        num(r.secao.I, 2) + '/' + num(r.secao.c, 2),
+        num(r.secao.W, 2), 'mm³'),
+      cl('Raio de giração (r)', '√(I/A)',
+        '√(' + num(r.secao.I, 2) + '/' + num(r.secao.A, 2) + ')',
+        num(r.secao.r, 3), 'mm')
+    ]));
 
   /* ---------- 4. Esforços ---------- */
   const linhasEsforcos = [
