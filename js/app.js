@@ -9,6 +9,7 @@ const campoEspessura = document.getElementById('espessura');
 const campoAltura = document.getElementById('altura');
 const campoMassa = document.getElementById('massa');
 const campoForma = document.getElementById('forma');
+const campoPernas = document.getElementById('numPernas');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 
@@ -19,6 +20,7 @@ for (const mat of Object.values(MATERIAIS)) {
   selectMaterial.appendChild(opt);
 }
 
+/** Formata numero no padrao brasileiro. */
 function n(valor, casas = 2){
   return valor.toLocaleString('pt-BR', {
     minimumFractionDigits: casas,
@@ -26,11 +28,15 @@ function n(valor, casas = 2){
   });
 }
 
+/** Uma linha do painel: rotulo a esquerda, valor a direita. */
 function linha(rotulo, valor){
-  return '<div class="linha"><span class="rotulo">' + rotulo +
-    '</span><span class="valor">' + valor + '</span></div>';
+  return '<div class="linha">' +
+    '<span class="rotulo">' + rotulo + '</span>' +
+    '<span class="valor">' + valor + '</span>' +
+    '</div>';
 }
 
+/** Um grupo de linhas com titulo. */
 function grupo(titulo, linhas){
   return '<div class="grupo"><h3>' + titulo + '</h3>' + linhas.join('') + '</div>';
 }
@@ -43,21 +49,26 @@ function renderResultado(r){
   }
 
   const nomeForma = r.entrada.forma === 'redonda' ? 'Redonda' : 'Quadrada';
+  const nomePernas = r.entrada.numPernas === 1 ? '1 (pedestal central)' : '4';
 
   let h = '';
-  h += grupo('Secao da perna', [
+
+  h += grupo('Secao e apoios', [
     linha('Formato', nomeForma),
+    linha('Numero de pernas', nomePernas),
     linha('Area (A)', n(r.secao.A, 0) + ' mm²'),
     linha('Inercia (I)', n(r.secao.I, 0) + ' mm⁴'),
     linha('Modulo resistente (W)', n(r.secao.W, 0) + ' mm³'),
     linha('Raio de giracao (r)', n(r.secao.r, 3) + ' mm')
   ]);
+
   h += grupo('Esforcos', [
     linha('Carga total (P)', n(r.forcas.P, 1) + ' N'),
     linha('Reacao media por perna', n(r.forcas.Nmedio, 1) + ' N'),
     linha('Reacao maxima (N)', n(r.forcas.Nmax, 1) + ' N'),
     linha('Momento na perna (M)', n(r.forcas.Mperna, 0) + ' N·mm')
   ]);
+
   h += grupo('Tensoes normais', [
     linha('Axial (N/A)', n(r.tensoes.sigmaAxial, 3) + ' MPa'),
     linha('Flexao (M·c/I)', n(r.tensoes.sigmaFlexao, 3) + ' MPa'),
@@ -65,11 +76,23 @@ function renderResultado(r){
     linha('Admissivel', n(r.tensoes.sigmaAdm, 3) + ' MPa'),
     linha('Utilizacao', n(r.tensoes.utilizacao * 100, 1) + '%')
   ]);
+
   h += grupo('Flambagem', [
+    linha('K (comprimento efetivo)', n(r.flambagem.K, 2)),
     linha('Indice de esbeltez', n(r.flambagem.lambda, 1)),
     linha('Carga critica (Pcr)', n(r.flambagem.Pcr / 1000, 2) + ' kN'),
     linha('Utilizacao', n(r.flambagem.utilizacaoFlambagem * 100, 1) + '%')
   ]);
+
+  if (r.estabilidade) {
+    h += grupo('Estabilidade ao tombamento', [
+      linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),
+      linha('Braco de tombamento', n(r.estabilidade.braco, 1) + ' mm'),
+      linha('Peso proprio da cadeira', n(r.estabilidade.pesoCadeira, 1) + ' N'),
+      linha('Utilizacao', n(r.estabilidade.utilizacao * 100, 1) + '%')
+    ]);
+  }
+
   h += grupo('Deformacao e massa', [
     linha('Encurtamento axial', n(r.deformacao.deltaAxial, 4) + ' mm'),
     linha('Massa das pernas', n(r.massa.pernas, 2) + ' kg'),
@@ -77,10 +100,12 @@ function renderResultado(r){
   ]);
 
   if (r.veredito.aprovado) {
-    h += '<div class="veredito veredito--ok">Configuracao aprovada em todos os criterios.</div>';
+    h += '<div class="veredito veredito--ok">' +
+      'Configuracao aprovada em todos os criterios.</div>';
   } else {
     h += '<div class="veredito veredito--erro">Configuracao reprovada.<ul>' +
-      r.veredito.motivos.map(m => '<li>' + m + '</li>').join('') + '</ul></div>';
+      r.veredito.motivos.map(m => '<li>' + m + '</li>').join('') +
+      '</ul></div>';
   }
 
   painel.innerHTML = h;
@@ -96,14 +121,16 @@ function simular(){
     espessuraMm,
     alturaMm,
     massaKg,
-    forma: campoForma.value
+    forma: campoForma.value,
+    numPernas: parseInt(campoPernas.value, 10)
   });
 
   renderResultado(r);
   if (!r.ok) return r;
 
   const material = r.entrada.material;
-  const barras = construirBarras(r.entrada.t, r.entrada.H, material, r.entrada.forma);
+  const barras = construirBarras(r.entrada.t, r.entrada.H, material,
+                                 r.entrada.forma, r.entrada.numPernas);
   const dims = renderCadeira(palco, barras, material);
 
   const p = document.createElement('p');

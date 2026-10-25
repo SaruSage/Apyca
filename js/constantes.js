@@ -6,11 +6,17 @@
 export const G = 9.81;
 
 export const HIPOTESES = {
-  nPernas: 4,   // numero de apoios (fixo nesta versao)
-  L: 400,       // lado do quadrado formado pelos eixos das pernas, mm
-  e: 50,        // excentricidade de projeto do centro de carga, mm
-  K: 1.0,       // fator de comprimento efetivo da coluna
-  mAssento: 2.0 // massa do assento + encosto, kg
+  nPernas: 4,        // valor padrao quando o formulario nao informa
+  L: 400,            // lado do quadrado formado pelos eixos das pernas, mm
+  e: 50,             // excentricidade de projeto do centro de carga, mm
+
+  // Fator de comprimento efetivo da flambagem.
+  // 4 pernas: rotula-rotula nos extremos da perna.
+  K: 1.0,
+  // 1 perna: coluna engastada na base e livre no topo (balanco).
+  KPedestal: 2.0,
+
+  mAssento: 2.0      // massa do assento + encosto, kg
 };
 
 /**
@@ -25,5 +31,19 @@ export const CADEIRA = {
   fracaoEspessuraEncosto: 0.5,   // encosto = 0,5 * t
   alturaAbertura: 90,            // vao livre entre assento e base do encosto
   alturaEncosto: 320,            // do topo do assento ate o topo do encosto
-  espessuraMaxima: 150           // acima disso as pernas se cruzam no centro
+  espessuraMaxima: 150,          // acima disso as pernas se cruzam no centro
+
+  // Base do pedestal, usada apenas na cadeira de 1 perna.
+  coneRaioBase: 200,             // raio do cone na base, mm
+  coneAltura: 55,                // altura do pe, mm
+
+  /*
+   * Lado da base da piramide como FRACAO DO DIAMETRO do cone.
+   * 1,0   -> lado 400 mm (mesmo diametro)
+   * 2/3   -> lado ~266,7 mm
+   *
+   * ATENCAO: o braco de tombamento da piramide e metade desse lado.
+   * Reduzir esta fracao reduz a estabilidade na mesma proporcao.
+   */
+  fracaoLadoPiramide: 2 / 3
 };

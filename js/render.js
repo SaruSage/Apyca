@@ -11,7 +11,7 @@ function poly(pontos){
   return pontos.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
 }
 
-/** Veio da madeira: linhas finas sobre as faces horizontais da caixa. */
+/** Veio da madeira: linhas finas sobre as faces horizontais de uma CAIXA. */
 function veios(b, escala, origem){
   const menor = Math.min(b.dx, b.dy);
   const n = Math.min(7, Math.max(2, Math.round(menor / 14)));
@@ -57,8 +57,8 @@ export function renderCadeira(container, barras, material){
     conteudo.push('<polygon points="' + poly(f.tela) + '" fill="' + f.fill + '" ' +
       'stroke="' + f.contorno + '" stroke-width="0.9" stroke-linejoin="round"/>');
 
-    // Veio so em face horizontal de caixa: cilindro nao tem veio
-    if (mostrarVeios && f.kind === 'top' && f.tipo !== 'cilindro') {
+    // Veio so em face horizontal de caixa: cilindro e cone nao tem veio
+    if (mostrarVeios && f.kind === 'top' && f.tipo === 'caixa') {
       conteudo.push(veios(f.barras, escala, origem));
     }
   }

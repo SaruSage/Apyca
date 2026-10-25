@@ -2,23 +2,30 @@
  * Converte as entradas na lista de pecas 3D da cadeira.
  * Nao sabe nada de tela: devolve primitivos em milimetros.
  *
- * Dois primitivos:
+ * Primitivos:
  *   caixa    — paralelepipedo alinhado aos eixos
  *   cilindro — prisma de eixo vertical (r, z0, h)
+ *   cone     — tronco de cone de eixo vertical (rBase, rTopo, z0, h)
+ *   piramide — tronco de piramide de base quadrada (ladoBase, ladoTopo, z0, h)
  *
  * Eixos: x para a direita, y para o fundo, z para cima.
  * O encosto fica em y = 0 (lado mais distante da camera isometrica).
  *
- * Ancoragem: faces externas das pernas fixas em x = 0 / x = L e y = 0 / y = L.
- * A espessura cresce sempre para dentro do pe.
- *
- * CAMADAS DE PINTURA — ordem de montagem:
- *   0 = pernas abaixo do assento
+ * CAMADAS DE PINTURA:
+ *   0 = pernas abaixo do assento (e pe da base)
  *   2 = assento
  *   3 = conjunto superior traseiro: postes E encosto
  *
- * Postes e encosto na MESMA camada: a profundidade decide qual fica na frente,
- * e a perna esquerda cai atras do encosto enquanto a direita fica a frente.
+ * PE DO PEDESTAL
+ *   perna redonda -> tronco de cone, raio da base = coneRaioBase
+ *   perna quadrada -> tronco de piramide, LADO da base = 2 * coneRaioBase
+ *                     (mesmo diametro do cone, como pedido)
+ *   Em ambos os casos o pe recebe a COR DO ASSENTO do material.
+ *
+ * IMPORTANTE — 1 PERNA
+ * O conjunto acima do assento e IDENTICO ao da cadeira de 4 pernas: dois
+ * postes traseiros nos cantos, painel do encosto entre eles. O assento e que
+ * sustenta o encosto, por balanco. A coluna central nao toca o encosto.
  */
 
 import { CADEIRA } from './constantes.js';
@@ -31,12 +38,33 @@ export function cilindro(cx, cy, r, z0, h, camada, cor){
   return { tipo: 'cilindro', cx, cy, r, z0, h, camada, cor };
 }
 
+export function cone(cx, cy, rBase, rTopo, z0, h, camada, cor){
+  return { tipo: 'cone', cx, cy, rBase, rTopo, z0, h, camada, cor };
+}
+
+export function piramide(cx, cy, ladoBase, ladoTopo, z0, h, camada, cor){
+  return { tipo: 'piramide', cx, cy, ladoBase, ladoTopo, z0, h, camada, cor };
+}
+
 /** Caixa envolvente de uma peca, qualquer que seja o tipo. */
 export function bboxPeca(p){
   if (p.tipo === 'cilindro') {
     return {
       min: [p.cx - p.r, p.cy - p.r, p.z0],
       max: [p.cx + p.r, p.cy + p.r, p.z0 + p.h]
+    };
+  }
+  if (p.tipo === 'cone') {
+    return {
+      min: [p.cx - p.rBase, p.cy - p.rBase, p.z0],
+      max: [p.cx + p.rBase, p.cy + p.rBase, p.z0 + p.h]
+    };
+  }
+  if (p.tipo === 'piramide') {
+    const a = p.ladoBase / 2;
+    return {
+      min: [p.cx - a, p.cy - a, p.z0],
+      max: [p.cx + a, p.cy + a, p.z0 + p.h]
     };
   }
   return {
@@ -63,14 +91,16 @@ function encostoRipas(x0, y0, larg, zBase, alt, prof, cor, n, fracao){
   return out;
 }
 
-export function construirBarras(espessura, altura, material, forma = 'quadrada'){
+export function construirBarras(espessura, altura, material, forma = 'quadrada', numPernas = 4){
   const {
     L, folga, fracaoEspessuraAssento, fracaoEspessuraEncosto,
-    alturaAbertura, alturaEncosto, espessuraMaxima
+    alturaAbertura, alturaEncosto, espessuraMaxima,
+    coneRaioBase, coneAltura, fracaoLadoPiramide
   } = CADEIRA;
 
   const render = (material && material.render) || RENDER_PADRAO;
   const redonda = forma === 'redonda';
+  const n = numPernas === 1 ? 1 : 4;
   const t = Math.min(espessura, espessuraMaxima);
   const H = altura;
 
@@ -83,38 +113,55 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada')
 
   const barras = [];
 
-  /*
-   * Uma perna apoiada no canto (x, y) do pe, com base em z0 e altura h.
-   *
-   * Quadrada: ocupa o quadrado de lado t a partir de (x, y).
-   * Redonda : circulo de diametro t INSCRITO nesse mesmo quadrado. O centro
-   *           vai para (x + t/2, y + t/2), entao o envelope externo continua
-   *           indo de 0 a L nos dois eixos e a cadeira nao muda de tamanho.
-   */
+  const xCentro = L / 2 - t / 2;   // canto inferior esquerdo da perna central
+  const cCentro = L / 2;           // eixo do pedestal
+
+  /** Perna apoiada no canto (x, y) do pe, com base em z0 e altura h. */
   function perna(x, y, z0, h, camada){
+    if (h <= 0) return;
     if (redonda) {
-      barras.push(cilindro(x + t/2, y + t/2, t/2, z0, h, camada, render.pernas));
+      barras.push(cilindro(x + t / 2, y + t / 2, t / 2, z0, h, camada, render.pernas));
     } else {
       barras.push(caixa(x, y, z0, t, t, h, camada, render.pernas));
     }
   }
 
-  // Camada 0: pernas abaixo do assento
-  perna(0,     L - t, 0, H, 0);
-  perna(L - t, L - t, 0, H, 0);
-  perna(0,     0,     0, H, 0);
-  perna(L - t, 0,     0, H, 0);
+  // ---------- Camada 0: apoios ----------
+  if (n === 4) {
+    perna(0,     L - t, 0, H, 0);
+    perna(L - t, L - t, 0, H, 0);
+    perna(0,     0,     0, H, 0);
+    perna(L - t, 0,     0, H, 0);
+  } else {
+    /*
+     * Pe do pedestal: cone ou piramide, na cor do assento.
+     * A base da piramide tem lado 2 * coneRaioBase, ou seja, o mesmo
+     * diametro do cone. O envelope externo nao muda em nenhum eixo.
+     */
+    const hPe = Math.min(coneAltura, H * 0.4);
+    const R = coneRaioBase;
+    const corPe = render.assento || render.pernas;
 
-  // Camada 2: assento
+    if (redonda) {
+      barras.push(cone(cCentro, cCentro, R, t / 2, 0, hPe, 0, corPe));
+    } else {
+      // Lado da base = fracao * diametro do cone. O topo tem o tamanho da perna.
+      const ladoBase = 2 * R * fracaoLadoPiramide;
+      barras.push(piramide(cCentro, cCentro, ladoBase, t, 0, hPe, 0, corPe));
+    }
+
+    perna(xCentro, xCentro, hPe, H - hPe, 0);
+  }
+
+  // ---------- Camada 2: assento ----------
   barras.push(caixa(-folga, -folga, H,
                     L + 2 * folga, L + 2 * folga, tAssento, 2, render.assento));
 
-  // Camada 3: postes acima do assento
+  // ---------- Camada 3: conjunto superior traseiro ----------
   const hPoste = zTopoEncosto - zTopoAssento;
   perna(0,     0, zTopoAssento, hPoste, 3);
   perna(L - t, 0, zTopoAssento, hPoste, 3);
 
-  // Camada 3: encosto, entre as pernas, face de tras fixa em y = 0
   const largPainel = L - 2 * t;
   const altPainel = zTopoEncosto - zBaseEncosto;
   const spec = render.encosto || RENDER_PADRAO.encosto;

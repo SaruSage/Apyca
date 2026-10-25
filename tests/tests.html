@@ -68,10 +68,9 @@
       verificar(nome + ' · aprovado', r.veredito.aprovado === esperado.aprovado);
     }
 
-    /* ---------- Casos de secao QUADRADA (nao-regressao) ---------- */
+    /* ---------- Secao QUADRADA, 4 pernas (nao-regressao) ---------- */
 
-    // Caso 1 — madeira, t=40, H=450, m=100
-    testarCaso('madeira quadrada t=40 H=450 m=100',
+    testarCaso('madeira quadrada 4p t=40 H=450 m=100',
       { materialId:'madeira', espessuraMm:40, alturaMm:450, massaKg:100 },
       {
         A:1600,
@@ -87,8 +86,7 @@
         aprovado:true
       });
 
-    // Caso 2 — aco, t=20, H=450, m=120
-    testarCaso('aco quadrada t=20 H=450 m=120',
+    testarCaso('aco quadrada 4p t=20 H=450 m=120',
       { materialId:'aco', espessuraMm:20, alturaMm:450, massaKg:120 },
       {
         A:400,
@@ -104,8 +102,7 @@
         aprovado:true
       });
 
-    // Caso 3 — aluminio, t=30, H=500, m=150
-    testarCaso('aluminio quadrada t=30 H=500 m=150',
+    testarCaso('aluminio quadrada 4p t=30 H=500 m=150',
       { materialId:'aluminio', espessuraMm:30, alturaMm:500, massaKg:150 },
       {
         A:900,
@@ -121,15 +118,13 @@
         aprovado:true
       });
 
-    /* ---------- Caso de secao REDONDA ---------- */
+    /* ---------- Secao REDONDA, 4 pernas ---------- */
 
-    // Caso 4 — aluminio redonda, t=30, H=500, m=150
-    // A = pi*t^2/4 ; I = pi*t^4/64 ; c = 15 ; r = t/4
     const Ared = Math.PI * 30 * 30 / 4;
     const Ired = Math.PI * Math.pow(30, 4) / 64;
     const Wred = Ired / 15;
 
-    testarCaso('aluminio redonda t=30 H=500 m=150',
+    testarCaso('aluminio redonda 4p t=30 H=500 m=150',
       { materialId:'aluminio', espessuraMm:30, alturaMm:500, massaKg:150, forma:'redonda' },
       {
         A: Ared,
@@ -145,7 +140,97 @@
         aprovado: true
       });
 
-    /* ---------- Casos de contorno ---------- */
+    /* ---------- PEDESTAL: piramide (quadrada) e cone (redonda) ---------- */
+
+    const Wq40 = Math.pow(40, 3) / 6;
+    const Kbal = 2;
+
+    testarCaso('madeira quadrada 1p t=40 H=450 m=100',
+      { materialId:'madeira', espessuraMm:40, alturaMm:450, massaKg:100, numPernas:1 },
+      {
+        A: 1600,
+        Nmax: 981,
+        Mperna: 49050,
+        sigmaAxial: 981 / 1600,
+        sigmaFlexao: 49050 / Wq40,
+        sigmaMax: (981 / 1600) + (49050 / Wq40),
+        utilizacao: ((981 / 1600) + (49050 / Wq40)) / 20,
+        lambda: (Kbal * 450) / (40 / Math.sqrt(12)),
+        Pcr: (Math.PI**2 * 9500 * (Math.pow(40, 4) / 12)) / (Kbal * 450) ** 2,
+        deltaAxial: (981 * 450) / (1600 * 9500),
+        aprovado: true
+      });
+
+    const ped = calcular({ materialId:'madeira', espessuraMm:40,
+                           alturaMm:450, massaKg:100, numPernas:1 });
+    const pedRed = calcular({ materialId:'madeira', espessuraMm:40,
+                              alturaMm:450, massaKg:100, numPernas:1, forma:'redonda' });
+    const quatro = calcular({ materialId:'madeira', espessuraMm:40,
+                              alturaMm:450, massaKg:100, numPernas:4 });
+
+    // Valores de referencia para os volumes
+    const FRACAO = 2 / 3;
+    const R_CONE = 200;
+    const hPeRef = 55;
+    const ladoRef = 2 * R_CONE * FRACAO;
+    const A1 = ladoRef * ladoRef;
+    const A2 = 40 * 40;
+    const Vpir = (hPeRef / 3) * (A1 + A2 + Math.sqrt(A1 * A2)) / 1e9;
+    const Vcone = ((Math.PI * hPeRef) / 3) * (200*200 + 200*20 + 20*20) / 1e9;
+
+    /* --- Geometria do pe --- */
+    verificar('pe piramidal tem volume', ped.ok && ped.estabilidade.volumePe > 0);
+    verificar('volume da piramide confere com a formula',
+      ped.ok && quase(ped.estabilidade.volumePe, Vpir),
+      'obtido ' + (ped.ok ? ped.estabilidade.volumePe : '-') + ' esperado ' + Vpir);
+    verificar('volume do cone confere com a formula',
+      pedRed.ok && quase(pedRed.estabilidade.volumePe, Vcone));
+    verificar('piramide 2/3 e mais leve que o cone',
+      ped.ok && pedRed.ok && ped.massa.pernas < pedRed.massa.pernas);
+    verificar('razao de volume entre 0,55 e 0,65',
+      ped.ok && pedRed.ok &&
+      (ped.estabilidade.volumePe / pedRed.estabilidade.volumePe) > 0.55 &&
+      (ped.estabilidade.volumePe / pedRed.estabilidade.volumePe) < 0.65);
+
+    /* --- Braco de tombamento dependente do formato --- */
+    verificar('braco do cone e o raio cheio',
+      pedRed.ok && quase(pedRed.estabilidade.braco, 200));
+    verificar('braco da piramide e metade do lado 2/3',
+      ped.ok && quase(ped.estabilidade.braco, ladoRef / 2),
+      'obtido ' + (ped.ok ? ped.estabilidade.braco : '-'));
+    verificar('braco da piramide e 2/3 do braco do cone',
+      ped.ok && pedRed.ok &&
+      quase(ped.estabilidade.braco, pedRed.estabilidade.braco * FRACAO));
+
+    /* --- Tombamento --- */
+    verificar('utilizacao de tombamento da piramide',
+      ped.ok && quase(ped.estabilidade.utilizacao,
+        (ped.forcas.P * 50) / ((ped.forcas.P + ped.estabilidade.pesoCadeira) *
+                               ped.estabilidade.braco)));
+    verificar('piramide tomba mais que o cone',
+      ped.ok && pedRed.ok &&
+      ped.estabilidade.utilizacao > pedRed.estabilidade.utilizacao);
+    verificar('razao de tombamento proxima de 1,5',
+      ped.ok && pedRed.ok &&
+      (ped.estabilidade.utilizacao / pedRed.estabilidade.utilizacao) > 1.4 &&
+      (ped.estabilidade.utilizacao / pedRed.estabilidade.utilizacao) < 1.6);
+    verificar('nestas condicoes nenhum dos dois tomba',
+      ped.ok && pedRed.ok &&
+      !ped.estabilidade.tombou && !pedRed.estabilidade.tombou);
+
+    /* --- Regime estrutural --- */
+    verificar('pedestal usa K = 2 (balanco)', ped.ok && ped.flambagem.K === 2);
+    verificar('4 pernas usa K = 1 (rotula-rotula)', quatro.ok && quatro.flambagem.K === 1);
+    verificar('carga critica do pedestal e 1/4 da de 4 pernas',
+      ped.ok && quase(ped.flambagem.Pcr, quatro.flambagem.Pcr / 4));
+    verificar('4 pernas nao tem verificacao de tombamento',
+      quatro.ok && quatro.estabilidade === null);
+    verificar('momento do pedestal e 4x o de 4 pernas',
+      ped.ok && quase(ped.forcas.Mperna, 4 * quatro.forcas.Mperna));
+    verificar('pedestal recebe a carga inteira',
+      ped.ok && quase(ped.forcas.Nmax, ped.forcas.P));
+
+    /* ---------- Contorno ---------- */
 
     const ruim = calcular({ materialId:'madeira', espessuraMm:10,
                             alturaMm:900, massaKg:200 });
