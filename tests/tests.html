@@ -238,6 +238,53 @@
       ped.ok && pedRed.ok &&
       ped.estabilidade.utilizacao > pedRed.estabilidade.utilizacao);
 
+        /* ---------- Assento entre apoios (4 pernas) ---------- */
+
+    const asv = quatro.assentoVao;
+    const bAssv = 440;
+    const Lv = 400;
+    const hv = 20;
+    const qv = (100 * 9.81) / (bAssv * bAssv);
+    const Mv = (qv * Lv * Lv) / 16;
+    const flechav = (5 * qv * Math.pow(Lv, 4)) / (64 * 9500 * Math.pow(hv, 3));
+
+    verificar('4 pernas tem verificacao do vao', quatro.ok && asv !== null);
+    verificar('pedestal nao tem verificacao do vao', ped.ok && ped.assentoVao === null);
+    verificar('vao e igual ao lado do quadro', quatro.ok && quase(asv.L, 400));
+    verificar('pressao uniforme confere',
+      quatro.ok && quase(asv.q, qv), 'obtido ' + (quatro.ok ? asv.q : '-'));
+    verificar('momento no vao confere',
+      quatro.ok && quase(asv.M, Mv));
+    verificar('tensao no vao confere',
+      quatro.ok && quase(asv.sigma, (6 * Mv) / (hv * hv)));
+    verificar('flecha no vao confere',
+      quatro.ok && quase(asv.flecha, flechav),
+      'obtido ' + (quatro.ok ? asv.flecha : '-'));
+    verificar('flecha limite do vao = L/300',
+      quatro.ok && quase(asv.flechaLimite, 400 / 300));
+    verificar('madeira de 4 cm aprova no vao',
+      quatro.ok && asv.utilizacao < 1 && asv.utilizacaoFlecha < 1);
+
+    // Metodo das faixas e conservador frente a solucao de placa (0,0479)
+    verificar('coeficiente 1/16 maior que 0,0479',
+      quase((qv * Lv * Lv) / 16, 0.0625 * qv * Lv * Lv, 1e-9) &&
+      (0.0625 > 0.0479));
+
+    const quatroFino = calcular({ materialId:'madeira', espessuraMm:10,
+                                  alturaMm:450, massaKg:100 });
+    verificar('4 pernas finas reprovam no vao por flecha',
+      quatroFino.ok && quatroFino.assentoVao.utilizacaoFlecha > 1,
+      'util ' + (quatroFino.ok ? quatroFino.assentoVao.utilizacaoFlecha : '-'));
+    verificar('4 pernas finas aparecem nos motivos',
+      quatroFino.ok &&
+      quatroFino.veredito.motivos.some(t => t.indexOf('entre os apoios') >= 0));
+
+    const acoVao = calcular({ materialId:'aco', espessuraMm:20,
+                              alturaMm:450, massaKg:120 });
+    verificar('aco de 2 cm aprova com folga no vao',
+      acoVao.ok && acoVao.assentoVao.utilizacao < 0.1 &&
+      acoVao.assentoVao.utilizacaoFlecha < 0.1);
+
     /* ---------- Contorno ---------- */
 
     const ruim = calcular({ materialId:'madeira', espessuraMm:10,

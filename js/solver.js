@@ -2,8 +2,7 @@
  * Nucleo de calculo. Funcao pura: nao toca no DOM.
  *
  * A secao pode ser macica ou vazada, quadrada ou redonda.
- * Quando vazada, a espessura da parede vem em mm e e validada aqui:
- * precisa ser maior que zero e menor que t/2.
+ * Quando vazada, a espessura da parede vem em mm e e validada aqui.
  *
  * REGIMES
  *   4 pernas: Nmax = P/4 + P*e/(2L), M = P*e/4, K = 1,0
@@ -14,7 +13,15 @@
  *   flambagem global     Euler com K do regime
  *   flambagem local      (t-2ep)/ep contra 1,40*raiz(E/sigmaLim) — so vazada
  *   assento em balanco   Ma = P*a, delta = P*a^3/(3EI)
+ *   assento entre apoios q = P/b^2, M = q*L^2/16, delta = 5q*L^4/(64Eh^3)
+ *                        — so com 4 pernas
  *   tombamento           M_tomb/M_estab (so no pedestal)
+ *
+ * ASSENTO ENTRE APOIOS
+ *   Metodo das faixas: a carga se divide em duas direcoes ortogonais e cada
+ *   faixa de largura unitaria vence o vao L com carga uniforme q/2.
+ *   O coeficiente 1/16 = 0,0625 e conservador frente a 0,0479 da solucao
+ *   de placa simplesmente apoiada.
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
@@ -142,7 +149,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const deltaAxial = (Nmax * H) / (A * material.E);
 
-  // ---------- Assento em balanco ----------
+  // ---------- Assento: geometria comum ----------
   const bAssento = CADEIRA.L + 2 * CADEIRA.folga;
   const hAssento = CADEIRA.fracaoEspessuraAssento * t;
 
@@ -150,6 +157,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     ? (CADEIRA.L / 2 + CADEIRA.folga) - t / 2
     : CADEIRA.folga;
 
+  // ---------- Assento em balanco ----------
   const Ma = P * aBalanco;
   const Wa = (bAssento * hAssento * hAssento) / 6;
   const Ia = (bAssento * Math.pow(hAssento, 3)) / 12;
@@ -169,6 +177,35 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     utilizacaoFlecha: flechaAssento / flechaLimite
   };
 
+  // ---------- Assento entre apoios (so com 4 pernas) ----------
+  /*
+   * Metodo das faixas: a carga P se distribui sobre a area do assento gerando
+   * a pressao q. Cada uma das duas direcoes ortogonais leva metade, e a faixa
+   * de largura unitaria vence o vao L. Daí M = q*L^2/16 por unidade de largura.
+   *
+   * Com 1 perna nao existe vao entre apoios: o balanco ja cobre o caso.
+   */
+  let assentoVao = null;
+  if (n === 4) {
+    const q = P / (bAssento * bAssento);
+    const Mvao = (q * L * L) / 16;
+    const Ivao = Math.pow(hAssento, 3) / 12;
+    const sigmaVao = (6 * Mvao) / (hAssento * hAssento);
+    const flechaVao = (5 * q * Math.pow(L, 4)) /
+                      (64 * material.E * Math.pow(hAssento, 3));
+    const flechaLimiteVao = L / CADEIRA.divisorFlechaVao;
+
+    assentoVao = {
+      L, h: hAssento, q,
+      M: Mvao, I: Ivao,
+      sigma: sigmaVao,
+      flecha: flechaVao,
+      flechaLimite: flechaLimiteVao,
+      utilizacao: sigmaVao / sigmaAdm,
+      utilizacaoFlecha: flechaVao / flechaLimiteVao
+    };
+  }
+
   // ---------- Tombamento ----------
   let estabilidade = null;
   if (n === 1) {
@@ -185,6 +222,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     };
   }
 
+  // ---------- Veredito ----------
   const motivos = [];
   if (utilizacao > 1) {
     motivos.push('Tensao de ' + fmt(sigmaMax) + ' MPa na perna acima da admissivel de ' +
@@ -203,8 +241,19 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
                  'acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
   }
   if (assento.utilizacaoFlecha > 1) {
-    motivos.push('Flecha de ' + fmt(flechaAssento) + ' mm no assento, acima do ' +
-                 'limite de ' + fmt(flechaLimite) + ' mm.');
+    motivos.push('Flecha de ' + fmt(flechaAssento) + ' mm no assento em balanco, ' +
+                 'acima do limite de ' + fmt(flechaLimite) + ' mm.');
+  }
+  if (assentoVao) {
+    if (assentoVao.utilizacao > 1) {
+      motivos.push('Tensao de ' + fmt(assentoVao.sigma) + ' MPa no assento entre ' +
+                   'os apoios, acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
+    }
+    if (assentoVao.utilizacaoFlecha > 1) {
+      motivos.push('Flecha de ' + fmt(assentoVao.flecha) + ' mm no assento entre ' +
+                   'os apoios, acima do limite de ' + fmt(assentoVao.flechaLimite) +
+                   ' mm.');
+    }
   }
   if (levantou) {
     motivos.push('A excentricidade levanta as pernas do lado oposto.');
@@ -231,6 +280,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     },
     forcas: { P, Nmedio, dN, Nmax, Nmin, Mperna, levantou },
     assento,
+    assentoVao,
     estabilidade,
     tensoes: { sigmaAxial, sigmaFlexao, sigmaMax, sigmaAdm, utilizacao },
     flambagem: { K, lambda, Pcr, NcrAdm, utilizacaoFlambagem },

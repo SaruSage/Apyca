@@ -150,6 +150,19 @@ function renderResultado(r){
     linha('Utilização (flecha)', n(r.assento.utilizacaoFlecha * 100, 1) + '%')
   ], false);
 
+  if (r.assentoVao) {
+    h += gaveta('vao', 'Assento entre apoios', [
+      linha('Vão livre (L)', n(r.assentoVao.L, 0) + ' mm'),
+      linha('Pressão uniforme (q)', n(r.assentoVao.q, 6) + ' N/mm²'),
+      linha('Momento por largura', n(r.assentoVao.M, 2) + ' N·mm/mm'),
+      linha('Tensão de flexão', n(r.assentoVao.sigma, 3) + ' MPa'),
+      linha('Utilização (tensão)', n(r.assentoVao.utilizacao * 100, 1) + '%'),
+      linha('Flecha', n(r.assentoVao.flecha, 3) + ' mm'),
+      linha('Flecha limite', n(r.assentoVao.flechaLimite, 3) + ' mm'),
+      linha('Utilização (flecha)', n(r.assentoVao.utilizacaoFlecha * 100, 1) + '%')
+    ], false);
+  }
+
   if (r.estabilidade) {
     h += gaveta('estabilidade', 'Estabilidade ao tombamento', [
       linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),

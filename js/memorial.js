@@ -359,10 +359,42 @@ export function gerarMemorial(r, dimsExternas){
         cl('Flecha limite', 'a/' + CADEIRA.divisorFlechaAssento,
           num(as.a, 1) + '/' + CADEIRA.divisorFlechaAssento,
           num(as.flechaLimite, 4), 'mm'),
-        cl('Utilização à flecha', 'δ<sub>a</sub>/δ<sub>lim</sub>',
+                cl('Utilização à flecha', 'δ<sub>a</sub>/δ<sub>lim</sub>',
           num(as.flecha, 4) + '/' + num(as.flechaLimite, 4),
           num(as.utilizacaoFlecha * 100, 1), '%')
       ]));
+
+  /* ---------- Assento entre apoios (só com 4 pernas) ---------- */
+  if (r.assentoVao) {
+    const asv = r.assentoVao;
+    h += sec('Verificação do assento entre apoios',
+      tabelaCalc('Flexão da placa entre as pernas', [
+        cl('Vão livre (L)', 'distância entre pernas',
+          '—', num(asv.L, 0), 'mm'),
+        cl('Pressão uniforme (q)', 'P/b²',
+          num(r.forcas.P, 2) + '/' + num(as.b, 0) + '²',
+          num(asv.q, 6), 'N/mm²'),
+        cl('Momento por unidade de largura', 'q·L²/16',
+          num(asv.q, 6) + '·' + num(asv.L, 0) + '²/16',
+          num(asv.M, 3), 'N·mm/mm'),
+        cl('Tensão de flexão (σ<sub>vão</sub>)', '6·M/h²',
+          '6·' + num(asv.M, 3) + '/' + num(asv.h, 1) + '²',
+          num(asv.sigma, 3), 'MPa'),
+        cl('Utilização à flexão', 'σ<sub>vão</sub>/σ<sub>adm</sub>',
+          num(asv.sigma, 3) + '/' + num(r.tensoes.sigmaAdm, 3),
+          num(asv.utilizacao * 100, 1), '%'),
+        cl('Flecha (δ<sub>vão</sub>)', '5·q·L⁴/(64·E·h³)',
+          '5·' + num(asv.q, 6) + '·' + num(asv.L, 0) + '⁴/(64·' +
+          num(mat.E, 0) + '·' + num(asv.h, 1) + '³)',
+          num(asv.flecha, 4), 'mm'),
+        cl('Flecha limite', 'L/' + CADEIRA.divisorFlechaVao,
+          num(asv.L, 0) + '/' + CADEIRA.divisorFlechaVao,
+          num(asv.flechaLimite, 4), 'mm'),
+        cl('Utilização à flecha', 'δ<sub>vão</sub>/δ<sub>lim</sub>',
+          num(asv.flecha, 4) + '/' + num(asv.flechaLimite, 4),
+          num(asv.utilizacaoFlecha * 100, 1), '%')
+      ]));
+  }
 
   /* ---------- 9. Estabilidade ao tombamento (só no pedestal) ---------- */
   if (estab) {
@@ -426,8 +458,9 @@ export function gerarMemorial(r, dimsExternas){
     'O assento é verificado como faixa de largura b sob carga na borda. ' +
       'A placa real redistribui a carga em duas direções, de modo que o modelo ' +
       'é conservador quanto ao momento por unidade de largura.',
-    'Com 4 pernas verifica-se apenas o sobrepasso externo do assento. A flexão ' +
-      'da placa entre os apoios não é coberta por este modelo.',
+        'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +
+      'as pernas, pelo método das faixas. O coeficiente 1/16 é conservador ' +
+      'frente aos 0,0479 da solução de placa simplesmente apoiada.',
     'O limite de flecha do assento é a/' + CADEIRA.divisorFlechaAssento +
       ', adotado como critério de serviço. Ajuste em constantes.js se o ' +
       'orientador exigir outro valor.',
