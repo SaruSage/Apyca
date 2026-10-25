@@ -139,7 +139,7 @@ export function gerarMemorial(r, dimsExternas){
   let h = '';
 
   h += '<h1>Memorial de cálculo estrutural</h1>';
-  h += '<p class="mem-sub">Cadeira A3 · ' + hoje + '</p>';
+  h += '<p class="mem-sub">Apyca · ' + hoje + '</p>';
 
   h += figuraCadeira(r);
 
@@ -458,7 +458,7 @@ export function gerarMemorial(r, dimsExternas){
     'O assento é verificado como faixa de largura b sob carga na borda. ' +
       'A placa real redistribui a carga em duas direções, de modo que o modelo ' +
       'é conservador quanto ao momento por unidade de largura.',
-        'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +
+    'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +
       'as pernas, pelo método das faixas. O coeficiente 1/16 é conservador ' +
       'frente aos 0,0479 da solução de placa simplesmente apoiada.',
     'O limite de flecha do assento é a/' + CADEIRA.divisorFlechaAssento +
