@@ -5,12 +5,19 @@
  * Nao faz calculo estrutural: apenas formata o que o solver ja produziu,
  * mostrando expressao, substituicao e resultado de cada verificacao.
  *
- * A numeração das seções é dinâmica: a flambagem local só existe na seção
- * vazada e a estabilidade só existe no pedestal. Numeração fixa deixaria
- * buracos na sequência do documento.
+ * FORMATO DAS TABELAS
+ * Todas as tabelas usam DUAS colunas: rotulo a esquerda, resultado a direita.
+ * A expressao e a substituicao aparecem numa linha secundaria, em fonte mono
+ * menor, abaixo do item. Quatro colunas lado a lado estrangulam o texto no
+ * papel; assim o documento respira e a leitura fica em duas camadas — valor
+ * primeiro, conta depois, para quem quiser conferir.
  *
- * A massa vem da geometria: construirBarras gera as peças e massasPorParte
- * soma volume por densidade. O memorial apenas apresenta essa conta.
+ * A numeracao das secoes e dinamica: a flambagem local so existe na secao
+ * vazada e a estabilidade so existe no pedestal. Numeracao fixa deixaria
+ * buracos na sequencia do documento.
+ *
+ * As pecas sao geradas UMA vez, no inicio do documento, e reaproveitadas na
+ * figura isometrica, no desenho tecnico e na secao de massa.
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
@@ -35,30 +42,37 @@ function tabelaSimples(titulo, linhas){
     '<tbody>' + linhas.join('') + '</tbody></table>';
 }
 
-const CABECALHO = '<thead><tr>' +
-  '<th>Grandeza</th>' +
-  '<th>Expressão</th>' +
-  '<th>Substituição</th>' +
-  '<th class="num">Resultado</th>' +
-  '</tr></thead>';
-
+/**
+ * Item de calculo: rotulo e resultado na linha principal, expressao e
+ * substituicao numa segunda linha, em fonte mono discreta.
+ */
 function cl(grandeza, expressao, substituicao, valor, unidade){
-  return '<tr><th>' + grandeza + '</th>' +
-    '<td class="form">' + expressao + '</td>' +
-    '<td class="subst">' + substituicao + '</td>' +
-    '<td class="num">' + valor +
-    (unidade ? ' <span class="un">' + unidade + '</span>' : '') +
-    '</td></tr>';
+  const temSubst = substituicao && substituicao !== '—';
+
+  return '<tr class="mem-item">' +
+      '<th scope="row">' + grandeza + '</th>' +
+      '<td class="num">' + valor +
+        (unidade ? ' <span class="un">' + unidade + '</span>' : '') +
+      '</td>' +
+    '</tr>' +
+    '<tr class="mem-item__calc">' +
+      '<td colspan="2">' +
+        '<span class="form">' + expressao + '</span>' +
+        (temSubst
+          ? ' <span class="sep">=</span> <span class="subst">' + substituicao + '</span>'
+          : '') +
+      '</td>' +
+    '</tr>';
 }
 
 function tabelaCalc(titulo, linhas){
-  return '<table class="mem-tab"><caption>' + titulo + '</caption>' +
-    CABECALHO + '<tbody>' + linhas.join('') + '</tbody></table>';
+  return '<table class="mem-tab mem-tab--calculo"><caption>' + titulo +
+    '</caption><tbody>' + linhas.join('') + '</tbody></table>';
 }
 
 /**
- * Figura da cadeira. Fundo transparente: o SVG não desenha retângulo,
- * então no papel aparece apenas a peça e a sombra.
+ * Figura isometrica. Fundo transparente: o SVG nao desenha retangulo, entao
+ * no papel aparece apenas a peca e a sombra.
  */
 function figuraCadeira(r, barras){
   const material = r.entrada.material;
@@ -97,7 +111,7 @@ export function gerarMemorial(r, dimsExternas){
       r.erros.join(' ') + '</p>';
   }
 
-  /* Numeração dinâmica: reinicia a cada geração do documento. */
+  /* Numeracao dinamica: reinicia a cada geracao do documento. */
   let numero = 0;
   function sec(titulo, corpo){
     numero += 1;
@@ -134,11 +148,9 @@ export function gerarMemorial(r, dimsExternas){
   h += '<p class="mem-sub">Apyca · ' + hoje + '</p>';
 
   /* As pecas sao geradas uma unica vez e reaproveitadas na figura, no
-  desenho tecnico e na secao de massa. */
+     desenho tecnico e na secao de massa. */
   const barras = construirBarras(
-    r.entrada.t, r.entrada.H, r.entrada.material,
-    r.entrada.forma, r.entrada.numPernas,
-    r.entrada.vazada, r.entrada.parede, r.entrada.comEncosto
+    t, H, mat, r.entrada.forma, n, vaz, ep, temEncosto
   );
 
   h += figuraCadeira(r, barras);
@@ -192,7 +204,7 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Premissas de projeto',
     tabelaSimples('Hipóteses adotadas', linhasPrem));
 
-  /* ---------- Desenho técnico ---------- */
+  /* ---------- 3. Desenho técnico ---------- */
   h += sec('Desenho técnico',
     '<figure class="mem-figura mem-figura--tecnico">' +
       '<div class="mem-figura__prancha">' + desenhoTecnico(barras) + '</div>' +
@@ -203,7 +215,7 @@ export function gerarMemorial(r, dimsExternas){
       '</figcaption>' +
     '</figure>');
 
-  /* ---------- 3. Propriedades da seção ---------- */
+  /* ---------- 4. Propriedades da seção ---------- */
   let exprA, substA, exprI, substI;
 
   if (vaz) {
@@ -243,9 +255,7 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Propriedades da seção transversal',
     tabelaCalc('Área, inércia e resistência', linhasSecao));
 
-  /* ---------- 4. Massa por parte ---------- */
-    /* barras ja foi gerada no inicio do documento. */
-
+  /* ---------- 5. Massa por parte ---------- */
   const somaVolume = (grupos) => barras
     .filter(p => grupos.indexOf(p.grupo) >= 0)
     .reduce((s, p) => s + volumePeca(p), 0);
@@ -289,7 +299,7 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Massa e peso próprio',
     tabelaCalc('Volume de cada parte e massa resultante', linhasMassa));
 
-  /* ---------- 5. Esforços ---------- */
+  /* ---------- 6. Esforços ---------- */
   const linhasEsforcos = [
     cl('Carga do usuário (P)', 'm·g',
       num(m, 1) + '·' + num(G, 2), num(r.forcas.P, 2), 'N')
@@ -321,7 +331,7 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Ações e esforços solicitantes',
     tabelaCalc('Transmissão das cargas', linhasEsforcos));
 
-  /* ---------- 6. Tensões na perna ---------- */
+  /* ---------- 7. Tensões na perna ---------- */
   h += sec('Verificação da tensão normal na perna',
     tabelaCalc('Flexo-compressão na seção', [
       cl('Tensão axial (σ<sub>a</sub>)', 'N/A',
@@ -342,7 +352,7 @@ export function gerarMemorial(r, dimsExternas){
         num(r.tensoes.utilizacao * 100, 1), '%')
     ]));
 
-  /* ---------- 7. Flambagem global ---------- */
+  /* ---------- 8. Flambagem global ---------- */
   h += sec('Verificação da flambagem global',
     tabelaCalc('Estabilidade da coluna', [
       cl('Índice de esbeltez (λ)', 'K·H/r',
@@ -360,7 +370,7 @@ export function gerarMemorial(r, dimsExternas){
         num(r.flambagem.utilizacaoFlambagem * 100, 1), '%')
     ]));
 
-  /* ---------- 8. Flambagem local da parede (só vazada) ---------- */
+  /* ---------- 9. Flambagem local (só vazada) ---------- */
   if (r.flambagemLocal) {
     const fl = r.flambagemLocal;
     h += sec('Verificação da flambagem local da parede',
@@ -382,7 +392,7 @@ export function gerarMemorial(r, dimsExternas){
       ]));
   }
 
-  /* ---------- 9. Assento em balanço ---------- */
+  /* ---------- 10. Assento em balanço ---------- */
   h += sec('Verificação do assento em balanço',
     tabelaCalc(
       n === 1
@@ -423,7 +433,7 @@ export function gerarMemorial(r, dimsExternas){
           num(as.utilizacaoFlecha * 100, 1), '%')
       ]));
 
-  /* ---------- 10. Assento entre apoios (só com 4 pernas) ---------- */
+  /* ---------- 11. Assento entre apoios (só com 4 pernas) ---------- */
   if (r.assentoVao) {
     const asv = r.assentoVao;
     h += sec('Verificação do assento entre apoios',
@@ -455,7 +465,7 @@ export function gerarMemorial(r, dimsExternas){
       ]));
   }
 
-  /* ---------- 11. Estabilidade ao tombamento (só no pedestal) ---------- */
+  /* ---------- 12. Estabilidade ao tombamento (só no pedestal) ---------- */
   if (estab) {
     h += sec('Estabilidade ao tombamento',
       tabelaCalc('Equilíbrio em torno da borda da base', [
@@ -480,7 +490,7 @@ export function gerarMemorial(r, dimsExternas){
       ]));
   }
 
-  /* ---------- 12. Deformação axial ---------- */
+  /* ---------- 13. Deformação axial ---------- */
   h += sec('Deformação axial da perna',
     tabelaCalc('Encurtamento elástico', [
       cl('Encurtamento (δ)', 'N·H/(A·E)',
@@ -489,7 +499,7 @@ export function gerarMemorial(r, dimsExternas){
         num(r.deformacao.deltaAxial, 4), 'mm')
     ]));
 
-  /* ---------- 13. Parecer ---------- */
+  /* ---------- 14. Parecer ---------- */
   let parecer;
   if (r.veredito.aprovado) {
     parecer = '<p class="mem-parecer mem-parecer--ok">' +
@@ -511,7 +521,7 @@ export function gerarMemorial(r, dimsExternas){
       ' mm e representa o deslocamento do centro de carga do usuário.',
     'A base é modelada como engastada no piso. Na prática ela apoia por ' +
       'contato; o efeito é coberto pela verificação de tombamento.',
-    'O assento é verificado como faixa de largura b sob carga na borda. ' +
+    'O assento é verificado como faixa de largura b na direção da carga. ' +
       'A placa real redistribui a carga em duas direções, de modo que o modelo ' +
       'é conservador quanto ao momento por unidade de largura.',
     'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +

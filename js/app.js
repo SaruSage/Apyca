@@ -2,7 +2,8 @@ import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
 import { construirBarras, dimensoesExternas } from './chairModel.js';
 import { renderCadeira } from './render.js';
-import { animarRuina, animarJoinhas } from './animacao.js';
+import { animarRuina } from './animacao.js';
+import { animarJoinhas } from './joinhas.js';
 import { gerarMemorial } from './memorial.js';
 
 /* ---------- Elementos ---------- */
@@ -111,14 +112,12 @@ function gaveta(chave, titulo, linhas, abertaPorPadrao){
   '</div>';
 }
 
-/** Junta nomes em lista legível: "a, b e c". */
 function listaHumana(itens){
   if (itens.length === 1) return itens[0];
   return itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1];
 }
 
 /* ---------- Diagnóstico em linguagem simples ---------- */
-
 function utilizacaoMaxima(r){
   const us = [
     r.tensoes.utilizacao,
@@ -171,13 +170,6 @@ function mensagemRisco(r){
     return 'A cadeira tomba: a base é pequena para peso tão fora do centro.';
   }
   return 'Configuração fora dos limites de segurança.';
-}
-
-function limparSituacao(){
-  palco.classList.remove('palco--seguro', 'palco--risco');
-  situacao.hidden = true;
-  situacao.classList.remove('situacao--ok', 'situacao--risco', 'situacao--aviso');
-  situacao.textContent = '';
 }
 
 function aplicarSituacao(r){
@@ -378,16 +370,70 @@ btnAbrirMemorial.addEventListener('click', () => {
   if (!dialogMemorial.open) dialogMemorial.showModal();
 });
 
-btnFecharMemorial.addEventListener('click', () => dialogMemorial.close());
-btnImprimirMemorial.addEventListener('click', () => window.print());
+btnFecharMemorial.addEventListener('click', () => {
+  dialogMemorial.close();
+  limparImpressao();
+});
+/* ---------- Impressão do memorial ----------
+ * Copia o documento para #memorial-print, que fica fora do <dialog>. O
+ * diálogo está na top layer do navegador, e ali a área de rolagem corta o
+ * conteúdo: ao imprimir com a div rolada até a seção 5, o papel começava na
+ * seção 5. Em fluxo normal de página, o documento inteiro é impresso.
+ *
+ * window.print() é síncrono e trava a thread, então a limpeza só pode
+ * acontecer depois: no afterprint ou no timeout de segurança. */
+function prepararImpressao(){
+  const alvo = document.getElementById('memorial-print');
+  if (!alvo) return false;
 
-/* ---------- Campo de parede ---------- */
+  const html = conteudoMemorial.innerHTML.trim();
+
+  if (!dialogMemorial.open || !html) {
+    alvo.innerHTML = '';
+    document.body.classList.remove('imprimindo-memorial');
+    return false;
+  }
+
+  alvo.innerHTML = html;
+  document.body.classList.add('imprimindo-memorial');
+  return true;
+}
+
+function limparImpressao(){
+  const alvo = document.getElementById('memorial-print');
+  if (alvo) alvo.innerHTML = '';
+  document.body.classList.remove('imprimindo-memorial');
+}
+
+btnImprimirMemorial.addEventListener('click', () => {
+  prepararImpressao();
+  window.print();
+  window.setTimeout(limparImpressao, 400);
+});
+
+/* Ctrl+P e o menu do navegador não passam pelo botão: estes dois eventos
+ * cobrem a impressão disparada por fora. */
+window.addEventListener('beforeprint', prepararImpressao);
+window.addEventListener('afterprint', limparImpressao);
+
+/* ---------- Campo de parede ----------
+ * Só existe no perfil tubular. Como a lista de campos rola dentro do
+ * formulário, o campo novo pode nascer fora do campo de visão: por isso ele
+ * é trazido para a vista, mas apenas na troca de seção — nunca dentro de
+ * atualizarParede, que também roda a cada tecla digitada. */
 function atualizarParede(){
   grupoParede.hidden = campoSecao.value !== 'tubular';
 }
 
 campoSecao.addEventListener('change', () => {
+  const tubular = campoSecao.value === 'tubular';
+
   atualizarParede();
+
+  if (tubular) {
+    grupoParede.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
   simular();
 });
 
@@ -589,9 +635,9 @@ document.addEventListener('keydown', (ev) => {
 });
 
 /* ---------- Ir para Gráficos ----------
- * A configuração atual vai na query string em CENTIMETROS, exatamente como
- * aparece nos campos. A pagina de graficos converte para mm antes de calcular.
- * Sem 'noopener', para que a aba dos graficos consiga focar esta de volta. */
+ * A configuração vai na query string em CENTIMETROS, exatamente como aparece
+ * nos campos. A página de gráficos converte para mm antes de calcular.
+ * Sem 'noopener', para que a aba dos gráficos consiga focar esta de volta. */
 function urlGraficos(){
   const q = new URLSearchParams();
   q.set('material', selectMaterial.value);
