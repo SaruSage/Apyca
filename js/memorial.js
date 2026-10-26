@@ -16,6 +16,7 @@
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
 import { construirBarras, dimensoesExternas, volumePeca } from './chairModel.js';
 import { svgCadeira } from './render.js';
+import { desenhoTecnico } from './tecnico.js';
 
 function num(v, casas = 2){
   if (!Number.isFinite(v)) return '—';
@@ -59,20 +60,8 @@ function tabelaCalc(titulo, linhas){
  * Figura da cadeira. Fundo transparente: o SVG não desenha retângulo,
  * então no papel aparece apenas a peça e a sombra.
  */
-function figuraCadeira(r){
+function figuraCadeira(r, barras){
   const material = r.entrada.material;
-
-  const barras = construirBarras(
-    r.entrada.t,
-    r.entrada.H,
-    material,
-    r.entrada.forma,
-    r.entrada.numPernas,
-    r.entrada.vazada,
-    r.entrada.parede,
-    r.entrada.comEncosto
-  );
-
   const dims = dimensoesExternas(barras);
 
   const svg = svgCadeira(barras, material, {
@@ -144,7 +133,15 @@ export function gerarMemorial(r, dimsExternas){
   h += '<h1>Memorial de cálculo estrutural</h1>';
   h += '<p class="mem-sub">Apyca · ' + hoje + '</p>';
 
-  h += figuraCadeira(r);
+  /* As pecas sao geradas uma unica vez e reaproveitadas na figura, no
+  desenho tecnico e na secao de massa. */
+  const barras = construirBarras(
+    r.entrada.t, r.entrada.H, r.entrada.material,
+    r.entrada.forma, r.entrada.numPernas,
+    r.entrada.vazada, r.entrada.parede, r.entrada.comEncosto
+  );
+
+  h += figuraCadeira(r, barras);
 
   /* ---------- 1. Dados de entrada ---------- */
   const linhasEntrada = [
@@ -195,6 +192,17 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Premissas de projeto',
     tabelaSimples('Hipóteses adotadas', linhasPrem));
 
+  /* ---------- Desenho técnico ---------- */
+  h += sec('Desenho técnico',
+    '<figure class="mem-figura mem-figura--tecnico">' +
+      '<div class="mem-figura__prancha">' + desenhoTecnico(barras) + '</div>' +
+      '<figcaption class="mem-figura__legenda">' +
+        '<strong>Figura 2</strong> — Vistas ortográficas na mesma escala, ' +
+        'com cotas em cm: dimensões externas, altura do assento, espessura ' +
+        'das pernas e, no pedestal, a base e a altura do pé.' +
+      '</figcaption>' +
+    '</figure>');
+
   /* ---------- 3. Propriedades da seção ---------- */
   let exprA, substA, exprI, substI;
 
@@ -236,8 +244,7 @@ export function gerarMemorial(r, dimsExternas){
     tabelaCalc('Área, inércia e resistência', linhasSecao));
 
   /* ---------- 4. Massa por parte ---------- */
-  const barras = construirBarras(t, H, mat, r.entrada.forma, n, vaz, ep,
-                                 temEncosto);
+    /* barras ja foi gerada no inicio do documento. */
 
   const somaVolume = (grupos) => barras
     .filter(p => grupos.indexOf(p.grupo) >= 0)
@@ -547,6 +554,9 @@ export function gerarMemorial(r, dimsExternas){
   }
   notas.push('A flambagem global é verificada pela carga crítica de Euler, sem ' +
     'considerar imperfeições iniciais.');
+  notas.push('As vistas ortográficas são desenhadas em projeção paralela, com ' +
+    'arestas visíveis em traço contínuo e cotas em cm. As arestas ocultas não ' +
+    'são representadas: o desenho prioriza a leitura das dimensões externas.');
 
   h += '<section class="mem-sec"><h2>Notas e limitações</h2>' +
     '<ul class="mem-notas">' +

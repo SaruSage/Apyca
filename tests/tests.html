@@ -285,6 +285,73 @@
       acoVao.ok && acoVao.assentoVao.utilizacao < 0.1 &&
       acoVao.assentoVao.utilizacaoFlecha < 0.1);
 
+          /* ---------- Desenho técnico ---------- */
+
+    const barrasQuatro = construirBarras(
+      quatro.entrada.t, quatro.entrada.H, quatro.entrada.material,
+      quatro.entrada.forma, quatro.entrada.numPernas,
+      quatro.entrada.vazada, quatro.entrada.parede,
+      quatro.entrada.comEncosto
+    );
+
+    const prancha = desenhoTecnico(barrasQuatro);
+
+    verificar('desenho tecnico gera svg', prancha.indexOf('<svg') === 0);
+    verificar('prancha tem as quatro vistas',
+      prancha.indexOf('VISTA FRONTAL') > 0 &&
+      prancha.indexOf('VISTA LATERAL') > 0 &&
+      prancha.indexOf('VISTA SUPERIOR') > 0 &&
+      prancha.indexOf('VISTA INFERIOR') > 0);
+    verificar('prancha cota a altura total em cm',
+      prancha.indexOf('>79<') > 0, 'altura 790 mm deveria virar 79 cm');
+    verificar('prancha cota a largura em cm',
+      prancha.indexOf('>44<') > 0, 'largura 440 mm deveria virar 44 cm');
+    verificar('prancha tem poligonos de contorno preto',
+      prancha.indexOf('stroke="#000"') > 0 && prancha.indexOf('fill="#fff"') > 0);
+
+    const bancores = calcular({ materialId:'madeira', espessuraMm:40,
+                                alturaMm:450, massaKg:100, comEncosto:false });
+    const pranchaBanco = desenhoTecnico(construirBarras(
+      bancores.entrada.t, bancores.entrada.H, bancores.entrada.material,
+      bancores.entrada.forma, bancores.entrada.numPernas,
+      bancores.entrada.vazada, bancores.entrada.parede,
+      bancores.entrada.comEncosto
+    ));
+    verificar('banco tem prancha mais baixa que a cadeira',
+      bancores.ok && prancha.length > 0 && pranchaBanco.length > 0 &&
+      pranchaBanco.length !== prancha.length);
+    verificar('prancha vazia nao quebra',
+      desenhoTecnico([]) === '' && desenhoTecnico(null) === '');
+
+          /* ---------- Cotas de detalhe no desenho técnico ---------- */
+
+    verificar('prancha cota a espessura da perna',
+      />4<\/text>/.test(prancha), 'esperado cota de 4 cm');
+
+    const barrasPed = construirBarras(
+      ped.entrada.t, ped.entrada.H, ped.entrada.material,
+      ped.entrada.forma, ped.entrada.numPernas,
+      ped.entrada.vazada, ped.entrada.parede,
+      ped.entrada.comEncosto
+    );
+    const pranchaPed = desenhoTecnico(barrasPed);
+
+    const basePeCm = (2 * CADEIRA.coneRaioBase * CADEIRA.fracaoLadoPiramide / 10)
+      .toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
+    verificar('prancha do pedestal cota a base do pe',
+      pranchaPed.indexOf('>' + basePeCm + '</text>') > 0,
+      'esperado ' + basePeCm + ' cm');
+
+    verificar('pedestal recebe mais cotas que a cadeira de 4 pernas',
+      pranchaPed.split('<text').length > prancha.split('<text').length,
+      'pedestal ' + pranchaPed.split('<text').length +
+      ' vs ' + prancha.split('<text').length);
+
+    verificar('nenhuma cota ficou fora do viewBox',
+      prancha.indexOf('x1="-') < 0 && prancha.indexOf('y1="-') < 0);
+
+      
     /* ---------- Contorno ---------- */
 
     const ruim = calcular({ materialId:'madeira', espessuraMm:10,

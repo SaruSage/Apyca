@@ -75,10 +75,27 @@
           </select>
         </div>
 
-        <button type="submit" class="botao botao--animar" id="botao-animar">
-          Animar
-        </button>
       </form>
+
+      <div class="acoes-entrada">
+        <button type="submit" form="form-cadeira" class="botao botao--animar"
+                id="botao-animar">Animar</button>
+
+        <button type="button" class="menu-lateral__botao" id="menu-botao"
+                aria-expanded="false" aria-controls="menu-painel"
+                aria-label="Mais opções">
+          <span class="menu-lateral__icone" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
+        </button>
+      </div>
+
+      <div class="menu-lateral__painel" id="menu-painel" hidden>
+        <button type="button" class="menu-lateral__item" id="item-graficos">
+          <span>Ir para Gráficos</span>
+          <span class="menu-lateral__dica">nova aba</span>
+        </button>
+      </div>
     </section>
 
     <section class="painel painel--vista">

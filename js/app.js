@@ -1,6 +1,6 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
-import { construirBarras, dimensoesExternas, massasPorParte } from './chairModel.js';
+import { construirBarras, dimensoesExternas } from './chairModel.js';
 import { renderCadeira } from './render.js';
 import { animarRuina, animarJoinhas } from './animacao.js';
 import { gerarMemorial } from './memorial.js';
@@ -21,6 +21,10 @@ const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
 const legenda = document.getElementById('legenda');
+
+const menuBotao = document.getElementById('menu-botao');
+const menuPainel = document.getElementById('menu-painel');
+const itemGraficos = document.getElementById('item-graficos');
 
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
@@ -199,6 +203,19 @@ function aplicarSituacao(r){
   }
 }
 
+/* ---------- Legenda de dimensões ---------- */
+function atualizarLegenda(dims, material){
+  if (!dims || !material) {
+    legenda.textContent = '';
+    return;
+  }
+
+  legenda.textContent =
+    n(dims.altura / 10, 1) + ' × ' +
+    n(dims.largura / 10, 1) + ' × ' +
+    n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+}
+
 /* ---------- Painel de resultados ---------- */
 function renderResultado(r, dims){
   if (!r.ok) {
@@ -242,9 +259,7 @@ function renderResultado(r, dims){
   h += gaveta('secao', 'Seção e apoios', lSecao, true);
 
   /* ---------- Massa por parte ---------- */
-  const lMassa = [
-    linha('Pernas', n(r.massa.pernas, 2) + ' kg')
-  ];
+  const lMassa = [linha('Pernas', n(r.massa.pernas, 2) + ' kg')];
   if (r.massa.pe > 0) {
     lMassa.push(linha('Pé do pedestal', n(r.massa.pe, 2) + ' kg'));
   }
@@ -441,19 +456,6 @@ function mostrarPendencia(faltando){
 }
 
 /* ---------- Desenho estático ---------- */
-/* ---------- Legenda de dimensões ---------- */
-function atualizarLegenda(dims, material){
-  if (!dims || !material) {
-    legenda.textContent = '';
-    return;
-  }
-
-  legenda.textContent =
-    n(dims.altura / 10, 1) + ' × ' +
-    n(dims.largura / 10, 1) + ' × ' +
-    n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
-}
-
 function desenharEstatica(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
 
@@ -563,6 +565,51 @@ form.addEventListener('submit', ev => {
 });
 
 form.addEventListener('input', simular);
+
+/* ---------- Menu de opções ---------- */
+function abrirMenu(abrir){
+  menuPainel.hidden = !abrir;
+  menuBotao.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+}
+
+menuBotao.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  abrirMenu(menuPainel.hidden);
+});
+
+document.addEventListener('click', (ev) => {
+  if (menuPainel.hidden) return;
+  if (ev.target.closest('.acoes-entrada')) return;
+  if (ev.target.closest('.menu-lateral__painel')) return;
+  abrirMenu(false);
+});
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && !menuPainel.hidden) abrirMenu(false);
+});
+
+/* ---------- Ir para Gráficos ----------
+ * A configuração atual vai na query string em CENTIMETROS, exatamente como
+ * aparece nos campos. A pagina de graficos converte para mm antes de calcular.
+ * Sem 'noopener', para que a aba dos graficos consiga focar esta de volta. */
+function urlGraficos(){
+  const q = new URLSearchParams();
+  q.set('material', selectMaterial.value);
+  q.set('t', campoEspessura.value);
+  q.set('H', campoAltura.value);
+  q.set('m', campoMassa.value);
+  q.set('forma', campoForma.value);
+  q.set('secao', campoSecao.value);
+  q.set('parede', campoParede.value);
+  q.set('n', campoPernas.value);
+  q.set('encosto', campoEncosto.value);
+  return 'graficos.html?' + q.toString();
+}
+
+itemGraficos.addEventListener('click', () => {
+  abrirMenu(false);
+  window.open(urlGraficos(), '_blank');
+});
 
 /* ---------- Início ---------- */
 atualizarParede();

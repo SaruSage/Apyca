@@ -55,6 +55,24 @@ body{
 }
 .painel--entradas form{min-height:0}
 
+/* ---------- Entradas compactas ----------
+   Espaçamento reduzido para os oito campos, o botão e o menu caberem
+   no painel sem rolagem em telas de 768 px de altura. */
+.painel--entradas{padding:14px 16px}
+.painel--entradas h2{margin:0 0 10px}
+
+.campo{margin-bottom:7px}
+.campo label{
+  margin-bottom:3px;
+  font-size:.76rem;
+  line-height:1.25;
+}
+.campo input,
+.campo select{
+  padding:6px 9px;
+  font-size:.88rem;
+}
+
 /* ---------- Coluna da vista ---------- */
 .painel--vista{overflow:hidden}
 
@@ -441,6 +459,20 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
 }
 
 .mem-figura{margin:0 auto 26px;text-align:center;break-inside:avoid}
+/* ---------- Prancha do desenho técnico ----------
+   O viewBox tem proporção alta (quatro vistas empilhadas), então a prancha
+   usa largura maior que a figura isométrica e ganha sua própria página na
+   impressão. */
+.mem-figura--tecnico{max-width:none}
+
+.mem-figura__prancha{
+  display:block;
+  width:100%;
+  max-width:580px;
+  margin:0 auto;
+  line-height:0;
+}
+.mem-figura__prancha svg{display:block;width:100%;height:auto}
 .mem-figura__palco{
   display:block;
   width:100%;
@@ -542,6 +574,114 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
   .identidade{text-align:left}
 }
 
+/* ---------- Barra de ações: Animar + menu ----------
+   O hambúrguer fica ao lado do botão, na mesma linha. Antes ele ocupava
+   uma linha inteira e encostava na base do botão, dando impressão de
+   sobreposição. */
+.acoes-entrada{
+  display:flex;
+  align-items:stretch;
+  gap:8px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid rgba(42,51,65,.7);
+  flex:0 0 auto;
+}
+
+.acoes-entrada .botao{
+  width:auto;
+  flex:1 1 auto;
+  margin:0;
+  padding:9px 12px;
+}
+
+.menu-lateral__botao{
+  flex:0 0 auto;
+  width:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  background:transparent;
+  border:1px solid var(--borda);
+  border-radius:8px;
+  color:var(--fraco);
+  cursor:pointer;
+  transition:border-color .18s ease, color .18s ease;
+}
+.menu-lateral__botao:hover{
+  border-color:var(--acento);
+  color:var(--texto);
+}
+.menu-lateral__botao:focus-visible{
+  outline:2px solid var(--acento);
+  outline-offset:2px;
+}
+
+.menu-lateral__icone{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.menu-lateral__icone i{
+  display:block;
+  width:14px;
+  height:2px;
+  background:currentColor;
+  border-radius:1px;
+  transition:transform .2s ease, opacity .2s ease;
+}
+.menu-lateral__botao[aria-expanded="true"] .menu-lateral__icone i:nth-child(1){
+  transform:translateY(5px) rotate(45deg);
+}
+.menu-lateral__botao[aria-expanded="true"] .menu-lateral__icone i:nth-child(2){
+  opacity:0;
+}
+.menu-lateral__botao[aria-expanded="true"] .menu-lateral__icone i:nth-child(3){
+  transform:translateY(-5px) rotate(-45deg);
+}
+
+.menu-lateral__painel{
+  margin-top:8px;
+  padding:4px;
+  background:#11161d;
+  border:1px solid var(--borda);
+  border-radius:8px;
+  flex:0 0 auto;
+}
+.menu-lateral__painel[hidden]{display:none}
+
+.menu-lateral__item{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 10px;
+  background:transparent;
+  border:none;
+  border-radius:6px;
+  color:var(--acento);
+  font-family:inherit;
+  font-size:.82rem;
+  font-weight:600;
+  text-align:left;
+  cursor:pointer;
+}
+.menu-lateral__item:hover{background:rgba(79,163,255,.12)}
+.menu-lateral__item:focus-visible{
+  outline:2px solid var(--acento);
+  outline-offset:-2px;
+}
+
+.menu-lateral__dica{
+  font-size:.66rem;
+  font-weight:400;
+  color:var(--fraco);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+
 /* ---------- Impressão ---------- */
 @media print{
   @page{size:A4;margin:18mm}
@@ -570,6 +710,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
   .memorial__conteudo{max-height:none;overflow:visible;padding:0;scrollbar-gutter:auto}
 
   .mem-figura__palco{max-width:76mm}
+  .mem-figura__prancha{max-width:150mm}
   .mem-sec{break-inside:avoid}
   .mem-tab{font-size:.75rem}
   .mem-tab thead{display:table-header-group}
