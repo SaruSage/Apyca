@@ -4,53 +4,174 @@
 }
 *{box-sizing:border-box}
 
-html{
-  scrollbar-gutter:stable;
-}
-
+/* ---------- Janela travada ----------
+ * body ocupa exatamente a altura da viewport e nao rola. Cada painel
+ * administra o proprio conteudo; o palco encolhe para caber.
+ * A excecao fica no media query do fim, onde volta o fluxo normal. */
 body{
   margin:0;
   background:var(--fundo);
   color:var(--texto);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   line-height:1.5;
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;
 }
 
-/* ---------- Grade principal ---------- */
 .layout{
   display:grid;
   grid-template-columns:280px 1fr 380px;
   gap:16px;
-  padding:16px 32px 24px;
-  align-items:start;
-}
-@media(max-width:1180px){
-  .layout{grid-template-columns:1fr;padding:12px 18px 24px}
+  padding:12px 24px;
+  height:100%;
+  align-items:stretch;
 }
 
 .painel{
   background:var(--painel);
   border:1px solid var(--borda);
   border-radius:12px;
-  padding:20px;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
 }
 .painel h2{
-  margin:0 0 16px;
-  font-size:.78rem;
+  margin:0 0 14px;
+  font-size:.75rem;
   text-transform:uppercase;
   letter-spacing:.09em;
   color:var(--fraco);
   font-weight:600;
+  flex:0 0 auto;
 }
 
-/* ---------- Painel de resultados ---------- */
-.painel--resultados{
-  position:sticky;
-  top:16px;
-  max-height:calc(100vh - 56px);
-  display:flex;
-  flex-direction:column;
+/* ---------- Coluna de entradas ---------- */
+.painel--entradas{
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:var(--borda) transparent;
 }
+.painel--entradas form{min-height:0}
+
+/* ---------- Coluna da vista ---------- */
+.painel--vista{overflow:hidden}
+
+.topo-vista{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:12px;
+  flex:0 0 auto;
+}
+.topo-vista h2{margin:0}
+
+/* Identidade a direita do titulo: sai de baixo do desenho, onde
+   empurrava o subtitulo para fora da tela. */
+.identidade{
+  text-align:right;
+  line-height:1.12;
+  flex:0 0 auto;
+}
+.identidade__nome{
+  display:block;
+  font-size:1.08rem;
+  font-weight:700;
+  letter-spacing:-.02em;
+}
+.identidade__subtitulo{
+  display:block;
+  margin-top:3px;
+  font-size:.65rem;
+  color:var(--fraco);
+  letter-spacing:.01em;
+}
+
+/* ---------- Palco ----------
+ * flex:1 com min-height:0 e o SVG em position:absolute fazem o desenho
+ * letterboxar no espaco que sobrar. Nunca estoura a altura. */
+.palco{
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#0e1218;
+  border-radius:8px;
+  border:2px solid transparent;
+  overflow:hidden;
+  transition:border-color .25s ease, box-shadow .25s ease;
+}
+.palco svg{
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%;
+  height:100%;
+}
+.palco__vazio{
+  margin:0;
+  padding:0 24px;
+  max-width:34ch;
+  text-align:center;
+  font-size:.8rem;
+  color:var(--fraco);
+}
+
+.palco--seguro{
+  border-color:rgba(62,207,142,.85);
+  box-shadow:0 0 0 1px rgba(62,207,142,.3),
+             0 0 26px rgba(62,207,142,.18) inset;
+}
+.palco--risco{
+  border-color:rgba(242,85,90,.9);
+  box-shadow:0 0 0 1px rgba(242,85,90,.3),
+             0 0 26px rgba(242,85,90,.18) inset;
+}
+
+/* ---------- Situacao em linguagem simples ---------- */
+.situacao{
+  flex:0 0 auto;
+  margin:10px 0 0;
+  padding:9px 12px;
+  border-radius:8px;
+  font-size:.78rem;
+  line-height:1.4;
+  text-align:center;
+}
+.situacao[hidden]{display:none}
+.situacao--ok{
+  background:rgba(62,207,142,.12);
+  border:1px solid rgba(62,207,142,.4);
+  color:var(--ok);
+}
+.situacao--risco{
+  background:rgba(242,85,90,.12);
+  border:1px solid rgba(242,85,90,.4);
+  color:var(--erro);
+}
+.situacao--aviso{
+  background:rgba(79,163,255,.12);
+  border:1px solid rgba(79,163,255,.4);
+  color:var(--acento);
+}
+
+/* ---------- Coluna de resultados ---------- */
+.painel--resultados{overflow:hidden}
+
+.painel__cabecalho{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+  flex:0 0 auto;
+}
+.painel__cabecalho h2{margin:0}
+
 .resultado{
   flex:1 1 auto;
   min-height:0;
@@ -66,20 +187,6 @@ body{
 .resultado::-webkit-scrollbar-thumb{background:var(--borda);border-radius:999px}
 .resultado::-webkit-scrollbar-thumb:hover{background:#3a4658}
 
-@media(max-width:1180px){
-  .painel--resultados{position:static;max-height:none;display:block}
-  .resultado{overflow:visible;max-height:none;padding-right:0;scrollbar-gutter:auto}
-}
-
-.painel__cabecalho{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom:16px;
-}
-.painel__cabecalho h2{margin:0}
-
 /* ---------- Gavetas ---------- */
 .gaveta{border-bottom:1px solid rgba(42,51,65,.7)}
 
@@ -89,12 +196,12 @@ body{
   align-items:center;
   justify-content:space-between;
   gap:12px;
-  padding:11px 2px;
+  padding:10px 2px;
   background:none;
   border:none;
   color:var(--acento);
   font-family:inherit;
-  font-size:.75rem;
+  font-size:.72rem;
   font-weight:600;
   text-transform:uppercase;
   letter-spacing:.07em;
@@ -119,7 +226,7 @@ body{
 }
 .gaveta.is-aberta .gaveta__seta{transform:rotate(180deg)}
 
-.gaveta__corpo{padding-bottom:10px}
+.gaveta__corpo{padding-bottom:8px}
 .gaveta__corpo[hidden]{display:none}
 
 /* ---------- Linhas e veredito ---------- */
@@ -127,19 +234,19 @@ body{
   display:flex;
   justify-content:space-between;
   gap:14px;
-  padding:7px 0;
+  padding:6px 0;
   border-bottom:1px solid rgba(42,51,65,.6);
-  font-size:.88rem;
+  font-size:.85rem;
 }
 .linha:last-child{border-bottom:none}
 .rotulo{color:var(--fraco)}
 .valor{font-variant-numeric:tabular-nums;font-weight:600;text-align:right}
 
 .veredito{
-  margin-top:14px;
-  padding:12px 14px;
+  margin-top:12px;
+  padding:11px 13px;
   border-radius:8px;
-  font-size:.88rem;
+  font-size:.85rem;
   font-weight:600;
 }
 .veredito--ok{
@@ -154,31 +261,39 @@ body{
 }
 .veredito ul{margin:8px 0 0;padding-left:18px;font-weight:400}
 
+.aviso-painel{
+  margin:0;
+  font-size:.82rem;
+  color:var(--fraco);
+  line-height:1.5;
+}
+
 /* ---------- Entradas ---------- */
-.campo{margin-bottom:14px}
+.campo{margin-bottom:12px}
 .campo[hidden]{display:none}
-.campo label{display:block;font-size:.82rem;color:var(--fraco);margin-bottom:5px}
+.campo label{display:block;font-size:.8rem;color:var(--fraco);margin-bottom:4px}
 .campo input,.campo select{
   width:100%;
-  padding:9px 11px;
+  padding:8px 10px;
   background:#11161d;
   border:1px solid var(--borda);
   border-radius:7px;
   color:var(--texto);
-  font-size:.95rem;
+  font-size:.92rem;
   font-family:inherit;
 }
+.campo input::placeholder{color:#5b6675}
 .campo input:focus,.campo select:focus{outline:none;border-color:var(--acento)}
 
 .botao{
   width:100%;
-  padding:11px;
-  margin-top:6px;
+  padding:10px;
+  margin-top:4px;
   background:var(--acento);
   color:#08121f;
   border:none;
   border-radius:8px;
-  font-size:.95rem;
+  font-size:.92rem;
   font-weight:650;
   cursor:pointer;
   font-family:inherit;
@@ -190,107 +305,17 @@ body{
   width:auto;
   padding:6px 11px;
   margin:0;
-  font-size:.72rem;
+  font-size:.7rem;
   letter-spacing:.04em;
   text-transform:uppercase;
 }
-.botao--animar{
-  letter-spacing:.04em;
+.botao--acao{
+  letter-spacing:.05em;
   text-transform:uppercase;
-  font-size:.82rem;
-}
-
-/* Submit invisível: garante que Enter no formulário dispare a ação,
-   sem duplicar o disparo do botão visível. */
-.botao-oculto{
-  position:absolute;
-  width:1px;
-  height:1px;
-  padding:0;
-  margin:-1px;
-  overflow:hidden;
-  clip:rect(0 0 0 0);
-  white-space:nowrap;
-  border:0;
-}
-
-/* ---------- Palco ---------- */
-.palco{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  min-height:clamp(300px,46vh,480px);
-  background:#0e1218;
-  border-radius:8px;
-  border:2px solid transparent;
-  transition:border-color .25s ease, box-shadow .25s ease;
-}
-.palco svg{display:block;width:100%;height:auto}
-
-.palco--seguro{
-  border-color:rgba(62,207,142,.85);
-  box-shadow:0 0 0 1px rgba(62,207,142,.3),
-             0 0 26px rgba(62,207,142,.18) inset;
-}
-.palco--risco{
-  border-color:rgba(242,85,90,.9);
-  box-shadow:0 0 0 1px rgba(242,85,90,.3),
-             0 0 26px rgba(242,85,90,.18) inset;
-}
-
-/* ---------- Situação em linguagem simples ---------- */
-.situacao{
-  margin:12px 0 0;
-  padding:10px 14px;
-  border-radius:8px;
-  font-size:.82rem;
-  line-height:1.45;
-  text-align:center;
-}
-.situacao[hidden]{display:none}
-.situacao--ok{
-  background:rgba(62,207,142,.12);
-  border:1px solid rgba(62,207,142,.4);
-  color:var(--ok);
-}
-.situacao--risco{
-  background:rgba(242,85,90,.12);
-  border:1px solid rgba(242,85,90,.4);
-  color:var(--erro);
-}
-
-.legenda{
-  margin:8px 0 0;
-  text-align:center;
   font-size:.8rem;
-  color:var(--fraco);
-  font-variant-numeric:tabular-nums;
 }
 
-/* ---------- Identidade ---------- */
-.identidade{
-  margin-top:16px;
-  padding-top:16px;
-  border-top:1px solid rgba(42,51,65,.85);
-  text-align:center;
-}
-.identidade__nome{
-  margin:0;
-  font-size:clamp(1.6rem,3.2vw,2.1rem);
-  font-weight:700;
-  letter-spacing:-.02em;
-  line-height:1.1;
-}
-.identidade__subtitulo{
-  margin:5px 0 0;
-  font-size:.82rem;
-  color:var(--fraco);
-}
-
-/* ---------- Joinhas flutuantes ----------
-   Camada fixa sobre toda a tela, sem capturar clique. As bolhas sobem
-   pelas beiradas: faixa esquerda, faixa direita e faixa de baixo. */
+/* ---------- Joinhas flutuantes ---------- */
 .joinhas{
   position:fixed;
   inset:0;
@@ -325,7 +350,6 @@ body{
               scale(1.06) rotate(var(--giro,0deg));
   }
 }
-
 @media(prefers-reduced-motion: reduce){
   .joinha{animation:none;opacity:0}
 }
@@ -333,7 +357,11 @@ body{
 /* ---------- Faixa de erro ---------- */
 #erro-global{
   display:none;
-  margin:16px 32px 0;
+  position:fixed;
+  left:16px;
+  right:16px;
+  bottom:16px;
+  z-index:90;
   padding:14px 16px;
   border-radius:8px;
   background:rgba(242,85,90,.14);
@@ -476,11 +504,31 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.62)}
   font-size:.84rem;
 }
 
+/* ---------- Telas estreitas ou baixas: volta o fluxo normal ---------- */
+@media(max-width:1180px),(max-height:640px){
+  body{
+    height:auto;
+    overflow-y:auto;
+    scrollbar-gutter:stable;
+  }
+  .layout{
+    grid-template-columns:1fr;
+    height:auto;
+    padding:12px 16px 20px;
+  }
+  .painel--entradas{overflow:visible}
+  .palco{min-height:clamp(240px,52vh,420px)}
+  .painel--resultados{height:auto}
+  .resultado{overflow:visible;max-height:none;padding-right:0;scrollbar-gutter:auto}
+  .topo-vista{flex-direction:column;gap:6px}
+  .identidade{text-align:left}
+}
+
 /* ---------- Impressão ---------- */
 @media print{
   @page{size:A4;margin:18mm}
 
-  body{background:#fff;color:#000}
+  body{background:#fff;color:#000;height:auto;overflow:visible}
   body > *:not(dialog.memorial){display:none !important}
 
   .joinhas{display:none !important}

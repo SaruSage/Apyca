@@ -11,7 +11,7 @@
   <div id="erro-global"></div>
 
   <main class="layout">
-    <section class="painel">
+    <section class="painel painel--entradas">
       <h2>Entradas</h2>
       <form id="form-cadeira" novalidate>
         <div class="campo">
@@ -40,7 +40,7 @@
         <div class="campo">
           <label for="forma">Formato da perna</label>
           <select id="forma" name="forma">
-            <option value="quadrada">Quadrada</option>
+            <option value="quadrada" selected>Quadrada</option>
             <option value="redonda">Redonda</option>
           </select>
         </div>
@@ -48,7 +48,7 @@
         <div class="campo">
           <label for="secao">Seção</label>
           <select id="secao" name="secao">
-            <option value="macica">Maciça</option>
+            <option value="macica" selected>Maciça</option>
             <option value="tubular">Tubular (vazada)</option>
           </select>
         </div>
@@ -62,33 +62,36 @@
         <div class="campo">
           <label for="numPernas">Número de pernas</label>
           <select id="numPernas" name="numPernas">
-            <option value="4">4 pernas</option>
+            <option value="4" selected>4 pernas</option>
             <option value="1">1 perna (pedestal)</option>
           </select>
         </div>
 
-        <button type="button" class="botao botao--animar" id="botao-animar">Animar</button>
-        <button type="submit" class="botao-oculto" tabindex="-1" aria-hidden="true">Animar</button>
+        <button type="submit" class="botao botao--animar" id="botao-animar">
+          Animar
+        </button>
       </form>
     </section>
 
     <section class="painel painel--vista">
-      <h2>Vista isométrica</h2>
-      <div id="palco" class="palco"></div>
-      <p id="situacao" class="situacao" hidden></p>
-      <p id="legenda" class="legenda"></p>
-
-      <div class="identidade">
-        <h1 class="identidade__nome">Apyca</h1>
-        <p class="identidade__subtitulo">Simulador de dimensionamento estrutural</p>
+      <div class="topo-vista">
+        <h2>Vista isométrica</h2>
+        <div class="identidade">
+          <span class="identidade__nome">Apyca</span>
+          <span class="identidade__subtitulo">Simulador de dimensionamento estrutural</span>
+        </div>
       </div>
+
+      <div id="palco" class="palco"></div>
+
+      <p id="situacao" class="situacao" hidden></p>
     </section>
 
     <section class="painel painel--resultados">
       <div class="painel__cabecalho">
         <h2>Resultados</h2>
-        <button type="button" class="botao botao--secundario botao--mini"
-                id="abrir-memorial">Memorial</button>
+       <button type="button" class="botao botao--secundario botao--mini"
+                id="abrir-memorial">Documentação</button>
       </div>
       <div id="resultado" class="resultado"></div>
     </section>

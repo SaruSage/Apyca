@@ -1,6 +1,6 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
-import { construirBarras } from './chairModel.js';
+import { construirBarras, dimensoesExternas } from './chairModel.js';
 import { renderCadeira } from './render.js';
 import { animarRuina, animarJoinhas } from './animacao.js';
 import { gerarMemorial } from './memorial.js';
@@ -19,8 +19,6 @@ const campoPernas = document.getElementById('numPernas');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
-const legenda = document.getElementById('legenda');
-const botaoAnimar = document.getElementById('botao-animar');
 
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
@@ -36,12 +34,36 @@ let ultimasDims = null;
 let ultimasBarras = null;
 let pararAnimacao = null;
 
+/* ---------- Select de materiais e valores iniciais ---------- */
+const PADRAO = {
+  material: 'madeira',
+  espessuraCm: 4,
+  alturaCm: 45,
+  massaKg: 90,
+  forma: 'quadrada',
+  secao: 'macica',
+  numPernas: 4,
+  paredeMm: 3
+};
+
 for (const mat of Object.values(MATERIAIS)) {
   const opt = document.createElement('option');
   opt.value = mat.id;
   opt.textContent = mat.nome;
   selectMaterial.appendChild(opt);
 }
+
+selectMaterial.value = MATERIAIS[PADRAO.material]
+  ? PADRAO.material
+  : Object.keys(MATERIAIS)[0];
+
+campoEspessura.value = PADRAO.espessuraCm;
+campoAltura.value = PADRAO.alturaCm;
+campoMassa.value = PADRAO.massaKg;
+campoForma.value = PADRAO.forma;
+campoSecao.value = PADRAO.secao;
+campoPernas.value = String(PADRAO.numPernas);
+campoParede.value = PADRAO.paredeMm;
 
 /* ---------- Formatação ---------- */
 function n(valor, casas = 2){
@@ -79,6 +101,12 @@ function gaveta(chave, titulo, linhas, abertaPorPadrao){
       linhas.join('') +
     '</div>' +
   '</div>';
+}
+
+/** Junta nomes em lista legível: "a, b e c". */
+function listaHumana(itens){
+  if (itens.length === 1) return itens[0];
+  return itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1];
 }
 
 /* ---------- Diagnóstico em linguagem simples ---------- */
@@ -138,9 +166,16 @@ function mensagemRisco(r){
   return 'Configuração fora dos limites de segurança.';
 }
 
+function limparSituacao(){
+  palco.classList.remove('palco--seguro', 'palco--risco');
+  situacao.hidden = true;
+  situacao.classList.remove('situacao--ok', 'situacao--risco', 'situacao--aviso');
+  situacao.textContent = '';
+}
+
 function aplicarSituacao(r){
   palco.classList.remove('palco--seguro', 'palco--risco');
-  situacao.classList.remove('situacao--ok', 'situacao--risco');
+  situacao.classList.remove('situacao--ok', 'situacao--risco', 'situacao--aviso');
   situacao.hidden = false;
 
   if (!r.ok) {
@@ -162,7 +197,7 @@ function aplicarSituacao(r){
 }
 
 /* ---------- Painel de resultados ---------- */
-function renderResultado(r){
+function renderResultado(r, dims){
   if (!r.ok) {
     painel.innerHTML = '<div class="veredito veredito--erro">' +
       r.erros.join(' ') + '</div>';
@@ -176,12 +211,24 @@ function renderResultado(r){
   const lSecao = [
     linha('Formato', nomeForma),
     linha('Seção', nomeSecao),
-    linha('Número de pernas', nomePernas),
+    linha('Número de pernas', nomePernas)
+  ];
+
+  /* A legenda de dimensões saiu de baixo do desenho para liberar altura.
+     A informação continua disponível aqui. */
+  if (dims) {
+    lSecao.push(linha('Dimensões externas',
+      n(dims.altura / 10, 1) + ' × ' + n(dims.largura / 10, 1) + ' × ' +
+      n(dims.profundidade / 10, 1) + ' cm'));
+  }
+
+  lSecao.push(
     linha('Área (A)', n(r.secao.A, 0) + ' mm²'),
     linha('Inércia (I)', n(r.secao.I, 0) + ' mm⁴'),
     linha('Módulo resistente (W)', n(r.secao.W, 0) + ' mm³'),
     linha('Raio de giração (r)', n(r.secao.r, 3) + ' mm')
-  ];
+  );
+
   if (r.entrada.vazada) {
     lSecao.push(linha('Parede (ep)', n(r.secao.parede, 2) + ' mm'));
     lSecao.push(linha('Dimensão interna', n(r.secao.interna, 1) + ' mm'));
@@ -305,81 +352,84 @@ function atualizarParede(){
   grupoParede.hidden = campoSecao.value !== 'tubular';
 }
 
-campoSecao.addEventListener('change', atualizarParede);
+campoSecao.addEventListener('change', () => {
+  atualizarParede();
+  simular();
+});
+
+/* ---------- Leitura dos campos ---------- */
+function lerCampos(){
+  const faltando = [];
+
+  const materialId = selectMaterial.value;
+  if (!materialId) faltando.push('material');
+
+  const espessuraCm = parseFloat(campoEspessura.value);
+  if (!Number.isFinite(espessuraCm) || espessuraCm <= 0) {
+    faltando.push('dimensão externa da perna');
+  }
+
+  const alturaCm = parseFloat(campoAltura.value);
+  if (!Number.isFinite(alturaCm) || alturaCm <= 0) {
+    faltando.push('altura da perna');
+  }
+
+  const massaKg = parseFloat(campoMassa.value);
+  if (!Number.isFinite(massaKg) || massaKg <= 0) {
+    faltando.push('massa do usuário');
+  }
+
+  const forma = campoForma.value;
+  if (!forma) faltando.push('formato da perna');
+
+  const secao = campoSecao.value;
+  if (!secao) faltando.push('seção');
+
+  const numPernas = parseInt(campoPernas.value, 10);
+  if (!Number.isFinite(numPernas)) faltando.push('número de pernas');
+
+  const paredeMm = parseFloat(campoParede.value);
+  if (secao === 'tubular' &&
+      (!Number.isFinite(paredeMm) || paredeMm <= 0)) {
+    faltando.push('parede do tubo');
+  }
+
+  return {
+    faltando, materialId, espessuraCm, alturaCm, massaKg,
+    forma, secao, numPernas, paredeMm
+  };
+}
+
+/* ---------- Pendência de dados ---------- */
+function mostrarPendencia(faltando){
+  palco.className = 'palco';
+  palco.innerHTML = '<p class="palco__vazio">Faltam dados para calcular.</p>';
+
+  situacao.hidden = false;
+  situacao.classList.remove('situacao--ok', 'situacao--risco');
+  situacao.classList.add('situacao--aviso');
+  situacao.textContent = 'Informe ' + listaHumana(faltando) + ' para simular.';
+
+  painel.innerHTML = '<p class="aviso-painel">A simulação precisa de todos os ' +
+    'campos preenchidos.</p>';
+
+  ultimoResultado = null;
+  ultimasBarras = null;
+  ultimasDims = null;
+}
 
 /* ---------- Desenho estático ---------- */
 function desenharEstatica(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
 
-  const material = ultimoResultado.entrada.material;
-  const dims = renderCadeira(palco, ultimasBarras, material);
-
-  ultimasDims = dims;
-  legenda.textContent = n(dims.altura / 10, 1) + ' × ' +
-                        n(dims.largura / 10, 1) + ' × ' +
-                        n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+  renderCadeira(palco, ultimasBarras, ultimoResultado.entrada.material);
+  ultimasDims = dimensoesExternas(ultimasBarras);
 }
 
-/* ---------- Simulação ---------- */
-function simular(){
-  if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
-  atualizarParede();
+/* ---------- Ruína ---------- */
+function iniciarRuina(){
+  if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
 
-  const espessuraMm = parseFloat(campoEspessura.value) * 10;
-  const alturaMm = parseFloat(campoAltura.value) * 10;
-  const massaKg = parseFloat(campoMassa.value);
-
-  const r = calcular({
-    materialId: selectMaterial.value,
-    espessuraMm: espessuraMm,
-    alturaMm: alturaMm,
-    massaKg: massaKg,
-    forma: campoForma.value,
-    numPernas: parseInt(campoPernas.value, 10),
-    vazada: campoSecao.value === 'tubular',
-    paredeMm: parseFloat(campoParede.value)
-  });
-
-  renderResultado(r);
-  aplicarSituacao(r);
-
-  ultimoResultado = r;
-  ultimasDims = null;
-  ultimasBarras = null;
-
-  if (!r.ok) {
-    palco.innerHTML = '';
-    legenda.textContent = '';
-    return r;
-  }
-
-  ultimasBarras = construirBarras(
-    r.entrada.t,
-    r.entrada.H,
-    r.entrada.material,
-    r.entrada.forma,
-    r.entrada.numPernas,
-    r.entrada.vazada,
-    r.entrada.parede
-  );
-
-  desenharEstatica();
-  return r;
-}
-
-/* ---------- Botão Animar ----------
- * Aprovado  -> só joinhas nas beiradas. A cadeira não é tocada.
- * Reprovado -> a cadeira desmonta e cai. Ao terminar, volta ao estado íntegro.
- */
-function acionarAnimar(){
-  if (!ultimoResultado || !ultimoResultado.ok) return;
-
-  if (ultimoResultado.veredito.aprovado) {
-    animarJoinhas();
-    return;
-  }
-
-  if (!ultimasBarras) return;
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
 
   const alvo = ultimoResultado;
@@ -401,7 +451,75 @@ function acionarAnimar(){
   );
 }
 
-botaoAnimar.addEventListener('click', acionarAnimar);
+/* ---------- Simulação ao vivo ----------
+ * Calcula, desenha, mostra parecer e aplica a cor de estado. Não anima:
+ * a animação é exclusiva do botão. */
+function simular(){
+  if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
+  atualizarParede();
+
+  const campos = lerCampos();
+
+  if (campos.faltando.length > 0) {
+    mostrarPendencia(campos.faltando);
+    return null;
+  }
+
+  const r = calcular({
+    materialId: campos.materialId,
+    espessuraMm: campos.espessuraCm * 10,
+    alturaMm: campos.alturaCm * 10,
+    massaKg: campos.massaKg,
+    forma: campos.forma,
+    numPernas: campos.numPernas,
+    vazada: campos.secao === 'tubular',
+    paredeMm: campos.paredeMm
+  });
+
+  ultimoResultado = r;
+  ultimasBarras = null;
+  ultimasDims = null;
+
+  if (!r.ok) {
+    renderResultado(r, null);
+    aplicarSituacao(r);
+    palco.className = 'palco';
+    palco.innerHTML = '<p class="palco__vazio">Revise os valores informados.</p>';
+    return r;
+  }
+
+  ultimasBarras = construirBarras(
+    r.entrada.t,
+    r.entrada.H,
+    r.entrada.material,
+    r.entrada.forma,
+    r.entrada.numPernas,
+    r.entrada.vazada,
+    r.entrada.parede
+  );
+
+  renderCadeira(palco, ultimasBarras, r.entrada.material);
+  ultimasDims = dimensoesExternas(ultimasBarras);
+
+  renderResultado(r, ultimasDims);
+  aplicarSituacao(r);
+
+  return r;
+}
+
+/* ---------- Botão Animar ----------
+ * Aprovado  -> joinhas nas beiradas. A cadeira não é tocada.
+ * Reprovado -> a cadeira desmonta e cai; depois volta ao estado íntegro. */
+function acionarAnimar(){
+  if (!ultimoResultado || !ultimoResultado.ok) return;
+
+  if (ultimoResultado.veredito.aprovado) {
+    animarJoinhas();
+    return;
+  }
+
+  iniciarRuina();
+}
 
 form.addEventListener('submit', ev => {
   ev.preventDefault();
@@ -410,4 +528,6 @@ form.addEventListener('submit', ev => {
 
 form.addEventListener('input', simular);
 
+/* ---------- Início ---------- */
+atualizarParede();
 simular();
