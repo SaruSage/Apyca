@@ -60,6 +60,14 @@
         </div>
 
         <div class="campo">
+          <label for="encosto">Encosto</label>
+          <select id="encosto" name="encosto">
+            <option value="com" selected>Com encosto</option>
+            <option value="sem">Sem encosto (banco)</option>
+          </select>
+        </div>
+
+        <div class="campo">
           <label for="numPernas">Número de pernas</label>
           <select id="numPernas" name="numPernas">
             <option value="4" selected>4 pernas</option>
@@ -84,13 +92,15 @@
 
       <div id="palco" class="palco"></div>
 
+      <p id="legenda" class="legenda"></p>
+
       <p id="situacao" class="situacao" hidden></p>
     </section>
 
     <section class="painel painel--resultados">
       <div class="painel__cabecalho">
         <h2>Resultados</h2>
-       <button type="button" class="botao botao--secundario botao--mini"
+        <button type="button" class="botao botao--secundario botao--mini"
                 id="abrir-memorial">Documentação</button>
       </div>
       <div id="resultado" class="resultado"></div>

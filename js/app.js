@@ -1,6 +1,6 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
-import { construirBarras, dimensoesExternas } from './chairModel.js';
+import { construirBarras, dimensoesExternas, massasPorParte } from './chairModel.js';
 import { renderCadeira } from './render.js';
 import { animarRuina, animarJoinhas } from './animacao.js';
 import { gerarMemorial } from './memorial.js';
@@ -15,10 +15,12 @@ const campoForma = document.getElementById('forma');
 const campoSecao = document.getElementById('secao');
 const campoParede = document.getElementById('parede');
 const grupoParede = document.getElementById('grupo-parede');
+const campoEncosto = document.getElementById('encosto');
 const campoPernas = document.getElementById('numPernas');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
+const legenda = document.getElementById('legenda');
 
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
@@ -34,7 +36,7 @@ let ultimasDims = null;
 let ultimasBarras = null;
 let pararAnimacao = null;
 
-/* ---------- Select de materiais e valores iniciais ---------- */
+/* ---------- Valores iniciais ---------- */
 const PADRAO = {
   material: 'madeira',
   espessuraCm: 4,
@@ -42,6 +44,7 @@ const PADRAO = {
   massaKg: 90,
   forma: 'quadrada',
   secao: 'macica',
+  encosto: 'com',
   numPernas: 4,
   paredeMm: 3
 };
@@ -62,6 +65,7 @@ campoAltura.value = PADRAO.alturaCm;
 campoMassa.value = PADRAO.massaKg;
 campoForma.value = PADRAO.forma;
 campoSecao.value = PADRAO.secao;
+campoEncosto.value = PADRAO.encosto;
 campoPernas.value = String(PADRAO.numPernas);
 campoParede.value = PADRAO.paredeMm;
 
@@ -111,7 +115,6 @@ function listaHumana(itens){
 
 /* ---------- Diagnóstico em linguagem simples ---------- */
 
-/** Maior utilização entre todas as verificações. */
 function utilizacaoMaxima(r){
   const us = [
     r.tensoes.utilizacao,
@@ -207,15 +210,15 @@ function renderResultado(r, dims){
   const nomeForma = r.entrada.forma === 'redonda' ? 'Redonda' : 'Quadrada';
   const nomeSecao = r.entrada.vazada ? 'Tubular (vazada)' : 'Maciça';
   const nomePernas = r.entrada.numPernas === 1 ? '1 (pedestal central)' : '4';
+  const nomeEncosto = r.entrada.comEncosto ? 'Com encosto' : 'Sem encosto (banco)';
 
   const lSecao = [
     linha('Formato', nomeForma),
     linha('Seção', nomeSecao),
+    linha('Encosto', nomeEncosto),
     linha('Número de pernas', nomePernas)
   ];
 
-  /* A legenda de dimensões saiu de baixo do desenho para liberar altura.
-     A informação continua disponível aqui. */
   if (dims) {
     lSecao.push(linha('Dimensões externas',
       n(dims.altura / 10, 1) + ' × ' + n(dims.largura / 10, 1) + ' × ' +
@@ -237,6 +240,23 @@ function renderResultado(r, dims){
   let h = '';
 
   h += gaveta('secao', 'Seção e apoios', lSecao, true);
+
+  /* ---------- Massa por parte ---------- */
+  const lMassa = [
+    linha('Pernas', n(r.massa.pernas, 2) + ' kg')
+  ];
+  if (r.massa.pe > 0) {
+    lMassa.push(linha('Pé do pedestal', n(r.massa.pe, 2) + ' kg'));
+  }
+  lMassa.push(linha('Assento', n(r.massa.assento, 2) + ' kg'));
+  if (r.entrada.comEncosto) {
+    lMassa.push(linha('Postes do encosto', n(r.massa.postes, 2) + ' kg'));
+    lMassa.push(linha('Painel do encosto', n(r.massa.encosto, 2) + ' kg'));
+  }
+  lMassa.push(linha('Massa total', n(r.massa.total, 2) + ' kg'));
+  lMassa.push(linha('Peso próprio', n(r.massa.total * 9.81, 1) + ' N'));
+
+  h += gaveta('massa', 'Massa por parte', lMassa, false);
 
   h += gaveta('esforcos', 'Esforços', [
     linha('Carga total (P)', n(r.forcas.P, 1) + ' N'),
@@ -295,15 +315,14 @@ function renderResultado(r, dims){
     h += gaveta('estabilidade', 'Estabilidade ao tombamento', [
       linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),
       linha('Braço de tombamento', n(r.estabilidade.braco, 1) + ' mm'),
+      linha('Massa própria da cadeira', n(r.estabilidade.massaCadeira, 2) + ' kg'),
       linha('Peso próprio da cadeira', n(r.estabilidade.pesoCadeira, 1) + ' N'),
       linha('Utilização', n(r.estabilidade.utilizacao * 100, 1) + '%')
     ], false);
   }
 
-  h += gaveta('massa', 'Deformação e massa', [
-    linha('Encurtamento axial', n(r.deformacao.deltaAxial, 4) + ' mm'),
-    linha('Massa das pernas', n(r.massa.pernas, 2) + ' kg'),
-    linha('Massa total', n(r.massa.total, 2) + ' kg')
+  h += gaveta('deformacao', 'Deformação', [
+    linha('Encurtamento axial', n(r.deformacao.deltaAxial, 4) + ' mm')
   ], false);
 
   if (r.veredito.aprovado) {
@@ -396,7 +415,8 @@ function lerCampos(){
 
   return {
     faltando, materialId, espessuraCm, alturaCm, massaKg,
-    forma, secao, numPernas, paredeMm
+    forma, secao, numPernas, paredeMm,
+    comEncosto: campoEncosto.value !== 'sem'
   };
 }
 
@@ -413,17 +433,33 @@ function mostrarPendencia(faltando){
   painel.innerHTML = '<p class="aviso-painel">A simulação precisa de todos os ' +
     'campos preenchidos.</p>';
 
+  legenda.textContent = '';
+
   ultimoResultado = null;
   ultimasBarras = null;
   ultimasDims = null;
 }
 
 /* ---------- Desenho estático ---------- */
+/* ---------- Legenda de dimensões ---------- */
+function atualizarLegenda(dims, material){
+  if (!dims || !material) {
+    legenda.textContent = '';
+    return;
+  }
+
+  legenda.textContent =
+    n(dims.altura / 10, 1) + ' × ' +
+    n(dims.largura / 10, 1) + ' × ' +
+    n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+}
+
 function desenharEstatica(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
 
   renderCadeira(palco, ultimasBarras, ultimoResultado.entrada.material);
   ultimasDims = dimensoesExternas(ultimasBarras);
+  atualizarLegenda(ultimasDims, ultimoResultado.entrada.material);
 }
 
 /* ---------- Ruína ---------- */
@@ -451,9 +487,7 @@ function iniciarRuina(){
   );
 }
 
-/* ---------- Simulação ao vivo ----------
- * Calcula, desenha, mostra parecer e aplica a cor de estado. Não anima:
- * a animação é exclusiva do botão. */
+/* ---------- Simulação ao vivo ---------- */
 function simular(){
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
   atualizarParede();
@@ -473,7 +507,8 @@ function simular(){
     forma: campos.forma,
     numPernas: campos.numPernas,
     vazada: campos.secao === 'tubular',
-    paredeMm: campos.paredeMm
+    paredeMm: campos.paredeMm,
+    comEncosto: campos.comEncosto
   });
 
   ultimoResultado = r;
@@ -485,6 +520,7 @@ function simular(){
     aplicarSituacao(r);
     palco.className = 'palco';
     palco.innerHTML = '<p class="palco__vazio">Revise os valores informados.</p>';
+    legenda.textContent = '';
     return r;
   }
 
@@ -495,11 +531,13 @@ function simular(){
     r.entrada.forma,
     r.entrada.numPernas,
     r.entrada.vazada,
-    r.entrada.parede
+    r.entrada.parede,
+    r.entrada.comEncosto
   );
 
   renderCadeira(palco, ultimasBarras, r.entrada.material);
   ultimasDims = dimensoesExternas(ultimasBarras);
+  atualizarLegenda(ultimasDims, r.entrada.material);
 
   renderResultado(r, ultimasDims);
   aplicarSituacao(r);
@@ -507,9 +545,7 @@ function simular(){
   return r;
 }
 
-/* ---------- Botão Animar ----------
- * Aprovado  -> joinhas nas beiradas. A cadeira não é tocada.
- * Reprovado -> a cadeira desmonta e cai; depois volta ao estado íntegro. */
+/* ---------- Botão Animar ---------- */
 function acionarAnimar(){
   if (!ultimoResultado || !ultimoResultado.ok) return;
 

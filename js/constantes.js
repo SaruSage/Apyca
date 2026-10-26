@@ -10,8 +10,7 @@ export const HIPOTESES = {
   L: 400,
   e: 50,
   K: 1.0,
-  KPedestal: 2.0,
-  mAssento: 2.0
+  KPedestal: 2.0
 };
 
 export const CADEIRA = {

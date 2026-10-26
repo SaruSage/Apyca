@@ -4,6 +4,14 @@
  * A secao pode ser macica ou vazada, quadrada ou redonda.
  * Quando vazada, a espessura da parede vem em mm e e validada aqui.
  *
+ * O encosto pode existir ou nao. Sem encosto a cadeira vira banco:
+ * saem os postes e o painel, cai a altura total e cai o peso proprio.
+ *
+ * MASSA
+ * A massa nao e mais um valor fixo. construirBarras gera a geometria de
+ * cada peca e massasPorParte soma volume x densidade. Isso faz o peso
+ * proprio acompanhar material, espessura, secao e existencia do encosto.
+ *
  * REGIMES
  *   4 pernas: Nmax = P/4 + P*e/(2L), M = P*e/4, K = 1,0
  *   1 perna : N = P, M = P*e, K = 2,0 (balanco)
@@ -16,29 +24,12 @@
  *   assento entre apoios q = P/b^2, M = q*L^2/16, delta = 5q*L^4/(64Eh^3)
  *                        — so com 4 pernas
  *   tombamento           M_tomb/M_estab (so no pedestal)
- *
- * ASSENTO ENTRE APOIOS
- *   Metodo das faixas: a carga se divide em duas direcoes ortogonais e cada
- *   faixa de largura unitaria vence o vao L com carga uniforme q/2.
- *   O coeficiente 1/16 = 0,0625 e conservador frente a 0,0479 da solucao
- *   de placa simplesmente apoiada.
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
 import { propriedadesSecao } from './geometry.js';
-
-/** Volume do pe do pedestal, em m³. Sempre macico. */
-function volumePe(h, R, t, forma){
-  if (forma === 'redonda') {
-    const rb = R, rt = t / 2;
-    return ((Math.PI * h) / 3) * (rb * rb + rb * rt + rt * rt) / 1e9;
-  }
-  const lado = 2 * R * CADEIRA.fracaoLadoPiramide;
-  const A1 = lado * lado;
-  const A2 = t * t;
-  return (h / 3) * (A1 + A2 + Math.sqrt(A1 * A2)) / 1e9;
-}
+import { construirBarras, massasPorParte } from './chairModel.js';
 
 /** Menor braco resistente da base, em mm. */
 function bracoEstabilidade(R, forma){
@@ -47,7 +38,7 @@ function bracoEstabilidade(R, forma){
 }
 
 export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
-                           forma, numPernas, vazada, paredeMm }){
+                           forma, numPernas, vazada, paredeMm, comEncosto }){
   const erros = [];
   if (!Number.isFinite(espessuraMm) || espessuraMm <= 0) {
     erros.push('A espessura da perna deve ser maior que zero.');
@@ -60,6 +51,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   }
 
   const vazadaFinal = vazada === true;
+  const comEncostoFinal = comEncosto !== false;
 
   if (vazadaFinal) {
     if (!Number.isFinite(paredeMm) || paredeMm <= 0) {
@@ -109,16 +101,13 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     levantou = dN > Nmedio;
   }
 
-  // ---------- Massa: coluna prismatica + pe ----------
-  const hPe = n === 1 ? Math.min(CADEIRA.coneAltura, H * 0.4) : 0;
-  const hColuna = H - hPe;
-  const R = CADEIRA.coneRaioBase;
+  // ---------- Massa real, da geometria x densidade ----------
+  const barras = construirBarras(t, H, material, formaFinal, n,
+                                 vazadaFinal, paredeMm, comEncostoFinal);
 
-  const volColuna = (n * A * hColuna) / 1e9;
-  const volPe = n === 1 ? volumePe(hPe, R, t, formaFinal) : 0;
+  const massas = massasPorParte(barras, material);
 
-  const massaPernas = (volColuna + volPe) * material.rho;
-  const massaTotal = massaPernas + HIPOTESES.mAssento;
+  const massaTotal = massas.total;
   const pesoCadeira = massaTotal * G;
 
   // ---------- Tensoes ----------
@@ -178,13 +167,6 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   };
 
   // ---------- Assento entre apoios (so com 4 pernas) ----------
-  /*
-   * Metodo das faixas: a carga P se distribui sobre a area do assento gerando
-   * a pressao q. Cada uma das duas direcoes ortogonais leva metade, e a faixa
-   * de largura unitaria vence o vao L. Daí M = q*L^2/16 por unidade de largura.
-   *
-   * Com 1 perna nao existe vao entre apoios: o balanco ja cobre o caso.
-   */
   let assentoVao = null;
   if (n === 4) {
     const q = P / (bAssento * bAssento);
@@ -209,14 +191,14 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   // ---------- Tombamento ----------
   let estabilidade = null;
   if (n === 1) {
-    const R_est = bracoEstabilidade(R, formaFinal);
+    const R_est = bracoEstabilidade(CADEIRA.coneRaioBase, formaFinal);
     const utTombamento = (P * e) / ((P + pesoCadeira) * R_est);
     estabilidade = {
       braco: R_est,
-      raioCone: R,
+      raioCone: CADEIRA.coneRaioBase,
       e,
       pesoCadeira,
-      volumePe: volPe,
+      massaCadeira: massaTotal,
       utilizacao: utTombamento,
       tombou: utTombamento > 1
     };
@@ -269,7 +251,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
       forma: formaFinal,
       numPernas: n,
       vazada: vazadaFinal,
-      parede: vazadaFinal ? sec.parede : 0
+      parede: vazadaFinal ? sec.parede : 0,
+      comEncosto: comEncostoFinal
     },
     secao: {
       A, I, W, c,
@@ -286,7 +269,15 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     flambagem: { K, lambda, Pcr, NcrAdm, utilizacaoFlambagem },
     flambagemLocal,
     deformacao: { deltaAxial },
-    massa: { pernas: massaPernas, total: massaTotal },
+    massa: {
+      pernas: massas.pernas,
+      pe: massas.pe,
+      assento: massas.assento,
+      postes: massas.postes,
+      encosto: massas.encosto,
+      total: massas.total,
+      volumeTotal: massas.volumeTotal
+    },
     veredito: { aprovado: motivos.length === 0, motivos }
   };
 }

@@ -132,6 +132,24 @@ body{
              0 0 26px rgba(242,85,90,.18) inset;
 }
 
+/* ---------- Legenda de dimensões ----------
+   Fica fora do palco porque a animação redesenha só o SVG durante a ruína.
+   flex:0 0 auto garante que ela nunca seja comprimida: quem cede altura é
+   o palco, que tem flex:1. nowrap + ellipsis evita que ela quebre em duas
+   linhas em coluna estreita, o que roubaria altura do desenho. */
+.legenda{
+  flex:0 0 auto;
+  margin:6px 0 0;
+  text-align:center;
+  font-size:.74rem;
+  line-height:1.3;
+  color:var(--fraco);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
 /* ---------- Situacao em linguagem simples ---------- */
 .situacao{
   flex:0 0 auto;
