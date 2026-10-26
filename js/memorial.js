@@ -1,20 +1,29 @@
 /**
- * Memorial de cálculo imprimível.
+ * Memorial de calculo imprimivel.
  *
  * Recebe o resultado do solver e devolve uma string HTML de documento.
- * Não faz cálculo estrutural: apenas formata o que o solver já produziu,
- * mostrando expressão, substituição e resultado de cada verificação.
+ * Nao faz calculo estrutural: apenas formata o que o solver ja produziu,
+ * mostrando expressao, substituicao e resultado de cada verificacao.
  *
- * A numeração das seções é dinâmica: a flambagem local só existe na seção
- * vazada e a estabilidade só existe no pedestal. Numeração fixa deixaria
- * buracos na sequência do documento.
+ * FORMATO DAS TABELAS
+ * Todas as tabelas usam DUAS colunas: rotulo a esquerda, resultado a direita.
+ * A expressao e a substituicao aparecem numa linha secundaria, em fonte mono
+ * menor, abaixo do item. Quatro colunas lado a lado estrangulam o texto no
+ * papel; assim o documento respira e a leitura fica em duas camadas — valor
+ * primeiro, conta depois, para quem quiser conferir.
  *
- * A figura usa o MESMO código de desenho da tela, em fundo transparente.
+ * A numeracao das secoes e dinamica: a flambagem local so existe na secao
+ * vazada e a estabilidade so existe no pedestal. Numeracao fixa deixaria
+ * buracos na sequencia do documento.
+ *
+ * As pecas sao geradas UMA vez, no inicio do documento, e reaproveitadas na
+ * figura isometrica, no desenho tecnico e na secao de massa.
  */
 
 import { G, HIPOTESES, CADEIRA } from './constantes.js';
-import { construirBarras, dimensoesExternas } from './chairModel.js';
+import { construirBarras, dimensoesExternas, volumePeca } from './chairModel.js';
 import { svgCadeira } from './render.js';
+import { desenhoTecnico } from './tecnico.js';
 
 function num(v, casas = 2){
   if (!Number.isFinite(v)) return '—';
@@ -33,44 +42,40 @@ function tabelaSimples(titulo, linhas){
     '<tbody>' + linhas.join('') + '</tbody></table>';
 }
 
-const CABECALHO = '<thead><tr>' +
-  '<th>Grandeza</th>' +
-  '<th>Expressão</th>' +
-  '<th>Substituição</th>' +
-  '<th class="num">Resultado</th>' +
-  '</tr></thead>';
-
+/**
+ * Item de calculo: rotulo e resultado na linha principal, expressao e
+ * substituicao numa segunda linha, em fonte mono discreta.
+ */
 function cl(grandeza, expressao, substituicao, valor, unidade){
-  return '<tr><th>' + grandeza + '</th>' +
-    '<td class="form">' + expressao + '</td>' +
-    '<td class="subst">' + substituicao + '</td>' +
-    '<td class="num">' + valor +
-    (unidade ? ' <span class="un">' + unidade + '</span>' : '') +
-    '</td></tr>';
+  const temSubst = substituicao && substituicao !== '—';
+
+  return '<tr class="mem-item">' +
+      '<th scope="row">' + grandeza + '</th>' +
+      '<td class="num">' + valor +
+        (unidade ? ' <span class="un">' + unidade + '</span>' : '') +
+      '</td>' +
+    '</tr>' +
+    '<tr class="mem-item__calc">' +
+      '<td colspan="2">' +
+        '<span class="form">' + expressao + '</span>' +
+        (temSubst
+          ? ' <span class="sep">=</span> <span class="subst">' + substituicao + '</span>'
+          : '') +
+      '</td>' +
+    '</tr>';
 }
 
 function tabelaCalc(titulo, linhas){
-  return '<table class="mem-tab"><caption>' + titulo + '</caption>' +
-    CABECALHO + '<tbody>' + linhas.join('') + '</tbody></table>';
+  return '<table class="mem-tab mem-tab--calculo"><caption>' + titulo +
+    '</caption><tbody>' + linhas.join('') + '</tbody></table>';
 }
 
 /**
- * Figura da cadeira. Fundo transparente: o SVG não desenha retângulo,
- * então no papel aparece apenas a peça e a sombra.
+ * Figura isometrica. Fundo transparente: o SVG nao desenha retangulo, entao
+ * no papel aparece apenas a peca e a sombra.
  */
-function figuraCadeira(r){
+function figuraCadeira(r, barras){
   const material = r.entrada.material;
-
-  const barras = construirBarras(
-    r.entrada.t,
-    r.entrada.H,
-    material,
-    r.entrada.forma,
-    r.entrada.numPernas,
-    r.entrada.vazada,
-    r.entrada.parede
-  );
-
   const dims = dimensoesExternas(barras);
 
   const svg = svgCadeira(barras, material, {
@@ -106,7 +111,7 @@ export function gerarMemorial(r, dimsExternas){
       r.erros.join(' ') + '</p>';
   }
 
-  /* Numeração dinâmica: reinicia a cada geração do documento. */
+  /* Numeracao dinamica: reinicia a cada geracao do documento. */
   let numero = 0;
   function sec(titulo, corpo){
     numero += 1;
@@ -118,6 +123,7 @@ export function gerarMemorial(r, dimsExternas){
   const redonda = r.entrada.forma === 'redonda';
   const vaz = r.entrada.vazada;
   const n = r.entrada.numPernas;
+  const temEncosto = r.entrada.comEncosto;
 
   const t = r.entrada.t;
   const H = r.entrada.H;
@@ -141,7 +147,13 @@ export function gerarMemorial(r, dimsExternas){
   h += '<h1>Memorial de cálculo estrutural</h1>';
   h += '<p class="mem-sub">Apyca · ' + hoje + '</p>';
 
-  h += figuraCadeira(r);
+  /* As pecas sao geradas uma unica vez e reaproveitadas na figura, no
+     desenho tecnico e na secao de massa. */
+  const barras = construirBarras(
+    t, H, mat, r.entrada.forma, n, vaz, ep, temEncosto
+  );
+
+  h += figuraCadeira(r, barras);
 
   /* ---------- 1. Dados de entrada ---------- */
   const linhasEntrada = [
@@ -152,6 +164,7 @@ export function gerarMemorial(r, dimsExternas){
     linha('Coeficiente de segurança (CS)', num(mat.CS, 2)),
     linha('Formato da seção', formaTxt),
     linha('Seção', secaoTxt),
+    linha('Encosto', temEncosto ? 'Presente' : 'Ausente — configuração de banco'),
     linha('Dimensão externa (t)', num(t, 1) + ' mm'),
     linha('Altura da perna (H)', num(H, 1) + ' mm'),
     linha('Massa do usuário (m)', num(m, 1) + ' kg'),
@@ -175,11 +188,12 @@ export function gerarMemorial(r, dimsExternas){
     linha('Aceleração da gravidade (g)', num(G, 2) + ' m/s²'),
     linha('Lado do quadro de pernas (L)', num(HIPOTESES.L, 0) + ' mm'),
     linha('Excentricidade de projeto (e)', num(HIPOTESES.e, 0) + ' mm'),
-    linha('Massa de assento e encosto', num(HIPOTESES.mAssento, 1) + ' kg'),
     linha('Largura do assento (b)', num(as.b, 0) + ' mm'),
     linha('Espessura do assento (h)', num(as.h, 1) + ' mm'),
     linha('Fator de comprimento efetivo (K)', num(r.flambagem.K, 2) +
-      (n === 1 ? ' — coluna engastada e livre' : ' — perna entre apoios'))
+      (n === 1 ? ' — coluna engastada e livre' : ' — perna entre apoios')),
+    linha('Massa própria da cadeira', num(r.massa.total, 2) +
+      ' kg — calculada da geometria')
   ];
   if (n === 1) {
     linhasPrem.push(linha('Raio da base do pé',
@@ -190,7 +204,18 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Premissas de projeto',
     tabelaSimples('Hipóteses adotadas', linhasPrem));
 
-  /* ---------- 3. Propriedades da seção ---------- */
+  /* ---------- 3. Desenho técnico ---------- */
+  h += sec('Desenho técnico',
+    '<figure class="mem-figura mem-figura--tecnico">' +
+      '<div class="mem-figura__prancha">' + desenhoTecnico(barras) + '</div>' +
+      '<figcaption class="mem-figura__legenda">' +
+        '<strong>Figura 2</strong> — Vistas ortográficas na mesma escala, ' +
+        'com cotas em cm: dimensões externas, altura do assento, espessura ' +
+        'das pernas e, no pedestal, a base e a altura do pé.' +
+      '</figcaption>' +
+    '</figure>');
+
+  /* ---------- 4. Propriedades da seção ---------- */
   let exprA, substA, exprI, substI;
 
   if (vaz) {
@@ -230,7 +255,51 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Propriedades da seção transversal',
     tabelaCalc('Área, inércia e resistência', linhasSecao));
 
-  /* ---------- 4. Esforços ---------- */
+  /* ---------- 5. Massa por parte ---------- */
+  const somaVolume = (grupos) => barras
+    .filter(p => grupos.indexOf(p.grupo) >= 0)
+    .reduce((s, p) => s + volumePeca(p), 0);
+
+  const volPernas = somaVolume(['perna0', 'perna1', 'perna2', 'perna3', 'coluna']);
+  const volPe = somaVolume(['pe']);
+  const volAssento = somaVolume(['assento']);
+  const volPostes = somaVolume(['poste0', 'poste1']);
+  const volEncosto = somaVolume(['encosto']);
+
+  const mDe = (mm3) => (mm3 / 1e9) * mat.rho;
+
+  const linhasMassa = [
+    cl('Pernas', 'V · ρ',
+      num(volPernas / 1e9, 6) + ' · ' + num(mat.rho, 0),
+      num(mDe(volPernas), 3), 'kg')
+  ];
+
+  if (n === 1) {
+    linhasMassa.push(cl('Pé do pedestal', 'V · ρ',
+      num(volPe / 1e9, 6) + ' · ' + num(mat.rho, 0),
+      num(mDe(volPe), 3), 'kg'));
+  }
+
+  linhasMassa.push(cl('Assento', 'V · ρ',
+    num(volAssento / 1e9, 6) + ' · ' + num(mat.rho, 0),
+    num(mDe(volAssento), 3), 'kg'));
+
+  if (temEncosto) {
+    linhasMassa.push(cl('Postes do encosto', 'V · ρ',
+      num(volPostes / 1e9, 6) + ' · ' + num(mat.rho, 0),
+      num(mDe(volPostes), 3), 'kg'));
+    linhasMassa.push(cl('Painel do encosto', 'V · ρ',
+      num(volEncosto / 1e9, 6) + ' · ' + num(mat.rho, 0),
+      num(mDe(volEncosto), 3), 'kg'));
+  }
+
+  linhasMassa.push(cl('Massa total', 'Σ V · ρ', '—',
+    num(r.massa.total, 3), 'kg'));
+
+  h += sec('Massa e peso próprio',
+    tabelaCalc('Volume de cada parte e massa resultante', linhasMassa));
+
+  /* ---------- 6. Esforços ---------- */
   const linhasEsforcos = [
     cl('Carga do usuário (P)', 'm·g',
       num(m, 1) + '·' + num(G, 2), num(r.forcas.P, 2), 'N')
@@ -262,7 +331,7 @@ export function gerarMemorial(r, dimsExternas){
   h += sec('Ações e esforços solicitantes',
     tabelaCalc('Transmissão das cargas', linhasEsforcos));
 
-  /* ---------- 5. Tensões na perna ---------- */
+  /* ---------- 7. Tensões na perna ---------- */
   h += sec('Verificação da tensão normal na perna',
     tabelaCalc('Flexo-compressão na seção', [
       cl('Tensão axial (σ<sub>a</sub>)', 'N/A',
@@ -283,7 +352,7 @@ export function gerarMemorial(r, dimsExternas){
         num(r.tensoes.utilizacao * 100, 1), '%')
     ]));
 
-  /* ---------- 6. Flambagem global ---------- */
+  /* ---------- 8. Flambagem global ---------- */
   h += sec('Verificação da flambagem global',
     tabelaCalc('Estabilidade da coluna', [
       cl('Índice de esbeltez (λ)', 'K·H/r',
@@ -301,7 +370,7 @@ export function gerarMemorial(r, dimsExternas){
         num(r.flambagem.utilizacaoFlambagem * 100, 1), '%')
     ]));
 
-  /* ---------- 7. Flambagem local da parede (só vazada) ---------- */
+  /* ---------- 9. Flambagem local (só vazada) ---------- */
   if (r.flambagemLocal) {
     const fl = r.flambagemLocal;
     h += sec('Verificação da flambagem local da parede',
@@ -323,7 +392,7 @@ export function gerarMemorial(r, dimsExternas){
       ]));
   }
 
-  /* ---------- 8. Assento em balanço ---------- */
+  /* ---------- 10. Assento em balanço ---------- */
   h += sec('Verificação do assento em balanço',
     tabelaCalc(
       n === 1
@@ -359,12 +428,12 @@ export function gerarMemorial(r, dimsExternas){
         cl('Flecha limite', 'a/' + CADEIRA.divisorFlechaAssento,
           num(as.a, 1) + '/' + CADEIRA.divisorFlechaAssento,
           num(as.flechaLimite, 4), 'mm'),
-                cl('Utilização à flecha', 'δ<sub>a</sub>/δ<sub>lim</sub>',
+        cl('Utilização à flecha', 'δ<sub>a</sub>/δ<sub>lim</sub>',
           num(as.flecha, 4) + '/' + num(as.flechaLimite, 4),
           num(as.utilizacaoFlecha * 100, 1), '%')
       ]));
 
-  /* ---------- Assento entre apoios (só com 4 pernas) ---------- */
+  /* ---------- 11. Assento entre apoios (só com 4 pernas) ---------- */
   if (r.assentoVao) {
     const asv = r.assentoVao;
     h += sec('Verificação do assento entre apoios',
@@ -396,15 +465,17 @@ export function gerarMemorial(r, dimsExternas){
       ]));
   }
 
-  /* ---------- 9. Estabilidade ao tombamento (só no pedestal) ---------- */
+  /* ---------- 12. Estabilidade ao tombamento (só no pedestal) ---------- */
   if (estab) {
     h += sec('Estabilidade ao tombamento',
       tabelaCalc('Equilíbrio em torno da borda da base', [
         cl('Momento de tombamento', 'P·e',
           num(r.forcas.P, 2) + '·' + num(estab.e, 0),
           num(Mtomb, 2), 'N·mm'),
-        cl('Peso próprio da cadeira (W)', 'm<sub>total</sub>·g',
-          num(r.massa.total, 2) + '·' + num(G, 2),
+        cl('Massa própria da cadeira (m<sub>cad</sub>)',
+          'da geometria', '—', num(estab.massaCadeira, 3), 'kg'),
+        cl('Peso próprio (W)', 'm<sub>cad</sub>·g',
+          num(estab.massaCadeira, 3) + '·' + num(G, 2),
           num(estab.pesoCadeira, 2), 'N'),
         cl('Braço resistente (R<sub>est</sub>)',
           redonda ? 'raio do cone' : 'semiapótema da pirâmide',
@@ -419,7 +490,7 @@ export function gerarMemorial(r, dimsExternas){
       ]));
   }
 
-  /* ---------- 10. Deformação axial ---------- */
+  /* ---------- 13. Deformação axial ---------- */
   h += sec('Deformação axial da perna',
     tabelaCalc('Encurtamento elástico', [
       cl('Encurtamento (δ)', 'N·H/(A·E)',
@@ -428,15 +499,7 @@ export function gerarMemorial(r, dimsExternas){
         num(r.deformacao.deltaAxial, 4), 'mm')
     ]));
 
-  /* ---------- 11. Massa ---------- */
-  h += sec('Massa e peso',
-    tabelaSimples('Quantificação', [
-      linha('Massa das pernas e do pé', num(r.massa.pernas, 3) + ' kg'),
-      linha('Massa total da cadeira', num(r.massa.total, 3) + ' kg'),
-      linha('Peso total', num(r.massa.total * G, 1) + ' N')
-    ]));
-
-  /* ---------- 12. Parecer ---------- */
+  /* ---------- 14. Parecer ---------- */
   let parecer;
   if (r.veredito.aprovado) {
     parecer = '<p class="mem-parecer mem-parecer--ok">' +
@@ -451,16 +514,23 @@ export function gerarMemorial(r, dimsExternas){
 
   /* ---------- Notas ---------- */
   const notas = [
+    'A massa de cada parte é obtida do volume da própria geometria ' +
+      'multiplicado pela massa específica do material. Não há valor fixo ' +
+      'arbitrado para assento ou encosto.',
     'A excentricidade de projeto é fixa em ' + num(HIPOTESES.e, 0) +
       ' mm e representa o deslocamento do centro de carga do usuário.',
     'A base é modelada como engastada no piso. Na prática ela apoia por ' +
       'contato; o efeito é coberto pela verificação de tombamento.',
-    'O assento é verificado como faixa de largura b sob carga na borda. ' +
+    'O assento é verificado como faixa de largura b na direção da carga. ' +
       'A placa real redistribui a carga em duas direções, de modo que o modelo ' +
       'é conservador quanto ao momento por unidade de largura.',
     'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +
       'as pernas, pelo método das faixas. O coeficiente 1/16 é conservador ' +
       'frente aos 0,0479 da solução de placa simplesmente apoiada.',
+    'A massa própria do assento não entra na carga do vão, apenas a do usuário. ' +
+      'Com assento em ' + num(r.massa.assento, 2) + ' kg, isso representa ' +
+      'cerca de ' + num((r.massa.assento * G / r.forcas.P) * 100, 1) +
+      '% do peso do usuário.',
     'O limite de flecha do assento é a/' + CADEIRA.divisorFlechaAssento +
       ', adotado como critério de serviço. Ajuste em constantes.js se o ' +
       'orientador exigir outro valor.',
@@ -482,8 +552,21 @@ export function gerarMemorial(r, dimsExternas){
       'na direção perpendicular às faces. Nas diagonais o braço é maior, ' +
       'de modo que o resultado é conservador.');
   }
+  if (!temEncosto) {
+    notas.push('Sem encosto, a cadeira não possui postes nem painel: a altura ' +
+      'total cai e o peso próprio diminui, o que reduz a resistência ao ' +
+      'tombamento. Não é considerada força horizontal de encosto em nenhum ' +
+      'dos dois casos, porque esse esforço não faz parte do modelo.');
+  } else {
+    notas.push('O encosto entra no cálculo apenas como massa e como posição ' +
+      'geométrica. A força horizontal de uma pessoa reclinada não é verificada ' +
+      'neste modelo, e os postes do encosto não têm verificação de flexão.');
+  }
   notas.push('A flambagem global é verificada pela carga crítica de Euler, sem ' +
     'considerar imperfeições iniciais.');
+  notas.push('As vistas ortográficas são desenhadas em projeção paralela, com ' +
+    'arestas visíveis em traço contínuo e cotas em cm. As arestas ocultas não ' +
+    'são representadas: o desenho prioriza a leitura das dimensões externas.');
 
   h += '<section class="mem-sec"><h2>Notas e limitações</h2>' +
     '<ul class="mem-notas">' +

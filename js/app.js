@@ -1,8 +1,9 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
-import { construirBarras } from './chairModel.js';
+import { construirBarras, dimensoesExternas } from './chairModel.js';
 import { renderCadeira } from './render.js';
-import { animarRuina, animarJoinhas } from './animacao.js';
+import { animarRuina } from './animacao.js';
+import { animarJoinhas } from './joinhas.js';
 import { gerarMemorial } from './memorial.js';
 
 /* ---------- Elementos ---------- */
@@ -15,12 +16,16 @@ const campoForma = document.getElementById('forma');
 const campoSecao = document.getElementById('secao');
 const campoParede = document.getElementById('parede');
 const grupoParede = document.getElementById('grupo-parede');
+const campoEncosto = document.getElementById('encosto');
 const campoPernas = document.getElementById('numPernas');
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
 const legenda = document.getElementById('legenda');
-const botaoAnimar = document.getElementById('botao-animar');
+
+const menuBotao = document.getElementById('menu-botao');
+const menuPainel = document.getElementById('menu-painel');
+const itemGraficos = document.getElementById('item-graficos');
 
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
@@ -36,12 +41,38 @@ let ultimasDims = null;
 let ultimasBarras = null;
 let pararAnimacao = null;
 
+/* ---------- Valores iniciais ---------- */
+const PADRAO = {
+  material: 'madeira',
+  espessuraCm: 4,
+  alturaCm: 45,
+  massaKg: 90,
+  forma: 'quadrada',
+  secao: 'macica',
+  encosto: 'com',
+  numPernas: 4,
+  paredeMm: 3
+};
+
 for (const mat of Object.values(MATERIAIS)) {
   const opt = document.createElement('option');
   opt.value = mat.id;
   opt.textContent = mat.nome;
   selectMaterial.appendChild(opt);
 }
+
+selectMaterial.value = MATERIAIS[PADRAO.material]
+  ? PADRAO.material
+  : Object.keys(MATERIAIS)[0];
+
+campoEspessura.value = PADRAO.espessuraCm;
+campoAltura.value = PADRAO.alturaCm;
+campoMassa.value = PADRAO.massaKg;
+campoForma.value = PADRAO.forma;
+campoSecao.value = PADRAO.secao;
+campoEncosto.value = PADRAO.encosto;
+campoPernas.value = String(PADRAO.numPernas);
+campoParede.value = PADRAO.paredeMm;
 
 /* ---------- Formatação ---------- */
 function n(valor, casas = 2){
@@ -81,9 +112,12 @@ function gaveta(chave, titulo, linhas, abertaPorPadrao){
   '</div>';
 }
 
-/* ---------- Diagnóstico em linguagem simples ---------- */
+function listaHumana(itens){
+  if (itens.length === 1) return itens[0];
+  return itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1];
+}
 
-/** Maior utilização entre todas as verificações. */
+/* ---------- Diagnóstico em linguagem simples ---------- */
 function utilizacaoMaxima(r){
   const us = [
     r.tensoes.utilizacao,
@@ -140,7 +174,7 @@ function mensagemRisco(r){
 
 function aplicarSituacao(r){
   palco.classList.remove('palco--seguro', 'palco--risco');
-  situacao.classList.remove('situacao--ok', 'situacao--risco');
+  situacao.classList.remove('situacao--ok', 'situacao--risco', 'situacao--aviso');
   situacao.hidden = false;
 
   if (!r.ok) {
@@ -161,8 +195,21 @@ function aplicarSituacao(r){
   }
 }
 
+/* ---------- Legenda de dimensões ---------- */
+function atualizarLegenda(dims, material){
+  if (!dims || !material) {
+    legenda.textContent = '';
+    return;
+  }
+
+  legenda.textContent =
+    n(dims.altura / 10, 1) + ' × ' +
+    n(dims.largura / 10, 1) + ' × ' +
+    n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+}
+
 /* ---------- Painel de resultados ---------- */
-function renderResultado(r){
+function renderResultado(r, dims){
   if (!r.ok) {
     painel.innerHTML = '<div class="veredito veredito--erro">' +
       r.erros.join(' ') + '</div>';
@@ -172,16 +219,28 @@ function renderResultado(r){
   const nomeForma = r.entrada.forma === 'redonda' ? 'Redonda' : 'Quadrada';
   const nomeSecao = r.entrada.vazada ? 'Tubular (vazada)' : 'Maciça';
   const nomePernas = r.entrada.numPernas === 1 ? '1 (pedestal central)' : '4';
+  const nomeEncosto = r.entrada.comEncosto ? 'Com encosto' : 'Sem encosto (banco)';
 
   const lSecao = [
     linha('Formato', nomeForma),
     linha('Seção', nomeSecao),
-    linha('Número de pernas', nomePernas),
+    linha('Encosto', nomeEncosto),
+    linha('Número de pernas', nomePernas)
+  ];
+
+  if (dims) {
+    lSecao.push(linha('Dimensões externas',
+      n(dims.altura / 10, 1) + ' × ' + n(dims.largura / 10, 1) + ' × ' +
+      n(dims.profundidade / 10, 1) + ' cm'));
+  }
+
+  lSecao.push(
     linha('Área (A)', n(r.secao.A, 0) + ' mm²'),
     linha('Inércia (I)', n(r.secao.I, 0) + ' mm⁴'),
     linha('Módulo resistente (W)', n(r.secao.W, 0) + ' mm³'),
     linha('Raio de giração (r)', n(r.secao.r, 3) + ' mm')
-  ];
+  );
+
   if (r.entrada.vazada) {
     lSecao.push(linha('Parede (ep)', n(r.secao.parede, 2) + ' mm'));
     lSecao.push(linha('Dimensão interna', n(r.secao.interna, 1) + ' mm'));
@@ -190,6 +249,21 @@ function renderResultado(r){
   let h = '';
 
   h += gaveta('secao', 'Seção e apoios', lSecao, true);
+
+  /* ---------- Massa por parte ---------- */
+  const lMassa = [linha('Pernas', n(r.massa.pernas, 2) + ' kg')];
+  if (r.massa.pe > 0) {
+    lMassa.push(linha('Pé do pedestal', n(r.massa.pe, 2) + ' kg'));
+  }
+  lMassa.push(linha('Assento', n(r.massa.assento, 2) + ' kg'));
+  if (r.entrada.comEncosto) {
+    lMassa.push(linha('Postes do encosto', n(r.massa.postes, 2) + ' kg'));
+    lMassa.push(linha('Painel do encosto', n(r.massa.encosto, 2) + ' kg'));
+  }
+  lMassa.push(linha('Massa total', n(r.massa.total, 2) + ' kg'));
+  lMassa.push(linha('Peso próprio', n(r.massa.total * 9.81, 1) + ' N'));
+
+  h += gaveta('massa', 'Massa por parte', lMassa, false);
 
   h += gaveta('esforcos', 'Esforços', [
     linha('Carga total (P)', n(r.forcas.P, 1) + ' N'),
@@ -248,15 +322,14 @@ function renderResultado(r){
     h += gaveta('estabilidade', 'Estabilidade ao tombamento', [
       linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),
       linha('Braço de tombamento', n(r.estabilidade.braco, 1) + ' mm'),
+      linha('Massa própria da cadeira', n(r.estabilidade.massaCadeira, 2) + ' kg'),
       linha('Peso próprio da cadeira', n(r.estabilidade.pesoCadeira, 1) + ' N'),
       linha('Utilização', n(r.estabilidade.utilizacao * 100, 1) + '%')
     ], false);
   }
 
-  h += gaveta('massa', 'Deformação e massa', [
-    linha('Encurtamento axial', n(r.deformacao.deltaAxial, 4) + ' mm'),
-    linha('Massa das pernas', n(r.massa.pernas, 2) + ' kg'),
-    linha('Massa total', n(r.massa.total, 2) + ' kg')
+  h += gaveta('deformacao', 'Deformação', [
+    linha('Encurtamento axial', n(r.deformacao.deltaAxial, 4) + ' mm')
   ], false);
 
   if (r.veredito.aprovado) {
@@ -297,89 +370,150 @@ btnAbrirMemorial.addEventListener('click', () => {
   if (!dialogMemorial.open) dialogMemorial.showModal();
 });
 
-btnFecharMemorial.addEventListener('click', () => dialogMemorial.close());
-btnImprimirMemorial.addEventListener('click', () => window.print());
+btnFecharMemorial.addEventListener('click', () => {
+  dialogMemorial.close();
+  limparImpressao();
+});
+/* ---------- Impressão do memorial ----------
+ * Copia o documento para #memorial-print, que fica fora do <dialog>. O
+ * diálogo está na top layer do navegador, e ali a área de rolagem corta o
+ * conteúdo: ao imprimir com a div rolada até a seção 5, o papel começava na
+ * seção 5. Em fluxo normal de página, o documento inteiro é impresso.
+ *
+ * window.print() é síncrono e trava a thread, então a limpeza só pode
+ * acontecer depois: no afterprint ou no timeout de segurança. */
+function prepararImpressao(){
+  const alvo = document.getElementById('memorial-print');
+  if (!alvo) return false;
 
-/* ---------- Campo de parede ---------- */
+  const html = conteudoMemorial.innerHTML.trim();
+
+  if (!dialogMemorial.open || !html) {
+    alvo.innerHTML = '';
+    document.body.classList.remove('imprimindo-memorial');
+    return false;
+  }
+
+  alvo.innerHTML = html;
+  document.body.classList.add('imprimindo-memorial');
+  return true;
+}
+
+function limparImpressao(){
+  const alvo = document.getElementById('memorial-print');
+  if (alvo) alvo.innerHTML = '';
+  document.body.classList.remove('imprimindo-memorial');
+}
+
+btnImprimirMemorial.addEventListener('click', () => {
+  prepararImpressao();
+  window.print();
+  window.setTimeout(limparImpressao, 400);
+});
+
+/* Ctrl+P e o menu do navegador não passam pelo botão: estes dois eventos
+ * cobrem a impressão disparada por fora. */
+window.addEventListener('beforeprint', prepararImpressao);
+window.addEventListener('afterprint', limparImpressao);
+
+/* ---------- Campo de parede ----------
+ * Só existe no perfil tubular. Como a lista de campos rola dentro do
+ * formulário, o campo novo pode nascer fora do campo de visão: por isso ele
+ * é trazido para a vista, mas apenas na troca de seção — nunca dentro de
+ * atualizarParede, que também roda a cada tecla digitada. */
 function atualizarParede(){
   grupoParede.hidden = campoSecao.value !== 'tubular';
 }
 
-campoSecao.addEventListener('change', atualizarParede);
+campoSecao.addEventListener('change', () => {
+  const tubular = campoSecao.value === 'tubular';
+
+  atualizarParede();
+
+  if (tubular) {
+    grupoParede.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  simular();
+});
+
+/* ---------- Leitura dos campos ---------- */
+function lerCampos(){
+  const faltando = [];
+
+  const materialId = selectMaterial.value;
+  if (!materialId) faltando.push('material');
+
+  const espessuraCm = parseFloat(campoEspessura.value);
+  if (!Number.isFinite(espessuraCm) || espessuraCm <= 0) {
+    faltando.push('dimensão externa da perna');
+  }
+
+  const alturaCm = parseFloat(campoAltura.value);
+  if (!Number.isFinite(alturaCm) || alturaCm <= 0) {
+    faltando.push('altura da perna');
+  }
+
+  const massaKg = parseFloat(campoMassa.value);
+  if (!Number.isFinite(massaKg) || massaKg <= 0) {
+    faltando.push('massa do usuário');
+  }
+
+  const forma = campoForma.value;
+  if (!forma) faltando.push('formato da perna');
+
+  const secao = campoSecao.value;
+  if (!secao) faltando.push('seção');
+
+  const numPernas = parseInt(campoPernas.value, 10);
+  if (!Number.isFinite(numPernas)) faltando.push('número de pernas');
+
+  const paredeMm = parseFloat(campoParede.value);
+  if (secao === 'tubular' &&
+      (!Number.isFinite(paredeMm) || paredeMm <= 0)) {
+    faltando.push('parede do tubo');
+  }
+
+  return {
+    faltando, materialId, espessuraCm, alturaCm, massaKg,
+    forma, secao, numPernas, paredeMm,
+    comEncosto: campoEncosto.value !== 'sem'
+  };
+}
+
+/* ---------- Pendência de dados ---------- */
+function mostrarPendencia(faltando){
+  palco.className = 'palco';
+  palco.innerHTML = '<p class="palco__vazio">Faltam dados para calcular.</p>';
+
+  situacao.hidden = false;
+  situacao.classList.remove('situacao--ok', 'situacao--risco');
+  situacao.classList.add('situacao--aviso');
+  situacao.textContent = 'Informe ' + listaHumana(faltando) + ' para simular.';
+
+  painel.innerHTML = '<p class="aviso-painel">A simulação precisa de todos os ' +
+    'campos preenchidos.</p>';
+
+  legenda.textContent = '';
+
+  ultimoResultado = null;
+  ultimasBarras = null;
+  ultimasDims = null;
+}
 
 /* ---------- Desenho estático ---------- */
 function desenharEstatica(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
 
-  const material = ultimoResultado.entrada.material;
-  const dims = renderCadeira(palco, ultimasBarras, material);
-
-  ultimasDims = dims;
-  legenda.textContent = n(dims.altura / 10, 1) + ' × ' +
-                        n(dims.largura / 10, 1) + ' × ' +
-                        n(dims.profundidade / 10, 1) + ' cm · ' + material.nome;
+  renderCadeira(palco, ultimasBarras, ultimoResultado.entrada.material);
+  ultimasDims = dimensoesExternas(ultimasBarras);
+  atualizarLegenda(ultimasDims, ultimoResultado.entrada.material);
 }
 
-/* ---------- Simulação ---------- */
-function simular(){
-  if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
-  atualizarParede();
+/* ---------- Ruína ---------- */
+function iniciarRuina(){
+  if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
 
-  const espessuraMm = parseFloat(campoEspessura.value) * 10;
-  const alturaMm = parseFloat(campoAltura.value) * 10;
-  const massaKg = parseFloat(campoMassa.value);
-
-  const r = calcular({
-    materialId: selectMaterial.value,
-    espessuraMm: espessuraMm,
-    alturaMm: alturaMm,
-    massaKg: massaKg,
-    forma: campoForma.value,
-    numPernas: parseInt(campoPernas.value, 10),
-    vazada: campoSecao.value === 'tubular',
-    paredeMm: parseFloat(campoParede.value)
-  });
-
-  renderResultado(r);
-  aplicarSituacao(r);
-
-  ultimoResultado = r;
-  ultimasDims = null;
-  ultimasBarras = null;
-
-  if (!r.ok) {
-    palco.innerHTML = '';
-    legenda.textContent = '';
-    return r;
-  }
-
-  ultimasBarras = construirBarras(
-    r.entrada.t,
-    r.entrada.H,
-    r.entrada.material,
-    r.entrada.forma,
-    r.entrada.numPernas,
-    r.entrada.vazada,
-    r.entrada.parede
-  );
-
-  desenharEstatica();
-  return r;
-}
-
-/* ---------- Botão Animar ----------
- * Aprovado  -> só joinhas nas beiradas. A cadeira não é tocada.
- * Reprovado -> a cadeira desmonta e cai. Ao terminar, volta ao estado íntegro.
- */
-function acionarAnimar(){
-  if (!ultimoResultado || !ultimoResultado.ok) return;
-
-  if (ultimoResultado.veredito.aprovado) {
-    animarJoinhas();
-    return;
-  }
-
-  if (!ultimasBarras) return;
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
 
   const alvo = ultimoResultado;
@@ -401,7 +535,75 @@ function acionarAnimar(){
   );
 }
 
-botaoAnimar.addEventListener('click', acionarAnimar);
+/* ---------- Simulação ao vivo ---------- */
+function simular(){
+  if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
+  atualizarParede();
+
+  const campos = lerCampos();
+
+  if (campos.faltando.length > 0) {
+    mostrarPendencia(campos.faltando);
+    return null;
+  }
+
+  const r = calcular({
+    materialId: campos.materialId,
+    espessuraMm: campos.espessuraCm * 10,
+    alturaMm: campos.alturaCm * 10,
+    massaKg: campos.massaKg,
+    forma: campos.forma,
+    numPernas: campos.numPernas,
+    vazada: campos.secao === 'tubular',
+    paredeMm: campos.paredeMm,
+    comEncosto: campos.comEncosto
+  });
+
+  ultimoResultado = r;
+  ultimasBarras = null;
+  ultimasDims = null;
+
+  if (!r.ok) {
+    renderResultado(r, null);
+    aplicarSituacao(r);
+    palco.className = 'palco';
+    palco.innerHTML = '<p class="palco__vazio">Revise os valores informados.</p>';
+    legenda.textContent = '';
+    return r;
+  }
+
+  ultimasBarras = construirBarras(
+    r.entrada.t,
+    r.entrada.H,
+    r.entrada.material,
+    r.entrada.forma,
+    r.entrada.numPernas,
+    r.entrada.vazada,
+    r.entrada.parede,
+    r.entrada.comEncosto
+  );
+
+  renderCadeira(palco, ultimasBarras, r.entrada.material);
+  ultimasDims = dimensoesExternas(ultimasBarras);
+  atualizarLegenda(ultimasDims, r.entrada.material);
+
+  renderResultado(r, ultimasDims);
+  aplicarSituacao(r);
+
+  return r;
+}
+
+/* ---------- Botão Animar ---------- */
+function acionarAnimar(){
+  if (!ultimoResultado || !ultimoResultado.ok) return;
+
+  if (ultimoResultado.veredito.aprovado) {
+    animarJoinhas();
+    return;
+  }
+
+  iniciarRuina();
+}
 
 form.addEventListener('submit', ev => {
   ev.preventDefault();
@@ -410,4 +612,51 @@ form.addEventListener('submit', ev => {
 
 form.addEventListener('input', simular);
 
+/* ---------- Menu de opções ---------- */
+function abrirMenu(abrir){
+  menuPainel.hidden = !abrir;
+  menuBotao.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+}
+
+menuBotao.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  abrirMenu(menuPainel.hidden);
+});
+
+document.addEventListener('click', (ev) => {
+  if (menuPainel.hidden) return;
+  if (ev.target.closest('.acoes-entrada')) return;
+  if (ev.target.closest('.menu-lateral__painel')) return;
+  abrirMenu(false);
+});
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && !menuPainel.hidden) abrirMenu(false);
+});
+
+/* ---------- Ir para Gráficos ----------
+ * A configuração vai na query string em CENTIMETROS, exatamente como aparece
+ * nos campos. A página de gráficos converte para mm antes de calcular.
+ * Sem 'noopener', para que a aba dos gráficos consiga focar esta de volta. */
+function urlGraficos(){
+  const q = new URLSearchParams();
+  q.set('material', selectMaterial.value);
+  q.set('t', campoEspessura.value);
+  q.set('H', campoAltura.value);
+  q.set('m', campoMassa.value);
+  q.set('forma', campoForma.value);
+  q.set('secao', campoSecao.value);
+  q.set('parede', campoParede.value);
+  q.set('n', campoPernas.value);
+  q.set('encosto', campoEncosto.value);
+  return 'graficos.html?' + q.toString();
+}
+
+itemGraficos.addEventListener('click', () => {
+  abrirMenu(false);
+  window.open(urlGraficos(), '_blank');
+});
+
+/* ---------- Início ---------- */
+atualizarParede();
 simular();

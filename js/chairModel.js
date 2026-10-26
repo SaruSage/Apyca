@@ -2,8 +2,13 @@
  * Converte as entradas na lista de pecas 3D da cadeira.
  *
  * Cada peca carrega um GRUPO. O grupo e o que permite animar uma peca sem
- * arrastar as outras: perna0..perna3, coluna, pe, assento, poste0, poste1,
- * encosto. Sem grupo, todas as pecas viram um bloco so.
+ * arrastar as outras e, agora tambem, somar a massa por parte.
+ *
+ * MASSA
+ * volumePeca() le as dimensoes de cada peca e devolve o volume em mm3.
+ * massasPorParte() agrupa esses volumes e multiplica pela densidade do
+ * material. Como as pecas ja saem com a geometria correta (secao vazada,
+ * furo do tubo, pe do pedestal), a massa nao precisa de formula paralela.
  */
 
 import { CADEIRA } from './constantes.js';
@@ -27,6 +32,83 @@ export function piramide(cx, cy, ladoBase, ladoTopo, z0, h, camada, cor, grupo){
 export function tubo(cx, cy, dim, parede, z0, h, redondo, camada, cor, grupo){
   return { tipo: 'tubo', cx, cy, dim, parede, z0, h, redondo, camada, cor, grupo };
 }
+
+/* ---------- Volume de uma peca, em mm³ ---------- */
+
+export function volumePeca(p){
+  if (p.tipo === 'cilindro') {
+    return Math.PI * p.r * p.r * p.h;
+  }
+
+  if (p.tipo === 'cone') {
+    const { rBase, rTopo, h } = p;
+    return (Math.PI * h / 3) * (rBase * rBase + rBase * rTopo + rTopo * rTopo);
+  }
+
+  if (p.tipo === 'piramide') {
+    const A1 = p.ladoBase * p.ladoBase;
+    const A2 = p.ladoTopo * p.ladoTopo;
+    return (p.h / 3) * (A1 + A2 + Math.sqrt(A1 * A2));
+  }
+
+  if (p.tipo === 'tubo') {
+    /* Tubo vazado: subtrai o furo, que e a mesma secao reduzida da parede. */
+    if (p.redondo) {
+      const re = p.dim / 2;
+      const ri = Math.max(0, re - p.parede);
+      return Math.PI * p.h * (re * re - ri * ri);
+    }
+    const di = Math.max(0, p.dim - 2 * p.parede);
+    return p.h * (p.dim * p.dim - di * di);
+  }
+
+  return p.dx * p.dy * p.dz;
+}
+
+/* ---------- Massa por parte ---------- */
+
+const PARTES = {
+  pernas: ['perna0', 'perna1', 'perna2', 'perna3', 'coluna'],
+  pe: ['pe'],
+  assento: ['assento'],
+  postes: ['poste0', 'poste1'],
+  encosto: ['encosto']
+};
+
+export function massasPorParte(barras, material){
+  const rho = (material && Number.isFinite(material.rho)) ? material.rho : 0;
+
+  const volume = { pernas: 0, pe: 0, assento: 0, postes: 0, encosto: 0 };
+  let volumeTotal = 0;
+
+  for (const p of barras) {
+    const v = volumePeca(p);
+    volumeTotal += v;
+
+    for (const chave of Object.keys(PARTES)) {
+      if (PARTES[chave].indexOf(p.grupo) >= 0) {
+        volume[chave] += v;
+        break;
+      }
+    }
+  }
+
+  /* mm³ -> m³ -> kg */
+  const massa = (mm3) => (mm3 / 1e9) * rho;
+
+  return {
+    pernas: massa(volume.pernas),
+    pe: massa(volume.pe),
+    assento: massa(volume.assento),
+    postes: massa(volume.postes),
+    encosto: massa(volume.encosto),
+    total: massa(volumeTotal),
+    volumeTotal,
+    volume
+  };
+}
+
+/* ---------- Caixa envolvente ---------- */
 
 export function bboxPeca(p){
   if (p.tipo === 'cilindro') {
@@ -79,8 +161,13 @@ function encostoRipas(x0, y0, larg, zBase, alt, prof, cor, n, fracao){
   return out;
 }
 
+/**
+ * comEncosto = false monta um banco: sem postes e sem painel.
+ * A altura total cai para H + tAssento, e a massa correspondente some.
+ */
 export function construirBarras(espessura, altura, material, forma = 'quadrada',
-                                numPernas = 4, vazada = false, parede = 0){
+                                numPernas = 4, vazada = false, parede = 0,
+                                comEncosto = true){
   const {
     L, folga, fracaoEspessuraAssento, fracaoEspessuraEncosto,
     alturaAbertura, alturaEncosto, espessuraMaxima,
@@ -92,6 +179,7 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
   const n = numPernas === 1 ? 1 : 4;
   const t = Math.min(espessura, espessuraMaxima);
   const H = altura;
+  const temEncosto = comEncosto !== false;
 
   const tAssento = fracaoEspessuraAssento * t;
   const tEnc = fracaoEspessuraEncosto * t;
@@ -148,22 +236,25 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
                     render.assento, 'assento'));
 
   // ---------- Camada 3: conjunto superior traseiro ----------
-  const hPoste = zTopoEncosto - zTopoAssento;
-  perna(0,     0, zTopoAssento, hPoste, 3, 'poste0');
-  perna(L - t, 0, zTopoAssento, hPoste, 3, 'poste1');
+  if (temEncosto) {
+    const hPoste = zTopoEncosto - zTopoAssento;
+    perna(0,     0, zTopoAssento, hPoste, 3, 'poste0');
+    perna(L - t, 0, zTopoAssento, hPoste, 3, 'poste1');
 
-  const largPainel = L - 2 * t;
-  const altPainel = zTopoEncosto - zBaseEncosto;
-  const spec = render.encosto || RENDER_PADRAO.encosto;
-  const corEnc = spec.cor || render.pernas;
+    const largPainel = L - 2 * t;
+    const altPainel = zTopoEncosto - zBaseEncosto;
+    const spec = render.encosto || RENDER_PADRAO.encosto;
+    const corEnc = spec.cor || render.pernas;
 
-  if (altPainel > 0 && largPainel > 0) {
-    if (spec.tipo === 'ripas') {
-      barras.push(...encostoRipas(t, 0, largPainel, zBaseEncosto, altPainel,
-                                  tEnc, corEnc, spec.n || 3, spec.fracao || 0.2));
-    } else {
-      barras.push(caixa(t, 0, zBaseEncosto, largPainel, tEnc, altPainel, 3,
-                        corEnc, 'encosto'));
+    if (altPainel > 0 && largPainel > 0) {
+      if (spec.tipo === 'ripas') {
+        barras.push(...encostoRipas(t, 0, largPainel, zBaseEncosto, altPainel,
+                                    tEnc, corEnc, spec.n || 3,
+                                    spec.fracao || 0.2));
+      } else {
+        barras.push(caixa(t, 0, zBaseEncosto, largPainel, tEnc, altPainel, 3,
+                          corEnc, 'encosto'));
+      }
     }
   }
 
