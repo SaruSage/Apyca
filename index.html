@@ -15,58 +15,18 @@
   <main class="layout">
     <section class="painel painel--entradas">
       <h2>Entradas</h2>
+
       <form id="form-cadeira" novalidate>
+        <!-- Fora das gavetas: o que define o ENSAIO, nao a peca. -->
         <div class="campo">
           <label for="material">Material</label>
           <select id="material" name="material"></select>
         </div>
 
         <div class="campo">
-          <label for="espessura">Dimensão externa da perna (cm)</label>
-          <input id="espessura" name="espessura" type="number"
-                 min="0.5" max="15" step="0.5" value="4">
-        </div>
-
-        <div class="campo">
-          <label for="altura">Altura da perna (cm)</label>
-          <input id="altura" name="altura" type="number"
-                 min="20" max="120" step="1" value="45">
-        </div>
-
-        <div class="campo">
           <label for="massa">Massa do usuário (kg)</label>
           <input id="massa" name="massa" type="number"
                  min="10" max="250" step="1" value="90">
-        </div>
-
-        <div class="campo">
-          <label for="forma">Formato da perna</label>
-          <select id="forma" name="forma">
-            <option value="quadrada" selected>Quadrada</option>
-            <option value="redonda">Redonda</option>
-          </select>
-        </div>
-
-        <div class="campo">
-          <label for="secao">Seção</label>
-          <select id="secao" name="secao">
-            <option value="macica" selected>Maciça</option>
-            <option value="tubular">Tubular (vazada)</option>
-          </select>
-        </div>
-
-        <div class="campo" id="grupo-parede" hidden>
-          <label for="parede">Parede do tubo (mm)</label>
-          <input id="parede" name="parede" type="number"
-                 min="0.5" max="75" step="0.5" value="3">
-        </div>
-
-        <div class="campo">
-          <label for="encosto">Encosto</label>
-          <select id="encosto" name="encosto">
-            <option value="com" selected>Com encosto</option>
-            <option value="sem">Sem encosto (banco)</option>
-          </select>
         </div>
 
         <div class="campo">
@@ -77,21 +37,106 @@
           </select>
         </div>
 
-        <!-- Travessas de apoio do assento. Só existem no quadro de quatro
-             pernas: no pedestal central não há duas pernas para ligar.
-             A classe campo-travessa é o que o app usa para mostrá-las e
-             escondê-las junto com a troca do número de pernas. -->
-        <div class="campo campo-travessa">
-          <label for="travessa-largura">Largura da travessa (cm)</label>
-          <input id="travessa-largura" name="travessa-largura" type="number"
-                 min="1" max="15" step="0.5" value="4">
+        <div class="campo">
+          <label for="encosto">Encosto</label>
+          <select id="encosto" name="encosto">
+            <option value="com" selected>Com encosto</option>
+            <option value="sem">Sem encosto (banco)</option>
+          </select>
         </div>
 
-        <div class="campo campo-travessa">
-          <label for="travessa-altura">Altura da travessa (cm)</label>
-          <input id="travessa-altura" name="travessa-altura" type="number"
-                 min="2" max="20" step="0.5" value="6">
-        </div>
+        <!-- As gavetas usam <details>: abrem e fecham sem JavaScript e
+             funcionam no teclado. A primeira e a do assento abrem por
+             padrao, porque sao as dimensoes que mudam com mais frequencia. -->
+        <details class="grupo-campos" id="grupo-perna" open>
+          <summary>Pernas</summary>
+
+          <div class="campo">
+            <label for="espessura">Dimensão externa da perna (cm)</label>
+            <input id="espessura" name="espessura" type="number"
+                   min="0.5" max="15" step="0.5" value="4">
+          </div>
+
+          <div class="campo">
+            <label for="altura">Altura da perna (cm)</label>
+            <input id="altura" name="altura" type="number"
+                   min="20" max="120" step="1" value="45">
+          </div>
+
+          <div class="campo">
+            <label for="forma">Formato da perna</label>
+            <select id="forma" name="forma">
+              <option value="quadrada" selected>Quadrada</option>
+              <option value="redonda">Redonda</option>
+            </select>
+          </div>
+
+          <div class="campo">
+            <label for="secao">Seção da perna</label>
+            <select id="secao" name="secao">
+              <option value="macica" selected>Maciça</option>
+              <option value="tubular">Tubular (vazada)</option>
+            </select>
+          </div>
+
+          <div class="campo" id="grupo-parede" hidden>
+            <label for="parede">Parede do tubo (mm)</label>
+            <input id="parede" name="parede" type="number"
+                   min="0.5" max="75" step="0.5" value="3">
+          </div>
+        </details>
+
+        <details class="grupo-campos" id="grupo-assento" open>
+          <summary>Assento</summary>
+
+          <div class="campo">
+            <label for="assento-largura">Largura do assento (cm)</label>
+            <input id="assento-largura" name="assento-largura" type="number"
+                   min="20" max="80" step="1" value="44">
+          </div>
+
+          <div class="campo">
+            <label for="assento-profundidade">Profundidade do assento (cm)</label>
+            <input id="assento-profundidade" name="assento-profundidade"
+                   type="number" min="20" max="80" step="1" value="44">
+          </div>
+
+          <div class="campo">
+            <label for="assento-espessura">Espessura do assento (cm)</label>
+            <input id="assento-espessura" name="assento-espessura"
+                   type="number" min="0.5" max="10" step="0.5" value="2">
+          </div>
+        </details>
+
+        <details class="grupo-campos" id="grupo-travessas">
+          <summary>Travessas</summary>
+
+          <div class="campo">
+            <label for="travessa-largura">Largura da travessa (cm)</label>
+            <input id="travessa-largura" name="travessa-largura"
+                   type="number" min="1" max="15" step="0.5" value="4">
+          </div>
+
+          <div class="campo">
+            <label for="travessa-altura">Altura da travessa (cm)</label>
+            <input id="travessa-altura" name="travessa-altura"
+                   type="number" min="2" max="20" step="0.5" value="6">
+          </div>
+
+          <div class="campo">
+            <label for="travessa-secao">Seção da travessa</label>
+            <select id="travessa-secao" name="travessa-secao">
+              <option value="macica" selected>Maciça</option>
+              <option value="tubular">Tubular (vazada)</option>
+            </select>
+          </div>
+
+          <div class="campo" id="grupo-parede-travessa" hidden>
+            <label for="travessa-parede">Parede da travessa (mm)</label>
+            <input id="travessa-parede" name="travessa-parede"
+                   type="number" min="0.5" max="20" step="0.5" value="2">
+          </div>
+        </details>
 
       </form>
 

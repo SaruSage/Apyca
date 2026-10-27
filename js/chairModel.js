@@ -2,13 +2,12 @@
  * Converte as entradas na lista de pecas 3D da cadeira.
  *
  * Cada peca carrega um GRUPO. O grupo e o que permite animar uma peca sem
- * arrastar as outras e, agora tambem, somar a massa por parte.
+ * arrastar as outras e somar a massa por parte.
  *
  * MASSA
  * volumePeca() le as dimensoes de cada peca e devolve o volume em mm3.
- * massasPorParte() agrupa esses volumes e multiplica pela densidade do
- * material. Como as pecas ja saem com a geometria correta (secao vazada,
- * furo do tubo, pe do pedestal), a massa nao precisa de formula paralela.
+ * Peças de secao vazada carregam as marcas vazada/parede e tem o furo
+ * descontado — vale para a perna tubular e para a travessa tubular.
  *
  * CAMADAS E ORDEM DE PINTURA
  * A camada decide quem e desenhado por ultimo, e em iso.js ela e consultada
@@ -18,15 +17,9 @@
  *   0  pernas e travessas   mesma camada, ordem por profundidade
  *   2  assento              fica acima de tudo
  *   3  encosto              fica acima do assento
- *
- * As travessas compartilham a camada 0 com as pernas DE PROPOSITO. Numa
- * camada propria toda travessa seria pintada antes de toda perna, e a perna
- * mais distante do observador cobriria a travessa mais proxima: o quadro
- * desaparecia. Na mesma camada quem decide e a profundidade, e como as vigas
- * encostam nas pernas sem penetrar, a ordem sai correta nos quatro encontros.
  */
 
-import { CADEIRA, TRAVESSAS } from './constantes.js';
+import { CADEIRA, ASSENTO, TRAVESSAS } from './constantes.js';
 import { geometriaTravessas } from './travessas.js';
 
 export function caixa(x, y, z, dx, dy, dz, camada, cor, grupo){
@@ -47,6 +40,29 @@ export function piramide(cx, cy, ladoBase, ladoTopo, z0, h, camada, cor, grupo){
 
 export function tubo(cx, cy, dim, parede, z0, h, redondo, camada, cor, grupo){
   return { tipo: 'tubo', cx, cy, dim, parede, z0, h, redondo, camada, cor, grupo };
+}
+
+/* ---------- Configuracao do assento ---------- */
+
+/**
+ * Grava as dimensoes do assento antes do calculo. Chamado pelo app, de modo
+ * que solver, geometria e memorial leiam o mesmo valor.
+ */
+export function definirAssento(larguraMm, profundidadeMm, espessuraMm){
+  if (Number.isFinite(larguraMm) && larguraMm > 0) {
+    ASSENTO.largura = larguraMm;
+  }
+  if (Number.isFinite(profundidadeMm) && profundidadeMm > 0) {
+    ASSENTO.profundidade = profundidadeMm;
+  }
+  if (Number.isFinite(espessuraMm) && espessuraMm > 0) {
+    ASSENTO.espessura = espessuraMm;
+  }
+  return {
+    largura: ASSENTO.largura,
+    profundidade: ASSENTO.profundidade,
+    espessura: ASSENTO.espessura
+  };
 }
 
 /* ---------- Volume de uma peca, em mm³ ---------- */
@@ -76,6 +92,29 @@ export function volumePeca(p){
     }
     const di = Math.max(0, p.dim - 2 * p.parede);
     return p.h * (p.dim * p.dim - di * di);
+  }
+
+  /*
+   * Caixa de secao vazada: a travessa tubular e desenhada como caixa (de
+   * fora a aparencia e identica a de um bloco macico), mas a massa precisa
+   * descontar o furo. O eixo da barra e a maior dimensao; as outras duas
+   * formam a secao transversal.
+   */
+  if (p.tipo === 'caixa' && p.vazada === true && p.parede > 0) {
+    const dims = [p.dx, p.dy, p.dz];
+    const maior = Math.max(dims[0], dims[1], dims[2]);
+    const eixo = dims.indexOf(maior);
+
+    const s1 = dims[(eixo + 1) % 3];
+    const s2 = dims[(eixo + 2) % 3];
+
+    const limite = Math.min(s1, s2) / 2 - 0.01;
+    const ep = Math.min(p.parede, Math.max(0.01, limite));
+
+    const i1 = Math.max(0, s1 - 2 * ep);
+    const i2 = Math.max(0, s2 - 2 * ep);
+
+    return maior * (s1 * s2 - i1 * i2);
   }
 
   return p.dx * p.dy * p.dz;
@@ -182,13 +221,14 @@ function encostoRipas(x0, y0, larg, zBase, alt, prof, cor, n, fracao){
 
 /**
  * comEncosto = false monta um banco: sem postes e sem painel.
- * A altura total cai para H + tAssento, e a massa correspondente some.
+ * A altura total cai para H + espessura do assento, e a massa correspondente
+ * some.
  */
 export function construirBarras(espessura, altura, material, forma = 'quadrada',
                                 numPernas = 4, vazada = false, parede = 0,
                                 comEncosto = true){
   const {
-    L, folga, fracaoEspessuraAssento, fracaoEspessuraEncosto,
+    L, fracaoEspessuraEncosto,
     alturaAbertura, alturaEncosto, espessuraMaxima,
     coneRaioBase, coneAltura, fracaoLadoPiramide
   } = CADEIRA;
@@ -200,7 +240,14 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
   const H = altura;
   const temEncosto = comEncosto !== false;
 
-  const tAssento = fracaoEspessuraAssento * t;
+  /*
+   * O assento NAO deriva da perna: usa as dimensoes de ASSENTO, que sao
+   * configuradas em separado.
+   */
+  const aL = ASSENTO.largura;
+  const aP = ASSENTO.profundidade;
+  const tAssento = ASSENTO.espessura;
+
   const tEnc = fracaoEspessuraEncosto * t;
 
   const zTopoAssento = H + tAssento;
@@ -256,23 +303,34 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
 
   // ---------- Camada 0: travessas de apoio do assento ----------
   /*
-   * O quadro vem pronto de geometriaTravessas(), que alinha a face externa
-   * de cada viga com a face externa da perna. Aqui so se empacota em caixas.
+   * O quadro vem pronto de geometriaTravessas(). A peca e desenhada como
+   * caixa mesmo quando a secao e tubular: por fora, um tubo retangular e um
+   * bloco macico de mesma secao sao indistinguiveis — o furo so apareceria
+   * nas faces de topo, enterradas nas pernas. As marcas vazada/parede
+   * existem para volumePeca() descontar o furo da massa.
    */
   if (n === 4 && TRAVESSAS.ativa) {
     const geo = geometriaTravessas(L, t, H);
 
     if (geo.ok) {
       geo.pecas.forEach((p, i) => {
-        barras.push(caixa(p.x, p.y, geo.z, p.dx, p.dy, p.dz,
-                          0, render.pernas, 'travessa' + i));
+        const peca = caixa(p.x, p.y, geo.z, p.dx, p.dy, p.dz,
+                           0, render.pernas, 'travessa' + i);
+        peca.vazada = geo.vazada;
+        peca.parede = geo.parede;
+        barras.push(peca);
       });
     }
   }
 
   // ---------- Camada 2: assento ----------
-  barras.push(caixa(-folga, -folga, H,
-                    L + 2 * folga, L + 2 * folga, tAssento, 2,
+  /*
+   * Centrado no quadro de pernas: com largura igual a L as bordas coincidem
+   * com as faces externas das pernas; maior que L, sobra sobrepasso dos dois
+   * lados.
+   */
+  barras.push(caixa((L - aL) / 2, (L - aP) / 2, H,
+                    aL, aP, tAssento, 2,
                     render.assento, 'assento'));
 
   // ---------- Camada 3: conjunto superior traseiro ----------

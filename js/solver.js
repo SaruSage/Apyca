@@ -1,34 +1,28 @@
 /**
  * Nucleo de calculo. Funcao pura: nao toca no DOM.
  *
- * A secao pode ser macica ou vazada, quadrada ou redonda.
+ * A secao da perna pode ser macica ou vazada, quadrada ou redonda.
  * Quando vazada, a espessura da parede vem em mm e e validada aqui.
  *
- * O encosto pode existir ou nao. Sem encosto a cadeira vira banco:
- * saem os postes e o painel, cai a altura total e cai o peso proprio.
+ * O assento tem dimensoes PROPRIAS (largura, profundidade e espessura, em
+ * ASSENTO). Nao deriva mais da grossura da perna: perna grossa nao deixa
+ * assento grosso.
  *
- * MASSA
- * A massa nao e mais um valor fixo. construirBarras gera a geometria de
- * cada peca e massasPorParte soma volume x densidade. Isso faz o peso
- * proprio acompanhar material, espessura, secao e existencia do encosto.
- *
- * REGIMES
- *   4 pernas: Nmax = P/4 + P*e/(2L), M = P*e/4, K = 1,0
- *   1 perna : N = P, M = P*e, K = 2,0 (balanco)
+ * O encosto pode existir ou nao. Sem encosto a cadeira vira banco.
  *
  * VERIFICACOES
  *   tensao na perna      sigma = N/A + M*c/I
  *   flambagem global     Euler com K do regime
  *   flambagem local      (t-2ep)/ep contra 1,40*raiz(E/sigmaLim) — so vazada
  *   assento em balanco   Ma = P*a, delta = P*a^3/(3EI)
- *   assento entre apoios q = P/b^2, M = q*L^2/16, delta = 5q*L^4/(64Eh^3)
- *                        — so com 4 pernas
+ *   assento entre apoios q = P/(aL*aP), M = q*L^2/16,
+ *                        delta = 5q*L^4/(64Eh^3) — so com 4 pernas
  *   travessas de apoio   viga biapoiada, M = q*Lt^2/8,
  *                        delta = 5q*Lt^4/(384EI) — so com 4 pernas
  *   tombamento           M_tomb/M_estab (so no pedestal)
  */
 
-import { G, HIPOTESES, CADEIRA, TRAVESSAS } from './constantes.js';
+import { G, HIPOTESES, CADEIRA, ASSENTO, TRAVESSAS } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
 import { propriedadesSecao } from './geometry.js';
 import { construirBarras, massasPorParte } from './chairModel.js';
@@ -55,6 +49,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const vazadaFinal = vazada === true;
   const comEncostoFinal = comEncosto !== false;
+  const nPernasFinal = numPernas === 1 ? 1 : 4;
 
   if (vazadaFinal) {
     if (!Number.isFinite(paredeMm) || paredeMm <= 0) {
@@ -64,6 +59,20 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
                  '(t/2 = ' + (espessuraMm / 2).toLocaleString('pt-BR') +
                  ' mm). Acima disso o furo desaparece.');
     }
+  }
+
+  /* Assento: dimensoes proprias, com as duas verificacoes de coerencia. */
+  if (!Number.isFinite(ASSENTO.espessura) ||
+      ASSENTO.espessura < ASSENTO.espessuraMinima) {
+    erros.push('A espessura do assento deve ser de pelo menos ' +
+               ASSENTO.espessuraMinima.toLocaleString('pt-BR') + ' mm.');
+  }
+  if (nPernasFinal === 4 &&
+      (ASSENTO.largura < HIPOTESES.L || ASSENTO.profundidade < HIPOTESES.L)) {
+    erros.push('O assento precisa cobrir o quadro de pernas: largura e ' +
+               'profundidade de pelo menos ' +
+               HIPOTESES.L.toLocaleString('pt-BR') + ' mm. Abaixo disso ele ' +
+               'cairia por dentro dos apoios.');
   }
 
   let material;
@@ -76,7 +85,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   if (erros.length > 0) return { ok: false, erros };
 
   const formaFinal = forma === 'redonda' ? 'redonda' : 'quadrada';
-  const n = numPernas === 1 ? 1 : 4;
+  const n = nPernasFinal;
 
   const t = espessuraMm;
   const H = alturaMm;
@@ -90,21 +99,11 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const P = m * G;
 
-  let Nmedio, dN, Nmax, Nmin, Mperna;
-  let levantou = false;
-
-  if (n === 1) {
-    Nmedio = P; dN = 0; Nmax = P; Nmin = P; Mperna = P * e;
-  } else {
-    Nmedio = P / n;
-    dN = (P * e) / (2 * L);
-    Nmax = Nmedio + dN;
-    Nmin = Math.max(0, Nmedio - dN);
-    Mperna = (P * e) / n;
-    levantou = dN > Nmedio;
-  }
-
-  // ---------- Massa real, da geometria x densidade ----------
+  /*
+   * Massa e peso proprio vem ANTES dos esforcos: a perna carrega a cadeira
+   * inteira, nao so o usuario. A ordem antiga deixava o peso proprio de fora
+   * do calculo da perna, subestimando N em cerca de 6%.
+   */
   const barras = construirBarras(t, H, material, formaFinal, n,
                                  vazadaFinal, paredeMm, comEncostoFinal);
 
@@ -112,6 +111,33 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const massaTotal = massas.total;
   const pesoCadeira = massaTotal * G;
+  const Ptotal = P + pesoCadeira;
+
+  let Nmedio, dN, Nmax, Nmin, Mperna;
+  let levantou = false;
+
+  if (n === 1) {
+    /*
+     * Pedestal: a coluna e um balanco com carga excentrica. A flexao existe
+     * de fato e e M = P*e. So a carga do usuario e excentrica; o peso proprio
+     * da cadeira esta no eixo.
+     */
+    Nmedio = Ptotal; dN = 0; Nmax = Ptotal; Nmin = Ptotal; Mperna = P * e;
+  } else {
+    /*
+     * Quadro de 4 pernas: o momento P*e e resistido pelo CASAL entre as
+     * pernas, que ja satisfaz o equilibrio. Nao se acrescenta flexao a perna:
+     * seria contar o mesmo momento duas vezes. A parcela que o anel das
+     * travessas transmite as pernas e um efeito hiperestatico que este
+     * modelo nao resolve — fica declarado como simplificacao.
+     */
+    Nmedio = Ptotal / n;
+    dN = (P * e) / (2 * L);
+    Nmax = Nmedio + dN;
+    Nmin = Math.max(0, Nmedio - dN);
+    Mperna = 0;
+    levantou = dN > Nmedio;
+  }
 
   // ---------- Tensoes ----------
   const sigmaAxial = Nmax / A;
@@ -141,18 +167,32 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const deltaAxial = (Nmax * H) / (A * material.E);
 
-  // ---------- Assento: geometria comum ----------
-  const bAssento = CADEIRA.L + 2 * CADEIRA.folga;
-  const hAssento = CADEIRA.fracaoEspessuraAssento * t;
+  // ---------- Assento: geometria propria ----------
+  /*
+   * As tres dimensoes vem de ASSENTO. Nada aqui e proporcional a perna: a
+   * independencia entre as duas pecas e o ponto desta revisao.
+   */
+  const aL = ASSENTO.largura;
+  const aP = ASSENTO.profundidade;
+  const hAssento = ASSENTO.espessura;
+
+  const folgaX = (aL - CADEIRA.L) / 2;
+  const folgaY = (aP - CADEIRA.L) / 2;
+
+  /*
+   * Faixa de placa: a MENOR dimensao do assento, que e o caso mais
+   * desfavoravel — menor W, maior tensao.
+   */
+  const larguraFaixa = Math.min(aL, aP);
 
   const aBalanco = n === 1
-    ? (CADEIRA.L / 2 + CADEIRA.folga) - t / 2
-    : CADEIRA.folga;
+    ? Math.max(0, aL / 2 - t / 2)
+    : Math.max(0, folgaX, folgaY);
 
   // ---------- Assento em balanco ----------
   const Ma = P * aBalanco;
-  const Wa = (bAssento * hAssento * hAssento) / 6;
-  const Ia = (bAssento * Math.pow(hAssento, 3)) / 12;
+  const Wa = (larguraFaixa * hAssento * hAssento) / 6;
+  const Ia = (larguraFaixa * Math.pow(hAssento, 3)) / 12;
 
   const sigmaAssento = Ma / Wa;
   const flechaAssento = (P * Math.pow(aBalanco, 3)) / (3 * material.E * Ia);
@@ -160,7 +200,13 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   const flechaLimite = aBalanco / CADEIRA.divisorFlechaAssento;
 
   const assento = {
-    a: aBalanco, b: bAssento, h: hAssento,
+    a: aBalanco,
+    b: aL,
+    p: aP,
+    h: hAssento,
+    faixa: larguraFaixa,
+    folgaX,
+    folgaY,
     M: Ma, W: Wa, I: Ia,
     sigma: sigmaAssento,
     flecha: flechaAssento,
@@ -172,7 +218,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   // ---------- Assento entre apoios (so com 4 pernas) ----------
   let assentoVao = null;
   if (n === 4) {
-    const q = P / (bAssento * bAssento);
+    const areaAssento = aL * aP;
+    const q = P / areaAssento;
     const Mvao = (q * L * L) / 16;
     const Ivao = Math.pow(hAssento, 3) / 12;
     const sigmaVao = (6 * Mvao) / (hAssento * hAssento);
@@ -181,7 +228,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     const flechaLimiteVao = L / CADEIRA.divisorFlechaVao;
 
     assentoVao = {
-      L, h: hAssento, q,
+      L, area: areaAssento, h: hAssento, q,
       M: Mvao, I: Ivao,
       sigma: sigmaVao,
       flecha: flechaVao,
