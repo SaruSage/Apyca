@@ -5,6 +5,7 @@ import { renderCadeira } from './render.js';
 import { animarRuina } from './animacao.js';
 import { animarJoinhas } from './joinhas.js';
 import { gerarMemorial } from './memorial.js';
+import { definirTravessaSecao } from './travessas.js';
 
 /* ---------- Elementos ---------- */
 const form = document.getElementById('form-cadeira');
@@ -18,15 +19,20 @@ const campoParede = document.getElementById('parede');
 const grupoParede = document.getElementById('grupo-parede');
 const campoEncosto = document.getElementById('encosto');
 const campoPernas = document.getElementById('numPernas');
+
+/* Campos da travessa. A classe campo-travessa marca os dois, e o app
+ * mostra ou esconde os dois juntos. */
+const camposTravessa = document.querySelectorAll('.campo-travessa');
+const campoLarguraTravessa = document.getElementById('travessa-largura');
+const campoAlturaTravessa = document.getElementById('travessa-altura');
+
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
 const legenda = document.getElementById('legenda');
-
 const menuBotao = document.getElementById('menu-botao');
 const menuPainel = document.getElementById('menu-painel');
 const itemGraficos = document.getElementById('item-graficos');
-
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
 const btnAbrirMemorial = document.getElementById('abrir-memorial');
@@ -35,7 +41,6 @@ const btnImprimirMemorial = document.getElementById('memorial-imprimir');
 
 /* ---------- Estado ---------- */
 const gavetasAbertas = new Map();
-
 let ultimoResultado = null;
 let ultimasDims = null;
 let ultimasBarras = null;
@@ -51,7 +56,9 @@ const PADRAO = {
   secao: 'macica',
   encosto: 'com',
   numPernas: 4,
-  paredeMm: 3
+  paredeMm: 3,
+  travessaLarguraCm: 4,
+  travessaAlturaCm: 6
 };
 
 for (const mat of Object.values(MATERIAIS)) {
@@ -73,6 +80,9 @@ campoSecao.value = PADRAO.secao;
 campoEncosto.value = PADRAO.encosto;
 campoPernas.value = String(PADRAO.numPernas);
 campoParede.value = PADRAO.paredeMm;
+
+if (campoLarguraTravessa) campoLarguraTravessa.value = PADRAO.travessaLarguraCm;
+if (campoAlturaTravessa) campoAlturaTravessa.value = PADRAO.travessaAlturaCm;
 
 /* ---------- Formatação ---------- */
 function n(valor, casas = 2){
@@ -129,6 +139,9 @@ function utilizacaoMaxima(r){
   if (r.assentoVao) {
     us.push(r.assentoVao.utilizacao, r.assentoVao.utilizacaoFlecha);
   }
+  if (r.travessas) {
+    us.push(r.travessas.utilizacaoTensao, r.travessas.utilizacaoFlecha);
+  }
   if (r.estabilidade) us.push(r.estabilidade.utilizacao);
   return Math.max(...us);
 }
@@ -162,6 +175,12 @@ function mensagemRisco(r){
   }
   if (r.assentoVao && r.assentoVao.utilizacaoFlecha > 1) {
     return 'O assento afunda no meio, entre as pernas.';
+  }
+  if (r.travessas && r.travessas.utilizacaoTensao > 1) {
+    return 'As travessas sob o assento quebram no meio: a viga é fina para a carga distribuída.';
+  }
+  if (r.travessas && r.travessas.utilizacaoFlecha > 1) {
+    return 'As travessas sob o assento vergam: o vão entre as pernas é grande para a seção da viga.';
   }
   if (r.forcas.levantou) {
     return 'A cadeira emborca: o peso na beirada levanta as pernas do lado oposto.';
@@ -256,6 +275,9 @@ function renderResultado(r, dims){
     lMassa.push(linha('Pé do pedestal', n(r.massa.pe, 2) + ' kg'));
   }
   lMassa.push(linha('Assento', n(r.massa.assento, 2) + ' kg'));
+  if (r.massa.travessas > 0) {
+    lMassa.push(linha('Travessas do assento', n(r.massa.travessas, 2) + ' kg'));
+  }
   if (r.entrada.comEncosto) {
     lMassa.push(linha('Postes do encosto', n(r.massa.postes, 2) + ' kg'));
     lMassa.push(linha('Painel do encosto', n(r.massa.encosto, 2) + ' kg'));
@@ -318,6 +340,21 @@ function renderResultado(r, dims){
     ], false);
   }
 
+  if (r.travessas) {
+    h += gaveta('travessas', 'Travessas de apoio do assento', [
+      linha('Vão entre eixos', n(r.travessas.vao, 1) + ' mm'),
+      linha('Seção (b × h)', n(r.travessas.b, 1) + ' × ' + n(r.travessas.h, 1) + ' mm'),
+      linha('Carga distribuída (q)', n(r.travessas.q, 4) + ' N/mm'),
+      linha('Momento máximo (M)', n(r.travessas.M, 0) + ' N·mm'),
+      linha('Tensão de flexão', n(r.travessas.tensao, 3) + ' MPa'),
+      linha('Utilização (tensão)', n(r.travessas.utilizacaoTensao * 100, 1) + '%'),
+      linha('Flecha', n(r.travessas.flecha, 3) + ' mm'),
+      linha('Flecha limite', n(r.travessas.flechaLimite, 3) + ' mm'),
+      linha('Utilização (flecha)', n(r.travessas.utilizacaoFlecha * 100, 1) + '%'),
+      linha('Massa das 4 travessas', n(r.travessas.massaTotal, 2) + ' kg')
+    ], false);
+  }
+
   if (r.estabilidade) {
     h += gaveta('estabilidade', 'Estabilidade ao tombamento', [
       linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),
@@ -359,7 +396,6 @@ painel.addEventListener('click', (ev) => {
   gav.classList.toggle('is-aberta', abrir);
   cabecalho.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   if (corpo) corpo.hidden = !abrir;
-
   gavetasAbertas.set(chave, abrir);
 });
 
@@ -374,6 +410,7 @@ btnFecharMemorial.addEventListener('click', () => {
   dialogMemorial.close();
   limparImpressao();
 });
+
 /* ---------- Impressão do memorial ----------
  * Copia o documento para #memorial-print, que fica fora do <dialog>. O
  * diálogo está na top layer do navegador, e ali a área de rolagem corta o
@@ -416,13 +453,20 @@ btnImprimirMemorial.addEventListener('click', () => {
 window.addEventListener('beforeprint', prepararImpressao);
 window.addEventListener('afterprint', limparImpressao);
 
-/* ---------- Campo de parede ----------
- * Só existe no perfil tubular. Como a lista de campos rola dentro do
- * formulário, o campo novo pode nascer fora do campo de visão: por isso ele
- * é trazido para a vista, mas apenas na troca de seção — nunca dentro de
- * atualizarParede, que também roda a cada tecla digitada. */
+/* ---------- Visibilidade dos campos condicionais ----------
+ * A parede só existe no perfil tubular. As travessas só existem no quadro
+ * de quatro pernas: no pedestal central não há duas pernas para ligar.
+ *
+ * Como a lista de campos rola dentro do formulário, um campo que aparece
+ * pode nascer fora do campo de visão: por isso ele é trazido para a vista,
+ * mas apenas na troca de opção — nunca a cada tecla digitada. */
 function atualizarParede(){
   grupoParede.hidden = campoSecao.value !== 'tubular';
+}
+
+function atualizarTravessa(){
+  const visivel = campoPernas.value !== '1';
+  camposTravessa.forEach(el => { el.hidden = !visivel; });
 }
 
 campoSecao.addEventListener('change', () => {
@@ -434,6 +478,11 @@ campoSecao.addEventListener('change', () => {
     grupoParede.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
+  simular();
+});
+
+campoPernas.addEventListener('change', () => {
+  atualizarTravessa();
   simular();
 });
 
@@ -474,9 +523,24 @@ function lerCampos(){
     faltando.push('parede do tubo');
   }
 
+  /* Travessa: cai no padrão se o campo não existir ou vier inválido, em vez
+   * de travar a simulação inteira por causa de um campo opcional. */
+  const larguraTravessaCm = campoLarguraTravessa &&
+    Number.isFinite(parseFloat(campoLarguraTravessa.value)) &&
+    parseFloat(campoLarguraTravessa.value) > 0
+      ? parseFloat(campoLarguraTravessa.value)
+      : PADRAO.travessaLarguraCm;
+
+  const alturaTravessaCm = campoAlturaTravessa &&
+    Number.isFinite(parseFloat(campoAlturaTravessa.value)) &&
+    parseFloat(campoAlturaTravessa.value) > 0
+      ? parseFloat(campoAlturaTravessa.value)
+      : PADRAO.travessaAlturaCm;
+
   return {
     faltando, materialId, espessuraCm, alturaCm, massaKg,
     forma, secao, numPernas, paredeMm,
+    larguraTravessaCm, alturaTravessaCm,
     comEncosto: campoEncosto.value !== 'sem'
   };
 }
@@ -539,6 +603,7 @@ function iniciarRuina(){
 function simular(){
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
   atualizarParede();
+  atualizarTravessa();
 
   const campos = lerCampos();
 
@@ -546,6 +611,14 @@ function simular(){
     mostrarPendencia(campos.faltando);
     return null;
   }
+
+  /*
+   * A secao da travessa e configuracao de projeto, nao resultado: precisa
+   * ser gravada ANTES de calcular, porque tanto a massa (chairModel) quanto
+   * a verificacao (travessas) leem dela.
+   */
+  definirTravessaSecao(campos.larguraTravessaCm * 10,
+                       campos.alturaTravessaCm * 10);
 
   const r = calcular({
     materialId: campos.materialId,
@@ -635,7 +708,7 @@ document.addEventListener('keydown', (ev) => {
 });
 
 /* ---------- Ir para Gráficos ----------
- * A configuração vai na query string em CENTIMETROS, exatamente como aparece
+ * A configuração vai na query string em CENTÍMETROS, exatamente como aparece
  * nos campos. A página de gráficos converte para mm antes de calcular.
  * Sem 'noopener', para que a aba dos gráficos consiga focar esta de volta. */
 function urlGraficos(){
@@ -649,6 +722,8 @@ function urlGraficos(){
   q.set('parede', campoParede.value);
   q.set('n', campoPernas.value);
   q.set('encosto', campoEncosto.value);
+  if (campoLarguraTravessa) q.set('travessaB', campoLarguraTravessa.value);
+  if (campoAlturaTravessa) q.set('travessaH', campoAlturaTravessa.value);
   return 'graficos.html?' + q.toString();
 }
 
@@ -659,4 +734,5 @@ itemGraficos.addEventListener('click', () => {
 
 /* ---------- Início ---------- */
 atualizarParede();
+atualizarTravessa();
 simular();

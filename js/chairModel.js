@@ -9,9 +9,25 @@
  * massasPorParte() agrupa esses volumes e multiplica pela densidade do
  * material. Como as pecas ja saem com a geometria correta (secao vazada,
  * furo do tubo, pe do pedestal), a massa nao precisa de formula paralela.
+ *
+ * CAMADAS E ORDEM DE PINTURA
+ * A camada decide quem e desenhado por ultimo, e em iso.js ela e consultada
+ * ANTES da profundidade. Por isso ela nao pode ser usada como agrupamento
+ * tematico: e uma decisao de desenho.
+ *
+ *   0  pernas e travessas   mesma camada, ordem por profundidade
+ *   2  assento              fica acima de tudo
+ *   3  encosto              fica acima do assento
+ *
+ * As travessas compartilham a camada 0 com as pernas DE PROPOSITO. Numa
+ * camada propria toda travessa seria pintada antes de toda perna, e a perna
+ * mais distante do observador cobriria a travessa mais proxima: o quadro
+ * desaparecia. Na mesma camada quem decide e a profundidade, e como as vigas
+ * encostam nas pernas sem penetrar, a ordem sai correta nos quatro encontros.
  */
 
-import { CADEIRA } from './constantes.js';
+import { CADEIRA, TRAVESSAS } from './constantes.js';
+import { geometriaTravessas } from './travessas.js';
 
 export function caixa(x, y, z, dx, dy, dz, camada, cor, grupo){
   return { tipo: 'caixa', x, y, z, dx, dy, dz, camada, cor, grupo };
@@ -72,13 +88,15 @@ const PARTES = {
   pe: ['pe'],
   assento: ['assento'],
   postes: ['poste0', 'poste1'],
-  encosto: ['encosto']
+  encosto: ['encosto'],
+  travessas: ['travessa0', 'travessa1', 'travessa2', 'travessa3']
 };
 
 export function massasPorParte(barras, material){
   const rho = (material && Number.isFinite(material.rho)) ? material.rho : 0;
 
-  const volume = { pernas: 0, pe: 0, assento: 0, postes: 0, encosto: 0 };
+  const volume = { pernas: 0, pe: 0, assento: 0, postes: 0, encosto: 0,
+                   travessas: 0 };
   let volumeTotal = 0;
 
   for (const p of barras) {
@@ -102,6 +120,7 @@ export function massasPorParte(barras, material){
     assento: massa(volume.assento),
     postes: massa(volume.postes),
     encosto: massa(volume.encosto),
+    travessas: massa(volume.travessas),
     total: massa(volumeTotal),
     volumeTotal,
     volume
@@ -144,9 +163,9 @@ export function bboxPeca(p){
 }
 
 const RENDER_PADRAO = {
-  pernas: '#a9713f',
-  assento: '#a9713f',
-  encosto: { tipo: 'painel', cor: '#a9713f' },
+  pernas: '',
+  assento: '',
+  encosto: { tipo: 'painel', cor: '' },
   veios: false
 };
 
@@ -193,6 +212,11 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
   const xCentro = L / 2 - t / 2;
   const cCentro = L / 2;
 
+  /*
+   * A perna tubular recebe `redonda` — a variavel do escopo. `redondo` e o
+   * nome do PARAMETRO dentro de tubo(); usa-lo aqui era ReferenceError em
+   * toda secao tubular.
+   */
   function perna(x, y, z0, h, camada, grupo){
     if (h <= 0) return;
     const cx = x + t / 2;
@@ -228,6 +252,22 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
     }
 
     perna(xCentro, xCentro, hPe, H - hPe, 0, 'coluna');
+  }
+
+  // ---------- Camada 0: travessas de apoio do assento ----------
+  /*
+   * O quadro vem pronto de geometriaTravessas(), que alinha a face externa
+   * de cada viga com a face externa da perna. Aqui so se empacota em caixas.
+   */
+  if (n === 4 && TRAVESSAS.ativa) {
+    const geo = geometriaTravessas(L, t, H);
+
+    if (geo.ok) {
+      geo.pecas.forEach((p, i) => {
+        barras.push(caixa(p.x, p.y, geo.z, p.dx, p.dy, p.dz,
+                          0, render.pernas, 'travessa' + i));
+      });
+    }
   }
 
   // ---------- Camada 2: assento ----------

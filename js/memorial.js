@@ -265,6 +265,7 @@ export function gerarMemorial(r, dimsExternas){
   const volAssento = somaVolume(['assento']);
   const volPostes = somaVolume(['poste0', 'poste1']);
   const volEncosto = somaVolume(['encosto']);
+  const volTravessas = somaVolume(['travessa0', 'travessa1', 'travessa2', 'travessa3']);
 
   const mDe = (mm3) => (mm3 / 1e9) * mat.rho;
 
@@ -283,6 +284,12 @@ export function gerarMemorial(r, dimsExternas){
   linhasMassa.push(cl('Assento', 'V · ρ',
     num(volAssento / 1e9, 6) + ' · ' + num(mat.rho, 0),
     num(mDe(volAssento), 3), 'kg'));
+
+  if (r.travessas) {
+    linhasMassa.push(cl('Travessas do assento', 'V · ρ',
+      num(volTravessas / 1e9, 6) + ' · ' + num(mat.rho, 0),
+      num(mDe(volTravessas), 3), 'kg'));
+  }
 
   if (temEncosto) {
     linhasMassa.push(cl('Postes do encosto', 'V · ρ',
@@ -499,7 +506,66 @@ export function gerarMemorial(r, dimsExternas){
         num(r.deformacao.deltaAxial, 4), 'mm')
     ]));
 
-  /* ---------- 14. Parecer ---------- */
+  /* ---------- 14. Travessas de apoio do assento (só com 4 pernas) ---------- */
+  if (r.travessas) {
+    const tv = r.travessas;
+    h += sec('Verificação das travessas de apoio do assento',
+      tabelaCalc('Viga biapoiada sob carga uniformemente distribuída', [
+        cl('Número de travessas', 'quadro de quatro vigas', '—',
+          num(tv.n, 0), 'un'),
+        cl('Seção da travessa (b × h)', 'b × h', '—',
+          num(tv.b, 1) + ' × ' + num(tv.h, 1), 'mm'),
+        cl('Comprimento da peça', 'L − 2·t',
+          num(CADEIRA.L, 0) + ' − 2·' + num(t, 1),
+          num(tv.comprimento, 1), 'mm'),
+        cl('Vão de cálculo (Lt)', 'L − t',
+          num(CADEIRA.L, 0) + ' − ' + num(t, 1),
+          num(tv.vao, 1), 'mm'),
+        cl('Carga do assento', 'P + m<sub>as</sub>·g',
+          num(r.forcas.P, 2) + ' + ' + num(r.massa.assento, 3) + '·' + num(G, 2),
+          num(tv.cargaAssento, 2), 'N'),
+        cl('Carga por travessa (N)', 'carga/4 + peso próprio',
+          num(tv.cargaAssento, 2) + '/4 + ' + num(tv.pesoProprio, 2),
+          num(tv.N, 2), 'N'),
+        cl('Carga distribuída (q)', 'N/Lt',
+          num(tv.N, 2) + '/' + num(tv.vao, 1),
+          num(tv.q, 4), 'N/mm'),
+        cl('Momento máximo (M)', 'q·Lt²/8',
+          num(tv.q, 4) + '·' + num(tv.vao, 1) + '²/8',
+          num(tv.M, 2), 'N·mm'),
+        cl('Reação em cada ponta (V)', 'q·Lt/2',
+          num(tv.q, 4) + '·' + num(tv.vao, 1) + '/2',
+          num(tv.V, 2), 'N'),
+        cl('Momento de inércia (I)', 'b·h³/12',
+          num(tv.b, 1) + '·' + num(tv.h, 1) + '³/12',
+          num(tv.I, 2), 'mm⁴'),
+        cl('Módulo resistente (W)', 'I/c',
+          num(tv.I, 2) + '/' + num(tv.c, 1),
+          num(tv.W, 2), 'mm³'),
+        cl('Tensão de flexão (σ<sub>tv</sub>)', 'M/W',
+          num(tv.M, 2) + '/' + num(tv.W, 2),
+          num(tv.tensao, 3), 'MPa'),
+        cl('Utilização à flexão', 'σ<sub>tv</sub>/σ<sub>adm</sub>',
+          num(tv.tensao, 3) + '/' + num(tv.sigmaAdm, 3),
+          num(tv.utilizacaoTensao * 100, 1), '%'),
+        cl('Tensão de cisalhamento (τ)', '1,5·V/(b·h)',
+          '1,5·' + num(tv.V, 2) + '/(' +
+          num(tv.b, 1) + '·' + num(tv.h, 1) + ')',
+          num(tv.cisalhamento, 3), 'MPa'),
+        cl('Flecha (δ<sub>tv</sub>)', '5·q·Lt⁴/(384·E·I)',
+          '5·' + num(tv.q, 4) + '·' + num(tv.vao, 1) + '⁴/(384·' +
+          num(mat.E, 0) + '·' + num(tv.I, 2) + ')',
+          num(tv.flecha, 4), 'mm'),
+        cl('Flecha limite', 'Lt/' + tv.divisorFlecha,
+          num(tv.vao, 1) + '/' + tv.divisorFlecha,
+          num(tv.flechaLimite, 4), 'mm'),
+        cl('Utilização à flecha', 'δ<sub>tv</sub>/δ<sub>lim</sub>',
+          num(tv.flecha, 4) + '/' + num(tv.flechaLimite, 4),
+          num(tv.utilizacaoFlecha * 100, 1), '%')
+      ]));
+  }
+
+  /* ---------- 15. Parecer ---------- */
   let parecer;
   if (r.veredito.aprovado) {
     parecer = '<p class="mem-parecer mem-parecer--ok">' +
@@ -527,15 +593,27 @@ export function gerarMemorial(r, dimsExternas){
     'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +
       'as pernas, pelo método das faixas. O coeficiente 1/16 é conservador ' +
       'frente aos 0,0479 da solução de placa simplesmente apoiada.',
-    'A massa própria do assento não entra na carga do vão, apenas a do usuário. ' +
-      'Com assento em ' + num(r.massa.assento, 2) + ' kg, isso representa ' +
-      'cerca de ' + num((r.massa.assento * G / r.forcas.P) * 100, 1) +
-      '% do peso do usuário.',
+    'A massa própria do assento não entra na carga do vão do assento, apenas ' +
+      'a do usuário. Com assento em ' + num(r.massa.assento, 2) + ' kg, isso ' +
+      'representa cerca de ' + num((r.massa.assento * G / r.forcas.P) * 100, 1) +
+      '% do peso do usuário. Nas travessas de apoio essa massa entra, porque ' +
+      'são elas que sustentam o assento.',
     'O limite de flecha do assento é a/' + CADEIRA.divisorFlechaAssento +
       ', adotado como critério de serviço. Ajuste em constantes.js se o ' +
       'orientador exigir outro valor.',
     'Não são verificadas ligações, soldas nem parafusos.'
   ];
+
+  notas.push('As travessas de apoio são modeladas como vigas biapoiadas nos ' +
+    'eixos das pernas, com carga uniformemente distribuída. A ligação real ' +
+    'tem alguma rigidez de momento, o que reduz a flecha; a hipótese de ' +
+    'rótula é, portanto, conservadora.');
+
+  notas.push('As travessas são as peças que materializam o apoio contínuo ' +
+    'nas quatro bordas do assento, hipótese já adotada na verificação do ' +
+    'assento entre apoios. Elas também enrijecem o quadro de pernas, mas essa ' +
+    'redução do comprimento de flambagem não é aproveitada no cálculo.');
+
   if (vaz) {
     notas.push('A flambagem local é verificada pela relação entre a dimensão ' +
       'interna e a parede, comparada a 1,40·√(E/σ<sub>lim</sub>). O critério ' +
@@ -547,11 +625,13 @@ export function gerarMemorial(r, dimsExternas){
     notas.push('O pé do pedestal é sempre maciço, mesmo quando a coluna é ' +
       'tubular, para garantir rigidez na transição com o piso.');
   }
+
   if (estab) {
     notas.push('O braço de tombamento adotado é o menor da base: o semiapótema, ' +
       'na direção perpendicular às faces. Nas diagonais o braço é maior, ' +
       'de modo que o resultado é conservador.');
   }
+
   if (!temEncosto) {
     notas.push('Sem encosto, a cadeira não possui postes nem painel: a altura ' +
       'total cai e o peso próprio diminui, o que reduz a resistência ao ' +
@@ -562,8 +642,10 @@ export function gerarMemorial(r, dimsExternas){
       'geométrica. A força horizontal de uma pessoa reclinada não é verificada ' +
       'neste modelo, e os postes do encosto não têm verificação de flexão.');
   }
+
   notas.push('A flambagem global é verificada pela carga crítica de Euler, sem ' +
     'considerar imperfeições iniciais.');
+
   notas.push('As vistas ortográficas são desenhadas em projeção paralela, com ' +
     'arestas visíveis em traço contínuo e cotas em cm. As arestas ocultas não ' +
     'são representadas: o desenho prioriza a leitura das dimensões externas.');

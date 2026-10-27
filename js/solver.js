@@ -23,13 +23,16 @@
  *   assento em balanco   Ma = P*a, delta = P*a^3/(3EI)
  *   assento entre apoios q = P/b^2, M = q*L^2/16, delta = 5q*L^4/(64Eh^3)
  *                        — so com 4 pernas
+ *   travessas de apoio   viga biapoiada, M = q*Lt^2/8,
+ *                        delta = 5q*Lt^4/(384EI) — so com 4 pernas
  *   tombamento           M_tomb/M_estab (so no pedestal)
  */
 
-import { G, HIPOTESES, CADEIRA } from './constantes.js';
+import { G, HIPOTESES, CADEIRA, TRAVESSAS } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
 import { propriedadesSecao } from './geometry.js';
 import { construirBarras, massasPorParte } from './chairModel.js';
+import { verificarTravessas } from './travessas.js';
 
 /** Menor braco resistente da base, em mm. */
 function bracoEstabilidade(R, forma){
@@ -188,6 +191,23 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     };
   }
 
+  // ---------- Travessas de apoio do assento (so com 4 pernas) ----------
+  /*
+   * A carga do assento entra nas travessas e so entao chega as pernas. A
+   * massa do assento conta aqui: sao elas que o sustentam.
+   */
+  let travessas = null;
+  if (n === 4 && TRAVESSAS.ativa) {
+    travessas = verificarTravessas({
+      P,
+      massaAssento: massas.assento,
+      L,
+      t,
+      H,
+      material
+    });
+  }
+
   // ---------- Tombamento ----------
   let estabilidade = null;
   if (n === 1) {
@@ -219,26 +239,29 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
                  '. Aumente a parede ou reduza a dimensao externa.');
   }
   if (assento.utilizacao > 1) {
-    motivos.push('Tensao de ' + fmt(sigmaAssento) + ' MPa no assento em balanco, ' +
-                 'acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
+    motivos.push('Assento em balanco: tensao de ' + fmt(sigmaAssento) +
+                 ' MPa acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
   }
   if (assento.utilizacaoFlecha > 1) {
-    motivos.push('Flecha de ' + fmt(flechaAssento) + ' mm no assento em balanco, ' +
-                 'acima do limite de ' + fmt(flechaLimite) + ' mm.');
+    motivos.push('Assento em balanco: flecha de ' + fmt(flechaAssento) +
+                 ' mm acima do limite de ' + fmt(flechaLimite) + ' mm.');
   }
-  if (assentoVao) {
-    if (assentoVao.utilizacao > 1) {
-      motivos.push('Tensao de ' + fmt(assentoVao.sigma) + ' MPa no assento entre ' +
-                   'os apoios, acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
-    }
-    if (assentoVao.utilizacaoFlecha > 1) {
-      motivos.push('Flecha de ' + fmt(assentoVao.flecha) + ' mm no assento entre ' +
-                   'os apoios, acima do limite de ' + fmt(assentoVao.flechaLimite) +
-                   ' mm.');
-    }
+  if (assentoVao && assentoVao.utilizacao > 1) {
+    motivos.push('Assento entre apoios: tensao de ' + fmt(assentoVao.sigma) +
+                 ' MPa acima da admissivel de ' + fmt(sigmaAdm) + ' MPa.');
   }
-  if (levantou) {
-    motivos.push('A excentricidade levanta as pernas do lado oposto.');
+  if (assentoVao && assentoVao.utilizacaoFlecha > 1) {
+    motivos.push('Assento entre apoios: flecha de ' + fmt(assentoVao.flecha) +
+                 ' mm acima do limite de ' + fmt(assentoVao.flechaLimite) + ' mm.');
+  }
+  if (travessas && travessas.utilizacaoTensao > 1) {
+    motivos.push('Travessa de apoio: tensao de ' + fmt(travessas.tensao) +
+                 ' MPa acima da admissivel de ' + fmt(travessas.sigmaAdm) + ' MPa.');
+  }
+  if (travessas && travessas.utilizacaoFlecha > 1) {
+    motivos.push('Travessa de apoio: flecha de ' + fmt(travessas.flecha) +
+                 ' mm acima do limite de ' + fmt(travessas.flechaLimite) +
+                 ' mm (L/' + travessas.divisorFlecha + ').');
   }
   if (estabilidade && estabilidade.tombou) {
     motivos.push('A resultante cai fora da base do pedestal: risco de tombamento.');
@@ -264,6 +287,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     forcas: { P, Nmedio, dN, Nmax, Nmin, Mperna, levantou },
     assento,
     assentoVao,
+    travessas,
     estabilidade,
     tensoes: { sigmaAxial, sigmaFlexao, sigmaMax, sigmaAdm, utilizacao },
     flambagem: { K, lambda, Pcr, NcrAdm, utilizacaoFlambagem },
@@ -275,6 +299,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
       assento: massas.assento,
       postes: massas.postes,
       encosto: massas.encosto,
+      travessas: massas.travessas,
       total: massas.total,
       volumeTotal: massas.volumeTotal
     },

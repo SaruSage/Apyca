@@ -43,3 +43,29 @@ export const CADEIRA = {
   paredePadrao: 3.0,
   paredeMinima: 0.5
 };
+
+/*
+ * TRAVESSAS DE APOIO DO ASSENTO
+ *
+ * Quadro de quatro vigas que ligam as pernas logo abaixo do assento. Sao
+ * elas que recebem o assento e o entregam as pernas.
+ *
+ * largura e altura sao os valores PEDIDOS pelo usuario e podem ser mudados
+ * em tempo de execucao por definirTravessaSecao() (ver travessas.js).
+ * secaoTravessa() aplica os limites: a largura nunca passa da dimensao
+ * externa da perna, porque uma viga mais larga que a perna nao teria onde
+ * encostar.
+ *
+ * A face EXTERNA da viga e alinhada com a face externa da perna. Nao e
+ * detalhe estetico: centrada, a viga fica enterrada dentro da silhueta da
+ * perna e desaparece no desenho quando a perna e grossa.
+ */
+export const TRAVESSAS = {
+  ativa: true,
+  nTravessas: 4,
+  largura: 40,
+  altura: 60,
+  larguraMinima: 10,
+  alturaMinima: 20,
+  divisorFlecha: 300
+};
