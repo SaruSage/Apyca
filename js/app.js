@@ -1,10 +1,11 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
-import { construirBarras, dimensoesExternas } from './chairModel.js';
+import { construirBarras, dimensoesExternas, definirAssento } from './chairModel.js';
 import { renderCadeira } from './render.js';
 import { animarRuina } from './animacao.js';
 import { animarJoinhas } from './joinhas.js';
 import { gerarMemorial } from './memorial.js';
+import { definirTravessaSecao } from './travessas.js';
 
 /* ---------- Elementos ---------- */
 const form = document.getElementById('form-cadeira');
@@ -18,15 +19,31 @@ const campoParede = document.getElementById('parede');
 const grupoParede = document.getElementById('grupo-parede');
 const campoEncosto = document.getElementById('encosto');
 const campoPernas = document.getElementById('numPernas');
+
+/* Assento */
+const campoAssentoLargura = document.getElementById('assento-largura');
+const campoAssentoProfundidade = document.getElementById('assento-profundidade');
+const campoAssentoEspessura = document.getElementById('assento-espessura');
+
+/* Travessas */
+const grupoTravessas = document.getElementById('grupo-travessas');
+const campoLarguraTravessa = document.getElementById('travessa-largura');
+const campoAlturaTravessa = document.getElementById('travessa-altura');
+const campoTravessaSecao = document.getElementById('travessa-secao');
+const campoTravessaParede = document.getElementById('travessa-parede');
+const grupoParedeTravessa = document.getElementById('grupo-parede-travessa');
+
+/* Gavetas */
+const grupoPerna = document.getElementById('grupo-perna');
+const grupoAssento = document.getElementById('grupo-assento');
+
 const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
 const legenda = document.getElementById('legenda');
-
 const menuBotao = document.getElementById('menu-botao');
 const menuPainel = document.getElementById('menu-painel');
 const itemGraficos = document.getElementById('item-graficos');
-
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
 const btnAbrirMemorial = document.getElementById('abrir-memorial');
@@ -35,7 +52,6 @@ const btnImprimirMemorial = document.getElementById('memorial-imprimir');
 
 /* ---------- Estado ---------- */
 const gavetasAbertas = new Map();
-
 let ultimoResultado = null;
 let ultimasDims = null;
 let ultimasBarras = null;
@@ -51,7 +67,14 @@ const PADRAO = {
   secao: 'macica',
   encosto: 'com',
   numPernas: 4,
-  paredeMm: 3
+  paredeMm: 3,
+  assentoLarguraCm: 44,
+  assentoProfundidadeCm: 44,
+  assentoEspessuraCm: 2,
+  travessaLarguraCm: 4,
+  travessaAlturaCm: 6,
+  travessaSecao: 'macica',
+  travessaParedeMm: 2
 };
 
 for (const mat of Object.values(MATERIAIS)) {
@@ -73,6 +96,15 @@ campoSecao.value = PADRAO.secao;
 campoEncosto.value = PADRAO.encosto;
 campoPernas.value = String(PADRAO.numPernas);
 campoParede.value = PADRAO.paredeMm;
+
+campoAssentoLargura.value = PADRAO.assentoLarguraCm;
+campoAssentoProfundidade.value = PADRAO.assentoProfundidadeCm;
+campoAssentoEspessura.value = PADRAO.assentoEspessuraCm;
+
+campoLarguraTravessa.value = PADRAO.travessaLarguraCm;
+campoAlturaTravessa.value = PADRAO.travessaAlturaCm;
+campoTravessaSecao.value = PADRAO.travessaSecao;
+campoTravessaParede.value = PADRAO.travessaParedeMm;
 
 /* ---------- Formatação ---------- */
 function n(valor, casas = 2){
@@ -129,6 +161,9 @@ function utilizacaoMaxima(r){
   if (r.assentoVao) {
     us.push(r.assentoVao.utilizacao, r.assentoVao.utilizacaoFlecha);
   }
+  if (r.travessas) {
+    us.push(r.travessas.utilizacaoTensao, r.travessas.utilizacaoFlecha);
+  }
   if (r.estabilidade) us.push(r.estabilidade.utilizacao);
   return Math.max(...us);
 }
@@ -162,6 +197,12 @@ function mensagemRisco(r){
   }
   if (r.assentoVao && r.assentoVao.utilizacaoFlecha > 1) {
     return 'O assento afunda no meio, entre as pernas.';
+  }
+  if (r.travessas && r.travessas.utilizacaoTensao > 1) {
+    return 'As travessas sob o assento quebram no meio: a viga é fina para a carga distribuída.';
+  }
+  if (r.travessas && r.travessas.utilizacaoFlecha > 1) {
+    return 'As travessas sob o assento vergam: o vão entre as pernas é grande para a seção da viga.';
   }
   if (r.forcas.levantou) {
     return 'A cadeira emborca: o peso na beirada levanta as pernas do lado oposto.';
@@ -256,6 +297,9 @@ function renderResultado(r, dims){
     lMassa.push(linha('Pé do pedestal', n(r.massa.pe, 2) + ' kg'));
   }
   lMassa.push(linha('Assento', n(r.massa.assento, 2) + ' kg'));
+  if (r.massa.travessas > 0) {
+    lMassa.push(linha('Travessas do assento', n(r.massa.travessas, 2) + ' kg'));
+  }
   if (r.entrada.comEncosto) {
     lMassa.push(linha('Postes do encosto', n(r.massa.postes, 2) + ' kg'));
     lMassa.push(linha('Painel do encosto', n(r.massa.encosto, 2) + ' kg'));
@@ -296,7 +340,11 @@ function renderResultado(r, dims){
   }
 
   h += gaveta('assento', 'Assento em balanço', [
-    linha('Balanço (a)', n(r.assento.a, 1) + ' mm'),
+    linha('Dimensões (L × P × h)',
+      n(r.assento.b, 0) + ' × ' + n(r.assento.p, 0) + ' × ' +
+      n(r.assento.h, 1) + ' mm'),
+    linha('Sobrepasso em X (a)', n(r.assento.folgaX, 1) + ' mm'),
+    linha('Sobrepasso em Y (a)', n(r.assento.folgaY, 1) + ' mm'),
     linha('Momento no engaste (M)', n(r.assento.M, 0) + ' N·mm'),
     linha('Tensão de flexão', n(r.assento.sigma, 3) + ' MPa'),
     linha('Utilização (tensão)', n(r.assento.utilizacao * 100, 1) + '%'),
@@ -308,6 +356,7 @@ function renderResultado(r, dims){
   if (r.assentoVao) {
     h += gaveta('vao', 'Assento entre apoios', [
       linha('Vão livre (L)', n(r.assentoVao.L, 0) + ' mm'),
+      linha('Área do assento', n(r.assentoVao.area, 0) + ' mm²'),
       linha('Pressão uniforme (q)', n(r.assentoVao.q, 6) + ' N/mm²'),
       linha('Momento por largura', n(r.assentoVao.M, 2) + ' N·mm/mm'),
       linha('Tensão de flexão', n(r.assentoVao.sigma, 3) + ' MPa'),
@@ -316,6 +365,30 @@ function renderResultado(r, dims){
       linha('Flecha limite', n(r.assentoVao.flechaLimite, 3) + ' mm'),
       linha('Utilização (flecha)', n(r.assentoVao.utilizacaoFlecha * 100, 1) + '%')
     ], false);
+  }
+
+  if (r.travessas) {
+    const lTrav = [
+      linha('Seção', r.travessas.vazada
+        ? 'Tubular — parede ' + n(r.travessas.parede, 2) + ' mm'
+        : 'Maciça'),
+      linha('Vão entre eixos', n(r.travessas.vao, 1) + ' mm'),
+      linha('Seção (b × h)', n(r.travessas.b, 1) + ' × ' +
+        n(r.travessas.h, 1) + ' mm'),
+      linha('Área da seção (A)', n(r.travessas.A, 1) + ' mm²'),
+      linha('Inércia (I)', n(r.travessas.I, 0) + ' mm⁴'),
+      linha('Carga distribuída (q)', n(r.travessas.q, 4) + ' N/mm'),
+      linha('Momento máximo (M)', n(r.travessas.M, 0) + ' N·mm'),
+      linha('Tensão de flexão', n(r.travessas.tensao, 3) + ' MPa'),
+      linha('Utilização (tensão)', n(r.travessas.utilizacaoTensao * 100, 1) + '%'),
+      linha('Cisalhamento (τ)', n(r.travessas.cisalhamento, 3) + ' MPa'),
+      linha('Flecha', n(r.travessas.flecha, 3) + ' mm'),
+      linha('Flecha limite', n(r.travessas.flechaLimite, 3) + ' mm'),
+      linha('Utilização (flecha)', n(r.travessas.utilizacaoFlecha * 100, 1) + '%'),
+      linha('Massa das 4 travessas', n(r.travessas.massaTotal, 2) + ' kg')
+    ];
+
+    h += gaveta('travessas', 'Travessas de apoio do assento', lTrav, false);
   }
 
   if (r.estabilidade) {
@@ -344,7 +417,7 @@ function renderResultado(r, dims){
   painel.innerHTML = h;
 }
 
-/* ---------- Gavetas ---------- */
+/* ---------- Gavetas do painel de resultados ---------- */
 painel.addEventListener('click', (ev) => {
   const cabecalho = ev.target.closest('.gaveta__cabecalho');
   if (!cabecalho) return;
@@ -359,7 +432,6 @@ painel.addEventListener('click', (ev) => {
   gav.classList.toggle('is-aberta', abrir);
   cabecalho.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   if (corpo) corpo.hidden = !abrir;
-
   gavetasAbertas.set(chave, abrir);
 });
 
@@ -374,14 +446,12 @@ btnFecharMemorial.addEventListener('click', () => {
   dialogMemorial.close();
   limparImpressao();
 });
+
 /* ---------- Impressão do memorial ----------
  * Copia o documento para #memorial-print, que fica fora do <dialog>. O
  * diálogo está na top layer do navegador, e ali a área de rolagem corta o
  * conteúdo: ao imprimir com a div rolada até a seção 5, o papel começava na
- * seção 5. Em fluxo normal de página, o documento inteiro é impresso.
- *
- * window.print() é síncrono e trava a thread, então a limpeza só pode
- * acontecer depois: no afterprint ou no timeout de segurança. */
+ * seção 5. Em fluxo normal de página, o documento inteiro é impresso. */
 function prepararImpressao(){
   const alvo = document.getElementById('memorial-print');
   if (!alvo) return false;
@@ -411,33 +481,57 @@ btnImprimirMemorial.addEventListener('click', () => {
   window.setTimeout(limparImpressao, 400);
 });
 
-/* Ctrl+P e o menu do navegador não passam pelo botão: estes dois eventos
- * cobrem a impressão disparada por fora. */
 window.addEventListener('beforeprint', prepararImpressao);
 window.addEventListener('afterprint', limparImpressao);
 
-/* ---------- Campo de parede ----------
- * Só existe no perfil tubular. Como a lista de campos rola dentro do
- * formulário, o campo novo pode nascer fora do campo de visão: por isso ele
- * é trazido para a vista, mas apenas na troca de seção — nunca dentro de
- * atualizarParede, que também roda a cada tecla digitada. */
+/* ---------- Visibilidade dos campos condicionais ----------
+ * A parede da perna só existe no perfil tubular; a da travessa, idem. As
+ * travessas só existem no quadro de quatro pernas: no pedestal central não
+ * há duas pernas para ligar.
+ *
+ * Como a lista de campos rola dentro do formulário, um campo que aparece
+ * pode nascer fora do campo de visão: por isso a gaveta é aberta na troca
+ * de opção — nunca a cada tecla digitada. */
 function atualizarParede(){
-  grupoParede.hidden = campoSecao.value !== 'tubular';
+  const tubular = campoSecao.value === 'tubular';
+  grupoParede.hidden = !tubular;
+  if (tubular && grupoPerna) grupoPerna.open = true;
+}
+
+function atualizarParedeTravessa(){
+  const vazada = campoTravessaSecao.value === 'tubular';
+  grupoParedeTravessa.hidden = !vazada;
+  if (vazada && grupoTravessas) grupoTravessas.open = true;
+}
+
+function atualizarTravessa(){
+  const visivel = campoPernas.value !== '1';
+  if (grupoTravessas) grupoTravessas.hidden = !visivel;
 }
 
 campoSecao.addEventListener('change', () => {
-  const tubular = campoSecao.value === 'tubular';
-
   atualizarParede();
-
-  if (tubular) {
-    grupoParede.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-
   simular();
 });
 
-/* ---------- Leitura dos campos ---------- */
+campoTravessaSecao.addEventListener('change', () => {
+  atualizarParedeTravessa();
+  simular();
+});
+
+campoPernas.addEventListener('change', () => {
+  atualizarTravessa();
+  simular();
+});
+
+/* ---------- Leitura dos campos ----------
+ * Campos opcionais caem no padrão quando vêm vazios ou inválidos, em vez de
+ * travar a simulação inteira por causa de um número apagado. */
+function numOu(valor, padrao){
+  const v = parseFloat(valor);
+  return Number.isFinite(v) && v > 0 ? v : padrao;
+}
+
 function lerCampos(){
   const faltando = [];
 
@@ -474,9 +568,31 @@ function lerCampos(){
     faltando.push('parede do tubo');
   }
 
+  const travessaSecao = campoTravessaSecao.value;
+  const travessaParedeMm = parseFloat(campoTravessaParede.value);
+  if (numPernas !== 1 && travessaSecao === 'tubular' &&
+      (!Number.isFinite(travessaParedeMm) || travessaParedeMm <= 0)) {
+    faltando.push('parede da travessa');
+  }
+
   return {
     faltando, materialId, espessuraCm, alturaCm, massaKg,
     forma, secao, numPernas, paredeMm,
+
+    assentoLarguraCm: numOu(campoAssentoLargura.value, PADRAO.assentoLarguraCm),
+    assentoProfundidadeCm:
+      numOu(campoAssentoProfundidade.value, PADRAO.assentoProfundidadeCm),
+    assentoEspessuraCm:
+      numOu(campoAssentoEspessura.value, PADRAO.assentoEspessuraCm),
+
+    travessaLarguraCm:
+      numOu(campoLarguraTravessa.value, PADRAO.travessaLarguraCm),
+    travessaAlturaCm:
+      numOu(campoAlturaTravessa.value, PADRAO.travessaAlturaCm),
+    travessaVazada: travessaSecao === 'tubular',
+    travessaParedeMm:
+      numOu(campoTravessaParede.value, PADRAO.travessaParedeMm),
+
     comEncosto: campoEncosto.value !== 'sem'
   };
 }
@@ -539,6 +655,8 @@ function iniciarRuina(){
 function simular(){
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
   atualizarParede();
+  atualizarParedeTravessa();
+  atualizarTravessa();
 
   const campos = lerCampos();
 
@@ -546,6 +664,20 @@ function simular(){
     mostrarPendencia(campos.faltando);
     return null;
   }
+
+  /*
+   * Assento e travessa sao CONFIGURACAO de projeto, nao resultado: precisam
+   * ser gravados ANTES de calcular, porque tanto a massa (chairModel) quanto
+   * as verificacoes (solver, travessas) leem deles.
+   */
+  definirAssento(campos.assentoLarguraCm * 10,
+                 campos.assentoProfundidadeCm * 10,
+                 campos.assentoEspessuraCm * 10);
+
+  definirTravessaSecao(campos.travessaLarguraCm * 10,
+                       campos.travessaAlturaCm * 10,
+                       campos.travessaVazada,
+                       campos.travessaParedeMm);
 
   const r = calcular({
     materialId: campos.materialId,
@@ -634,10 +766,7 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && !menuPainel.hidden) abrirMenu(false);
 });
 
-/* ---------- Ir para Gráficos ----------
- * A configuração vai na query string em CENTIMETROS, exatamente como aparece
- * nos campos. A página de gráficos converte para mm antes de calcular.
- * Sem 'noopener', para que a aba dos gráficos consiga focar esta de volta. */
+/* ---------- Ir para Gráficos ---------- */
 function urlGraficos(){
   const q = new URLSearchParams();
   q.set('material', selectMaterial.value);
@@ -649,6 +778,13 @@ function urlGraficos(){
   q.set('parede', campoParede.value);
   q.set('n', campoPernas.value);
   q.set('encosto', campoEncosto.value);
+  q.set('assentoB', campoAssentoLargura.value);
+  q.set('assentoP', campoAssentoProfundidade.value);
+  q.set('assentoH', campoAssentoEspessura.value);
+  q.set('travessaB', campoLarguraTravessa.value);
+  q.set('travessaH', campoAlturaTravessa.value);
+  q.set('travessaSecao', campoTravessaSecao.value);
+  q.set('travessaParede', campoTravessaParede.value);
   return 'graficos.html?' + q.toString();
 }
 
@@ -659,4 +795,6 @@ itemGraficos.addEventListener('click', () => {
 
 /* ---------- Início ---------- */
 atualizarParede();
+atualizarParedeTravessa();
+atualizarTravessa();
 simular();

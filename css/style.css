@@ -1433,3 +1433,90 @@ dialog.memorial{
     color:#b3272e;
   }
 }
+
+/* ---------- Gavetas do formulário ----------
+ * O respiro vertical entre campos vem de uma regra de adjacencia
+ * (.campo + .campo), que nao alcanca um <details>: ele nao e .campo.
+ * Tambem pode existir um .campo:last-of-type { margin-bottom: 0 }, que
+ * anula a margem do ultimo campo antes da gaveta, porque details nao e
+ * div e o campo continua sendo o ultimo do seu tipo.
+ *
+ * As tres regras de adjacencia abaixo fecham esses buracos. O valor fica
+ * numa variavel para voce ajustar em um lugar so, se quiser igualar ao
+ * espacamento que o resto do formulario ja usa.
+ */
+.painel--entradas {
+  --espaco-campo: 14px;
+  --borda-gaveta: rgba(128, 128, 128, 0.3);
+}
+
+.grupo-campos {
+  border: 1px solid var(--borda-gaveta);
+  border-radius: 10px;
+  margin: 0 0 var(--espaco-campo);
+  padding: 0;
+}
+
+/* O respiro que faltava: campo antes da gaveta, gaveta antes de gaveta
+   e gaveta antes de campo. Margens verticais entre irmaos se fundem, entao
+   nao ha risco de espaco dobrado. */
+.campo + .grupo-campos,
+.grupo-campos + .grupo-campos,
+.grupo-campos + .campo {
+  margin-top: var(--espaco-campo);
+}
+
+.grupo-campos > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  user-select: none;
+}
+
+.grupo-campos > summary::-webkit-details-marker { display: none; }
+.grupo-campos > summary::marker { content: ''; }
+
+.grupo-campos > summary::after {
+  content: '+';
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.grupo-campos[open] > summary::after { content: '−'; }
+
+/* Sinal de foco preservado no teclado, sem contorno permanente ao clicar. */
+.grupo-campos > summary:focus { outline: none; }
+
+.grupo-campos > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  border-radius: 10px;
+}
+
+/* Campos dentro da gaveta: recuo lateral igual, sem mexer na largura do
+   input, e respiro entre eles. */
+.grupo-campos > .campo {
+  padding: 0 12px;
+}
+
+.grupo-campos .campo + .campo {
+  margin-top: var(--espaco-campo);
+}
+
+.grupo-campos > .campo:first-of-type {
+  padding-top: 4px;
+}
+
+/* Fecha a gaveta aberta com um respiro embaixo do ultimo campo. */
+.grupo-campos[open] {
+  padding-bottom: 12px;
+}
