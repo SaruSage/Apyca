@@ -7,7 +7,7 @@
  * HIPOTESES
  *   - Apoio simples nos eixos das pernas (ligacao parafusada, sem rigidez
  *     de momento). E a leitura conservadora: da a maior flecha possivel.
- *     O anel real e continuo nos cantos, o que reduz a flecha.
+ *     O quadro real e continuo nos cantos, o que reduz a flecha.
  *   - A carga do assento se divide igualmente entre as quatro travessas.
  *   - O vao de CALCULO e a distancia entre os eixos das pernas (L - t).
  *     O COMPRIMENTO de cada viga e o vao entre as faces internas (L - 2t),
@@ -109,7 +109,8 @@ export function verificarTravessas({ P, massaAssento, L, t, H, material }){
   const E = material.E;
   const sigmaAdm = material.sigmaLimite / material.CS;
 
-  /* Volume do quadro, sem sobreposicao: cada viga e contada uma unica vez. */
+  /* Volume do quadro, sem sobreposicao: b <= t garante que as vigas frontal e
+     lateral nao se cruzem no canto, entao cada uma e contada uma unica vez. */
   const volume = geo.pecas.reduce((s, p) => s + p.dx * p.dy * p.dz, 0);
 
   const massaTotal = (volume / 1e9) * material.rho;

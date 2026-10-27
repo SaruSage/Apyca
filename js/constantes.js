@@ -3,6 +3,17 @@
  * Unidades internas: comprimento em mm, forca em N, tensao em MPa, massa em kg.
  */
 
+/*
+ * Carimbo de versao. Serve para conferir, no navegador, QUAL arquivo foi
+ * entregue: abra http://127.0.0.1:5500/js/constantes.js e procure esta
+ * linha no fim do arquivo. Se ela nao aparecer, o servidor esta entregando
+ * uma copia antiga (cache) e nenhuma alteracao feita aqui tera efeito.
+ *
+ * Ao mudar este arquivo, atualize a data abaixo. Custa nada e evita horas
+ * de depuracao em codigo que estava certo desde o inicio.
+ */
+export const VERSAO = '2026-10-27-travessas';
+
 export const G = 9.81;
 
 export const HIPOTESES = {
