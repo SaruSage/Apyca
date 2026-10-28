@@ -46,8 +46,8 @@
         </div>
 
         <!-- As gavetas usam <details>: abrem e fecham sem JavaScript e
-             funcionam no teclado. A primeira e a do assento abrem por
-             padrao, porque sao as dimensoes que mudam com mais frequencia. -->
+             funcionam no teclado. A do assento abre por padrao, porque e a
+             que muda com mais frequencia. -->
         <details class="grupo-campos" id="grupo-perna" open>
           <summary>Pernas</summary>
 
@@ -105,6 +105,37 @@
             <label for="assento-espessura">Espessura do assento (cm)</label>
             <input id="assento-espessura" name="assento-espessura"
                    type="number" min="0.5" max="10" step="0.5" value="2">
+          </div>
+
+          <!-- Posicao do centro de carga no plano da placa, em percentual de
+               meia dimensao. 0 = centro; +100% = borda direita/tras;
+               -100% = borda esquerda/frente. Percentual, e nao mm, para que
+               100% signifique sempre "na borda", qualquer que seja o
+               tamanho do assento. -->
+          <div class="campo">
+            <label for="excent-x">Centro de carga — eixo X</label>
+            <div class="deslizante">
+              <input id="excent-x" name="excent-x" type="range"
+                     min="-100" max="100" step="5" value="0"
+                     aria-describedby="dica-excent-x">
+              <output id="saida-excent-x" for="excent-x">centro</output>
+            </div>
+            <small class="campo__dica" id="dica-excent-x">
+              −100% borda esquerda · 0 centro · +100% borda direita
+            </small>
+          </div>
+
+          <div class="campo">
+            <label for="excent-y">Centro de carga — eixo Y</label>
+            <div class="deslizante">
+              <input id="excent-y" name="excent-y" type="range"
+                     min="-100" max="100" step="5" value="0"
+                     aria-describedby="dica-excent-y">
+              <output id="saida-excent-y" for="excent-y">centro</output>
+            </div>
+            <small class="campo__dica" id="dica-excent-y">
+              −100% borda da frente · 0 centro · +100% borda de trás
+            </small>
           </div>
         </details>
 

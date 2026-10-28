@@ -6,7 +6,7 @@
  *
  * MASSA
  * volumePeca() le as dimensoes de cada peca e devolve o volume em mm3.
- * Peças de secao vazada carregam as marcas vazada/parede e tem o furo
+ * Pecas de secao vazada carregam as marcas vazada/parede e tem o furo
  * descontado — vale para a perna tubular e para a travessa tubular.
  *
  * CAMADAS E ORDEM DE PINTURA
@@ -65,8 +65,41 @@ export function definirAssento(larguraMm, profundidadeMm, espessuraMm){
   };
 }
 
-/* ---------- Volume de uma peca, em mm³ ---------- */
+/**
+ * Grava a posicao do CENTRO DE CARGA no plano do assento, como FRACAO de
+ * meia dimensao em cada eixo, no intervalo [-1, +1].
+ *
+ *   0      centro geometrico — e o padrao, carga centrada
+ *   +1     borda direita (X) ou borda de tras (Y)
+ *   -1     borda esquerda (X) ou borda da frente (Y)
+ *
+ * Fracao, e nao milimetros, porque nao depende da dimensao do assento:
+ * aumentar a largura nao desloca a carga relativa, e 100% continua sendo a
+ * borda. O deslocamento em mm e derivado no solver, que conhece as dimensoes
+ * vigentes.
+ *
+ * A validacao de faixa fica no solver, que conhece as dimensoes do assento:
+ * aqui so se garante que os valores sao numeros dentro do intervalo, para nao
+ * gravar lixo e contaminar o calculo com NaN.
+ */
+export function definirExcentricidade(fracX, fracY){
+  const x = Number(fracX);
+  const y = Number(fracY);
 
+  if (Number.isFinite(x) && x >= -1 && x <= 1) {
+    ASSENTO.excentricidadeX = x;
+  }
+  if (Number.isFinite(y) && y >= -1 && y <= 1) {
+    ASSENTO.excentricidadeY = y;
+  }
+
+  return {
+    x: ASSENTO.excentricidadeX,
+    y: ASSENTO.excentricidadeY
+  };
+}
+
+/* ---------- Volume de uma peca, em mm³ ---------- */
 export function volumePeca(p){
   if (p.tipo === 'cilindro') {
     return Math.PI * p.r * p.r * p.h;
@@ -104,7 +137,6 @@ export function volumePeca(p){
     const dims = [p.dx, p.dy, p.dz];
     const maior = Math.max(dims[0], dims[1], dims[2]);
     const eixo = dims.indexOf(maior);
-
     const s1 = dims[(eixo + 1) % 3];
     const s2 = dims[(eixo + 2) % 3];
 
@@ -113,7 +145,6 @@ export function volumePeca(p){
 
     const i1 = Math.max(0, s1 - 2 * ep);
     const i2 = Math.max(0, s2 - 2 * ep);
-
     return maior * (s1 * s2 - i1 * i2);
   }
 
@@ -121,7 +152,6 @@ export function volumePeca(p){
 }
 
 /* ---------- Massa por parte ---------- */
-
 const PARTES = {
   pernas: ['perna0', 'perna1', 'perna2', 'perna3', 'coluna'],
   pe: ['pe'],
@@ -133,7 +163,6 @@ const PARTES = {
 
 export function massasPorParte(barras, material){
   const rho = (material && Number.isFinite(material.rho)) ? material.rho : 0;
-
   const volume = { pernas: 0, pe: 0, assento: 0, postes: 0, encosto: 0,
                    travessas: 0 };
   let volumeTotal = 0;
@@ -141,7 +170,6 @@ export function massasPorParte(barras, material){
   for (const p of barras) {
     const v = volumePeca(p);
     volumeTotal += v;
-
     for (const chave of Object.keys(PARTES)) {
       if (PARTES[chave].indexOf(p.grupo) >= 0) {
         volume[chave] += v;
@@ -167,7 +195,6 @@ export function massasPorParte(barras, material){
 }
 
 /* ---------- Caixa envolvente ---------- */
-
 export function bboxPeca(p){
   if (p.tipo === 'cilindro') {
     return {
@@ -249,13 +276,11 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
   const tAssento = ASSENTO.espessura;
 
   const tEnc = fracaoEspessuraEncosto * t;
-
   const zTopoAssento = H + tAssento;
   const zTopoEncosto = zTopoAssento + alturaEncosto;
   const zBaseEncosto = zTopoAssento + alturaAbertura;
 
   const barras = [];
-
   const xCentro = L / 2 - t / 2;
   const cCentro = L / 2;
 
@@ -268,7 +293,6 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
     if (h <= 0) return;
     const cx = x + t / 2;
     const cy = y + t / 2;
-
     if (vazada) {
       barras.push(tubo(cx, cy, t, parede, z0, h, redonda, camada,
                        render.pernas, grupo));
@@ -297,7 +321,6 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
       barras.push(piramide(cCentro, cCentro, ladoBase, t, 0, hPe, 0,
                            corPe, 'pe'));
     }
-
     perna(xCentro, xCentro, hPe, H - hPe, 0, 'coluna');
   }
 
@@ -308,10 +331,13 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
    * bloco macico de mesma secao sao indistinguiveis — o furo so apareceria
    * nas faces de topo, enterradas nas pernas. As marcas vazada/parede
    * existem para volumePeca() descontar o furo da massa.
+   *
+   * geo.z = H - h, ou seja, o TOPO da travessa cai em z = H, coplanar ao
+   * topo das pernas. E o que faz o assento apoiar no quadro inteiro, e nao
+   * apenas no anel: pernas e travessas formam uma moldura plana.
    */
   if (n === 4 && TRAVESSAS.ativa) {
     const geo = geometriaTravessas(L, t, H);
-
     if (geo.ok) {
       geo.pecas.forEach((p, i) => {
         const peca = caixa(p.x, p.y, geo.z, p.dx, p.dy, p.dz,
@@ -327,7 +353,7 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
   /*
    * Centrado no quadro de pernas: com largura igual a L as bordas coincidem
    * com as faces externas das pernas; maior que L, sobra sobrepasso dos dois
-   * lados.
+   * lados. Em z = H, apoia no topo das pernas e no topo das travessas.
    */
   barras.push(caixa((L - aL) / 2, (L - aP) / 2, H,
                     aL, aP, tAssento, 2,

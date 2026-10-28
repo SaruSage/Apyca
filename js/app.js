@@ -1,6 +1,7 @@
 import { MATERIAIS } from './materials.js';
 import { calcular } from './solver.js';
-import { construirBarras, dimensoesExternas, definirAssento } from './chairModel.js';
+import { construirBarras, dimensoesExternas, definirAssento,
+         definirExcentricidade } from './chairModel.js';
 import { renderCadeira } from './render.js';
 import { animarRuina } from './animacao.js';
 import { animarJoinhas } from './joinhas.js';
@@ -24,6 +25,16 @@ const campoPernas = document.getElementById('numPernas');
 const campoAssentoLargura = document.getElementById('assento-largura');
 const campoAssentoProfundidade = document.getElementById('assento-profundidade');
 const campoAssentoEspessura = document.getElementById('assento-espessura');
+
+/*
+ * Centro de carga: dois controles deslizantes, em percentual de meia
+ * dimensao. Campos opcionais — se o HTML ainda nao os tiver, o app funciona
+ * com carga centrada em vez de estourar em null.
+ */
+const campoExcentX = document.getElementById('excent-x');
+const campoExcentY = document.getElementById('excent-y');
+const saidaExcentX = document.getElementById('saida-excent-x');
+const saidaExcentY = document.getElementById('saida-excent-y');
 
 /* Travessas */
 const grupoTravessas = document.getElementById('grupo-travessas');
@@ -71,6 +82,8 @@ const PADRAO = {
   assentoLarguraCm: 44,
   assentoProfundidadeCm: 44,
   assentoEspessuraCm: 2,
+  excentXPct: 0,
+  excentYPct: 0,
   travessaLarguraCm: 4,
   travessaAlturaCm: 6,
   travessaSecao: 'macica',
@@ -96,11 +109,11 @@ campoSecao.value = PADRAO.secao;
 campoEncosto.value = PADRAO.encosto;
 campoPernas.value = String(PADRAO.numPernas);
 campoParede.value = PADRAO.paredeMm;
-
 campoAssentoLargura.value = PADRAO.assentoLarguraCm;
 campoAssentoProfundidade.value = PADRAO.assentoProfundidadeCm;
 campoAssentoEspessura.value = PADRAO.assentoEspessuraCm;
-
+if (campoExcentX) campoExcentX.value = PADRAO.excentXPct;
+if (campoExcentY) campoExcentY.value = PADRAO.excentYPct;
 campoLarguraTravessa.value = PADRAO.travessaLarguraCm;
 campoAlturaTravessa.value = PADRAO.travessaAlturaCm;
 campoTravessaSecao.value = PADRAO.travessaSecao;
@@ -149,6 +162,42 @@ function listaHumana(itens){
   return itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1];
 }
 
+/* ---------- Centro de carga ----------
+ * Os controles devolvem percentual (-100 a +100). O solver trabalha com
+ * fracao de meia dimensao (-1 a +1): a conversao e dividir por 100.
+ * Fracao, e nao mm, para que 100% signifique sempre "na borda", qualquer
+ * que seja o tamanho do assento. */
+function lerExcent(){
+  const ler = (el) => {
+    if (!el) return 0;
+    const v = parseFloat(el.value);
+    if (!Number.isFinite(v)) return 0;
+    return Math.min(1, Math.max(-1, v / 100));
+  };
+  return { x: ler(campoExcentX), y: ler(campoExcentY) };
+}
+
+/* Rotulo do mostrador: "centro", "+45%" ou "−30%". */
+function rotuloExcent(pct){
+  if (!Number.isFinite(pct) || Math.abs(pct) < 0.5) return 'centro';
+  const sinal = pct > 0 ? '+' : '−';
+  return sinal + Math.abs(Math.round(pct)) + '%';
+}
+
+function atualizarSaidasExcent(){
+  const lerPct = (el) => {
+    const v = el ? parseFloat(el.value) : 0;
+    return Number.isFinite(v) ? v : 0;
+  };
+  if (saidaExcentX) saidaExcentX.textContent = rotuloExcent(lerPct(campoExcentX));
+  if (saidaExcentY) saidaExcentY.textContent = rotuloExcent(lerPct(campoExcentY));
+}
+
+/* Verdadeiro quando a carga esta no centro geometrico da placa. */
+function cargaCentrada(r){
+  return Math.abs(r.entrada.fracX) < 0.005 && Math.abs(r.entrada.fracY) < 0.005;
+}
+
 /* ---------- Diagnóstico em linguagem simples ---------- */
 function utilizacaoMaxima(r){
   const us = [
@@ -177,6 +226,10 @@ function mensagemSegura(r){
 }
 
 function mensagemRisco(r){
+  if (r.forcas.levantou) {
+    return 'A carga está fora da base de apoio: as pernas do lado oposto ' +
+           'levantam do chão.';
+  }
   if (r.tensoes.utilizacao > 1) {
     return 'A perna entorta: o esforço passa do que o material aguenta.';
   }
@@ -203,9 +256,6 @@ function mensagemRisco(r){
   }
   if (r.travessas && r.travessas.utilizacaoFlecha > 1) {
     return 'As travessas sob o assento vergam: o vão entre as pernas é grande para a seção da viga.';
-  }
-  if (r.forcas.levantou) {
-    return 'A cadeira emborca: o peso na beirada levanta as pernas do lado oposto.';
   }
   if (r.estabilidade && r.estabilidade.tombou) {
     return 'A cadeira tomba: a base é pequena para peso tão fora do centro.';
@@ -242,7 +292,6 @@ function atualizarLegenda(dims, material){
     legenda.textContent = '';
     return;
   }
-
   legenda.textContent =
     n(dims.altura / 10, 1) + ' × ' +
     n(dims.largura / 10, 1) + ' × ' +
@@ -288,7 +337,6 @@ function renderResultado(r, dims){
   }
 
   let h = '';
-
   h += gaveta('secao', 'Seção e apoios', lSecao, true);
 
   /* ---------- Massa por parte ---------- */
@@ -306,15 +354,63 @@ function renderResultado(r, dims){
   }
   lMassa.push(linha('Massa total', n(r.massa.total, 2) + ' kg'));
   lMassa.push(linha('Peso próprio', n(r.massa.total * 9.81, 1) + ' N'));
-
   h += gaveta('massa', 'Massa por parte', lMassa, false);
 
-  h += gaveta('esforcos', 'Esforços', [
+  /* ---------- Esforços ---------- */
+  const centrada = cargaCentrada(r);
+
+  const lEsforcos = [
     linha('Carga total (P)', n(r.forcas.P, 1) + ' N'),
-    linha('Reação média por perna', n(r.forcas.Nmedio, 1) + ' N'),
+    linha('Centro de carga',
+      centrada
+        ? 'no centro do assento'
+        : 'X ' + rotuloExcent(r.entrada.fracX * 100) +
+          ' · Y ' + rotuloExcent(r.entrada.fracY * 100)),
+    linha('Deslocamento em X', n(r.entrada.eX, 1) + ' mm'),
+    linha('Deslocamento em Y', n(r.entrada.eY, 1) + ' mm'),
+    linha('Reação média por perna', n(r.forcas.Nmedio, 1) + ' N')
+  ];
+
+  if (r.entrada.numPernas === 4) {
+    lEsforcos.push(
+      linha('Parcela em X (ΔNx)', n(r.forcas.dNx, 1) + ' N'),
+      linha('Parcela em Y (ΔNy)', n(r.forcas.dNy, 1) + ' N'),
+      linha('Parcela total (ΔN)', n(r.forcas.dN, 1) + ' N')
+    );
+  }
+
+  lEsforcos.push(
     linha('Reação máxima (N)', n(r.forcas.Nmax, 1) + ' N'),
+    linha('Reação mínima (N)', n(r.forcas.Nmin, 1) + ' N'),
     linha('Momento na perna (M)', n(r.forcas.Mperna, 0) + ' N·mm')
-  ], false);
+  );
+
+  if (r.forcas.levantou) {
+    lEsforcos.push(linha('Atenção',
+      'a carga saiu da base — há perna levantando'));
+  }
+
+  h += gaveta('esforcos', 'Esforços', lEsforcos, false);
+
+  /* ---------- Reações por perna ---------- */
+  if (r.forcas.reacoesPernas) {
+    const lReacoes = r.forcas.reacoesPernas.map(p => {
+      const lado = (p.sinalX > 0 ? 'direita' : 'esquerda') + ' / ' +
+                   (p.sinalY > 0 ? 'trás' : 'frente');
+      return linha('Perna ' + p.indice + ' (' + lado + ')',
+        n(p.valor, 1) + ' N' + (p.levantou ? ' — levanta' : ''));
+    });
+    lReacoes.push(linha('Soma das quatro',
+      n(r.forcas.reacoesPernas.reduce((s, p) => s + p.valor, 0), 1) + ' N'));
+    h += gaveta('reacoes', 'Reações por perna', lReacoes, false);
+  } else {
+    h += gaveta('reacoes', 'Reações por perna', [
+      linha('Pedestal', n(r.forcas.Nmax, 1) + ' N'),
+      linha('Momento em X', n(r.entrada.eY * r.forcas.P, 0) + ' N·mm'),
+      linha('Momento em Y', n(r.entrada.eX * r.forcas.P, 0) + ' N·mm'),
+      linha('Momento equivalente', n(r.forcas.Mperna, 0) + ' N·mm')
+    ], false);
+  }
 
   h += gaveta('tensoes', 'Tensões normais', [
     linha('Axial (N/A)', n(r.tensoes.sigmaAxial, 3) + ' MPa'),
@@ -339,23 +435,33 @@ function renderResultado(r, dims){
     ], false);
   }
 
-  h += gaveta('assento', 'Assento em balanço', [
+  const lAssento = [
     linha('Dimensões (L × P × h)',
       n(r.assento.b, 0) + ' × ' + n(r.assento.p, 0) + ' × ' +
       n(r.assento.h, 1) + ' mm'),
     linha('Sobrepasso em X (a)', n(r.assento.folgaX, 1) + ' mm'),
-    linha('Sobrepasso em Y (a)', n(r.assento.folgaY, 1) + ' mm'),
+    linha('Sobrepasso em Y (a)', n(r.assento.folgaY, 1) + ' mm')
+  ];
+
+  if (!centrada) {
+    lAssento.push(linha('Balanço com a carga deslocada',
+      n(r.assento.a, 1) + ' mm'));
+  }
+
+  lAssento.push(
     linha('Momento no engaste (M)', n(r.assento.M, 0) + ' N·mm'),
     linha('Tensão de flexão', n(r.assento.sigma, 3) + ' MPa'),
     linha('Utilização (tensão)', n(r.assento.utilizacao * 100, 1) + '%'),
     linha('Flecha', n(r.assento.flecha, 3) + ' mm'),
     linha('Flecha limite', n(r.assento.flechaLimite, 3) + ' mm'),
     linha('Utilização (flecha)', n(r.assento.utilizacaoFlecha * 100, 1) + '%')
-  ], false);
+  );
+
+  h += gaveta('assento', 'Assento em balanço', lAssento, false);
 
   if (r.assentoVao) {
     h += gaveta('vao', 'Assento entre apoios', [
-      linha('Vão livre (L)', n(r.assentoVao.L, 0) + ' mm'),
+      linha('Vão livre (Lv)', n(r.assentoVao.L, 0) + ' mm'),
       linha('Área do assento', n(r.assentoVao.area, 0) + ' mm²'),
       linha('Pressão uniforme (q)', n(r.assentoVao.q, 6) + ' N/mm²'),
       linha('Momento por largura', n(r.assentoVao.M, 2) + ' N·mm/mm'),
@@ -387,13 +493,14 @@ function renderResultado(r, dims){
       linha('Utilização (flecha)', n(r.travessas.utilizacaoFlecha * 100, 1) + '%'),
       linha('Massa das 4 travessas', n(r.travessas.massaTotal, 2) + ' kg')
     ];
-
     h += gaveta('travessas', 'Travessas de apoio do assento', lTrav, false);
   }
 
   if (r.estabilidade) {
     h += gaveta('estabilidade', 'Estabilidade ao tombamento', [
-      linha('Excentricidade (e)', n(r.estabilidade.e, 1) + ' mm'),
+      linha('Excentricidade (e)', n(r.estabilidade.eRes, 1) + ' mm'),
+      linha('Deslocamento em X', n(r.estabilidade.eX, 1) + ' mm'),
+      linha('Deslocamento em Y', n(r.estabilidade.eY, 1) + ' mm'),
       linha('Braço de tombamento', n(r.estabilidade.braco, 1) + ' mm'),
       linha('Massa própria da cadeira', n(r.estabilidade.massaCadeira, 2) + ' kg'),
       linha('Peso próprio da cadeira', n(r.estabilidade.pesoCadeira, 1) + ' N'),
@@ -421,14 +528,11 @@ function renderResultado(r, dims){
 painel.addEventListener('click', (ev) => {
   const cabecalho = ev.target.closest('.gaveta__cabecalho');
   if (!cabecalho) return;
-
   const gav = cabecalho.closest('.gaveta');
   if (!gav) return;
-
   const chave = gav.dataset.chave;
   const abrir = !gav.classList.contains('is-aberta');
   const corpo = document.getElementById('gaveta-' + chave);
-
   gav.classList.toggle('is-aberta', abrir);
   cabecalho.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   if (corpo) corpo.hidden = !abrir;
@@ -455,15 +559,12 @@ btnFecharMemorial.addEventListener('click', () => {
 function prepararImpressao(){
   const alvo = document.getElementById('memorial-print');
   if (!alvo) return false;
-
   const html = conteudoMemorial.innerHTML.trim();
-
   if (!dialogMemorial.open || !html) {
     alvo.innerHTML = '';
     document.body.classList.remove('imprimindo-memorial');
     return false;
   }
-
   alvo.innerHTML = html;
   document.body.classList.add('imprimindo-memorial');
   return true;
@@ -534,7 +635,6 @@ function numOu(valor, padrao){
 
 function lerCampos(){
   const faltando = [];
-
   const materialId = selectMaterial.value;
   if (!materialId) faltando.push('material');
 
@@ -575,16 +675,18 @@ function lerCampos(){
     faltando.push('parede da travessa');
   }
 
+  const excent = lerExcent();
+
   return {
     faltando, materialId, espessuraCm, alturaCm, massaKg,
     forma, secao, numPernas, paredeMm,
-
     assentoLarguraCm: numOu(campoAssentoLargura.value, PADRAO.assentoLarguraCm),
     assentoProfundidadeCm:
       numOu(campoAssentoProfundidade.value, PADRAO.assentoProfundidadeCm),
     assentoEspessuraCm:
       numOu(campoAssentoEspessura.value, PADRAO.assentoEspessuraCm),
-
+    excentX: excent.x,
+    excentY: excent.y,
     travessaLarguraCm:
       numOu(campoLarguraTravessa.value, PADRAO.travessaLarguraCm),
     travessaAlturaCm:
@@ -592,7 +694,6 @@ function lerCampos(){
     travessaVazada: travessaSecao === 'tubular',
     travessaParedeMm:
       numOu(campoTravessaParede.value, PADRAO.travessaParedeMm),
-
     comEncosto: campoEncosto.value !== 'sem'
   };
 }
@@ -601,17 +702,13 @@ function lerCampos(){
 function mostrarPendencia(faltando){
   palco.className = 'palco';
   palco.innerHTML = '<p class="palco__vazio">Faltam dados para calcular.</p>';
-
   situacao.hidden = false;
   situacao.classList.remove('situacao--ok', 'situacao--risco');
   situacao.classList.add('situacao--aviso');
   situacao.textContent = 'Informe ' + listaHumana(faltando) + ' para simular.';
-
   painel.innerHTML = '<p class="aviso-painel">A simulação precisa de todos os ' +
     'campos preenchidos.</p>';
-
   legenda.textContent = '';
-
   ultimoResultado = null;
   ultimasBarras = null;
   ultimasDims = null;
@@ -620,7 +717,6 @@ function mostrarPendencia(faltando){
 /* ---------- Desenho estático ---------- */
 function desenharEstatica(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
-
   renderCadeira(palco, ultimasBarras, ultimoResultado.entrada.material);
   ultimasDims = dimensoesExternas(ultimasBarras);
   atualizarLegenda(ultimasDims, ultimoResultado.entrada.material);
@@ -629,11 +725,8 @@ function desenharEstatica(){
 /* ---------- Ruína ---------- */
 function iniciarRuina(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
-
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
-
   const alvo = ultimoResultado;
-
   pararAnimacao = animarRuina(
     palco,
     ultimasBarras,
@@ -666,13 +759,19 @@ function simular(){
   }
 
   /*
-   * Assento e travessa sao CONFIGURACAO de projeto, nao resultado: precisam
-   * ser gravados ANTES de calcular, porque tanto a massa (chairModel) quanto
-   * as verificacoes (solver, travessas) leem deles.
+   * Assento, centro de carga e travessa sao CONFIGURACAO de projeto, nao
+   * resultado: precisam ser gravados ANTES de calcular, porque tanto a massa
+   * (chairModel) quanto as verificacoes (solver, travessas) leem deles.
+   *
+   * A excentricidade vai como FRACAO de meia dimensao: o controle ja entrega
+   * percentual e lerExcent() divide por 100. Fracao, e nao mm, para que 100%
+   * signifique sempre "na borda", qualquer que seja a dimensao do assento.
    */
   definirAssento(campos.assentoLarguraCm * 10,
                  campos.assentoProfundidadeCm * 10,
                  campos.assentoEspessuraCm * 10);
+
+  definirExcentricidade(campos.excentX, campos.excentY);
 
   definirTravessaSecao(campos.travessaLarguraCm * 10,
                        campos.travessaAlturaCm * 10,
@@ -718,7 +817,6 @@ function simular(){
   renderCadeira(palco, ultimasBarras, r.entrada.material);
   ultimasDims = dimensoesExternas(ultimasBarras);
   atualizarLegenda(ultimasDims, r.entrada.material);
-
   renderResultado(r, ultimasDims);
   aplicarSituacao(r);
 
@@ -728,12 +826,10 @@ function simular(){
 /* ---------- Botão Animar ---------- */
 function acionarAnimar(){
   if (!ultimoResultado || !ultimoResultado.ok) return;
-
   if (ultimoResultado.veredito.aprovado) {
     animarJoinhas();
     return;
   }
-
   iniciarRuina();
 }
 
@@ -742,7 +838,10 @@ form.addEventListener('submit', ev => {
   acionarAnimar();
 });
 
-form.addEventListener('input', simular);
+form.addEventListener('input', () => {
+  atualizarSaidasExcent();
+  simular();
+});
 
 /* ---------- Menu de opções ---------- */
 function abrirMenu(abrir){
@@ -766,7 +865,9 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && !menuPainel.hidden) abrirMenu(false);
 });
 
-/* ---------- Ir para Gráficos ---------- */
+/* ---------- Ir para Gráficos ----------
+ * O centro de carga viaja como percentual, que e a unidade do controle. A
+ * pagina de graficos converte para fracao antes de chamar o solver. */
 function urlGraficos(){
   const q = new URLSearchParams();
   q.set('material', selectMaterial.value);
@@ -781,6 +882,8 @@ function urlGraficos(){
   q.set('assentoB', campoAssentoLargura.value);
   q.set('assentoP', campoAssentoProfundidade.value);
   q.set('assentoH', campoAssentoEspessura.value);
+  if (campoExcentX) q.set('excentX', campoExcentX.value);
+  if (campoExcentY) q.set('excentY', campoExcentY.value);
   q.set('travessaB', campoLarguraTravessa.value);
   q.set('travessaH', campoAlturaTravessa.value);
   q.set('travessaSecao', campoTravessaSecao.value);
@@ -794,6 +897,7 @@ itemGraficos.addEventListener('click', () => {
 });
 
 /* ---------- Início ---------- */
+atualizarSaidasExcent();
 atualizarParede();
 atualizarParedeTravessa();
 atualizarTravessa();

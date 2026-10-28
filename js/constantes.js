@@ -5,24 +5,48 @@
 
 /*
  * Carimbo de versao. Serve para conferir, no navegador, QUAL arquivo foi
- * entregue: abra http://127.0.0.1:5500/js/constantes.js e procure esta
- * linha no fim do arquivo. Se ela nao aparecer, o servidor esta entregando
- * uma copia antiga (cache) e nenhuma alteracao feita aqui tera efeito.
+ * entregue: abra http://127.0.0.1:5500/js/constantes.js e procure esta linha.
+ * Se ela nao aparecer, o servidor esta entregando uma copia antiga (cache) e
+ * nenhuma alteracao feita aqui tera efeito.
  */
-export const VERSAO = '2026-10-27-assento-proprio';
+export const VERSAO = '2026-10-28-centro-carga-biaxial';
 
 export const G = 9.81;
 
+/*
+ * HIPOTESES
+ *
+ * A excentricidade NAO esta aqui: ela descreve a posicao do centro de carga
+ * sobre o plano do assento, e nao uma hipotese fixa de projeto. Mora em
+ * ASSENTO, onde pode ser configurada em dois eixos.
+ *
+ * nPernas e um valor de referencia: o solver usa o que chega do formulario.
+ */
 export const HIPOTESES = {
   nPernas: 4,
   L: 400,
-  e: 50,
   K: 1.0,
   KPedestal: 2.0
 };
 
 export const CADEIRA = {
   L: 400,
+
+  /*
+   * Folga de referencia entre a face externa da perna e a borda do assento,
+   * em mm. Continua em uso pelo memorial, que a utiliza como fallback quando
+   * recebe um resultado de solver antigo sem as dimensoes do assento.
+   */
+  folga: 20,
+
+  /*
+   * OBSOLETA. Ficou do tempo em que a espessura do assento era uma fracao da
+   * dimensao da perna. Hoje o assento tem espessura propria em ASSENTO, e
+   * nada deve ler esta constante. Mantida apenas para que um ponto de codigo
+   * esquecido nao receba undefined — o resultado seria NaN silencioso.
+   */
+  fracaoEspessuraAssento: 0.5,
+
   fracaoEspessuraEncosto: 0.5,
   alturaAbertura: 90,
   alturaEncosto: 320,
@@ -36,7 +60,7 @@ export const CADEIRA = {
 
   /*
    * Limite de flecha do assento ENTRE os apoios, como divisor do vao.
-   * 300 significa flecha maxima = L/300. So se aplica com 4 pernas.
+   * 300 significa flecha maxima = Lv/300. So se aplica com 4 pernas.
    */
   divisorFlechaVao: 300,
 
@@ -53,32 +77,43 @@ export const CADEIRA = {
 /*
  * ASSENTO
  *
- * O assento tem dimensoes PROPRIAS. Antes a espessura era
- * fracaoEspessuraAssento * t, ou seja, proporcional a grossura da perna —
- * o que nao tem justificativa fisica: perna grossa nao deixa assento
- * grosso. As duas grandezas sao independentes e agora sao configuradas
- * em separado.
+ * Dimensoes PROPRIAS da placa e posicao do centro de carga. Nada aqui deriva
+ * da perna: perna grossa nao implica assento grosso.
  *
- * largura e profundidade sao medidos no plano horizontal; espessura e a
- * altura da placa. Todos em MILIMETROS.
- *
- * O assento e centrado no quadro de pernas. Com largura igual a L, as
- * bordas coincidem com as faces externas das pernas; maior que L, sobra
- * sobrepasso; menor que L, o solver reprova, porque o assento cairia por
- * dentro dos apoios.
+ * A placa apoia no QUADRO de apoio — os quatro topos de perna nos cantos mais
+ * as quatro travessas ao longo das bordas, todos coplanares em z = H.
  */
 export const ASSENTO = {
   largura: 440,
   profundidade: 440,
   espessura: 20,
-  espessuraMinima: 5
+  espessuraMinima: 5,
+
+  /*
+   * Posicao do CENTRO DE CARGA no plano do assento, como FRACAO de meia
+   * dimensao em cada eixo. E o que a interface controla com dois seletores.
+   *
+   *   0      centro geometrico — carga centrada, reacoes iguais
+   *   +1     borda direita (X) ou borda de tras (Y)
+   *   -1     borda esquerda (X) ou borda da frente (Y)
+   *
+   * Fracao, e nao milimetros, porque nao depende da dimensao do assento:
+   * aumentar a largura de 44 para 60 cm nao desloca a carga relativa, e 100%
+   * continua significando "na borda". O deslocamento em mm e derivado no
+   * solver, que conhece as dimensoes vigentes.
+   *
+   * Fora de [-1, +1] o centro de carga cai fora da placa: o solver valida e
+   * reprova em vez de corrigir em silencio.
+   */
+  excentricidadeX: 0,
+  excentricidadeY: 0
 };
 
 /*
  * TRAVESSAS DE APOIO DO ASSENTO
  *
  * Quadro de quatro vigas que ligam as pernas logo abaixo do assento. Sao
- * elas que recebem o assento e o entregam as pernas.
+ * elas que completam o apoio da placa ao longo das bordas.
  *
  * largura e altura sao os valores PEDIDOS pelo usuario e podem ser mudados
  * em tempo de execucao por definirTravessaSecao() (ver travessas.js).
@@ -86,15 +121,9 @@ export const ASSENTO = {
  * externa da perna, porque uma viga mais larga que a perna nao teria onde
  * encostar.
  *
- * vazada = true troca a secao macica por um tubo retangular de parede
- * `parede` (mm). A area e a inercia passam a descontar o furo, e a massa
- * cai na mesma proporcao. O DESENHO nao muda: de fora, um tubo retangular
- * e um bloco macico de mesma secao tem exatamente a mesma aparencia — o
- * furo so apareceria nas faces de topo, que ficam enterradas nas pernas.
- *
- * A face EXTERNA da viga e alinhada com a face externa da perna. Nao e
- * detalhe estetico: centrada, a viga fica enterrada dentro da silhueta da
- * perna e desaparece no desenho quando a perna e grossa.
+ * A travessa ocupa apenas o vao entre as FACES INTERNAS das pernas, e sua
+ * face externa e coplanar com a face externa da perna. O topo fica na mesma
+ * cota do topo da perna (z = H), de modo que o quadro e uma moldura plana.
  */
 export const TRAVESSAS = {
   ativa: true,
