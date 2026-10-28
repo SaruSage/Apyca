@@ -374,9 +374,9 @@ export function gerarMemorial(r, dimsExternas){
     linhasEsforcos.push(cl('Reação média por perna', '(P + W<sub>c</sub>)/n',
       '(' + num(r.forcas.P, 2) + ' + ' + num(r.massa.total * G, 2) +
       ')/4', num(r.forcas.Nmedio, 2), 'N'));
-    linhasEsforcos.push(cl('Parcela da excentricidade (ΔN)', 'P·e/(2L)',
+    linhasEsforcos.push(cl('Parcela da excentricidade (ΔN)', 'P·e/(2·(L − t))',
       num(r.forcas.P, 2) + '·' + num(HIPOTESES.e, 0) + '/(2·' +
-      num(HIPOTESES.L, 0) + ')',
+      num(r.forcas.bracoBinario, 1) + ')',
       num(r.forcas.dN, 2), 'N'));
     linhasEsforcos.push(cl('Reação máxima (N<sub>máx</sub>)', 'N<sub>méd</sub> + ΔN',
       num(r.forcas.Nmedio, 2) + ' + ' + num(r.forcas.dN, 2),
@@ -396,9 +396,9 @@ export function gerarMemorial(r, dimsExternas){
         cl('Momento de tombamento da carga', 'P·e',
           num(r.forcas.P, 2) + '·' + num(HIPOTESES.e, 0),
           num(r.forcas.P * HIPOTESES.e, 2), 'N·mm'),
-        cl('Casal resistente', 'ΔN·(2L)',
-          num(r.forcas.dN, 2) + '·(2·' + num(HIPOTESES.L, 0) + ')',
-          num(r.forcas.dN * 2 * HIPOTESES.L, 2), 'N·mm'),
+        cl('Casal resistente', 'ΔN·(2·(L − t))',
+          num(r.forcas.dN, 2) + '·(2·' + num(r.forcas.bracoBinario, 1) + ')',
+          num(r.forcas.dN * 2 * r.forcas.bracoBinario, 2), 'N·mm'),
         cl('Momento fletor na perna', 'nulo — resistido pelo casal',
           '—', num(0, 2), 'N·mm')
       ]));
@@ -535,7 +535,7 @@ export function gerarMemorial(r, dimsExternas){
     const asv = r.assentoVao;
     h += sec('Verificação do assento entre apoios',
       tabelaCalc('Flexão da placa entre as pernas', [
-        cl('Vão livre (L)', 'distância entre eixos das pernas',
+        cl('Vão livre (L)', 'lado do quadro de pernas (L)',
           '—', num(asv.L, 0), 'mm'),
         cl('Área carregada (A<sub>as</sub>)', 'a<sub>L</sub>·a<sub>P</sub>',
           num(aLarg, 0) + '·' + num(aProf, 0),
@@ -552,8 +552,8 @@ export function gerarMemorial(r, dimsExternas){
         cl('Utilização à flexão', 'σ<sub>vão</sub>/σ<sub>adm</sub>',
           num(asv.sigma, 3) + '/' + num(r.tensoes.sigmaAdm, 3),
           num(asv.utilizacao * 100, 1), '%'),
-        cl('Flecha (δ<sub>vão</sub>)', '5·q·L⁴/(64·E·h<sub>as</sub>³)',
-          '5·' + num(asv.q, 6) + '·' + num(asv.L, 0) + '⁴/(64·' +
+        cl('Flecha (δ<sub>vão</sub>)', '5·q·L⁴/(32·E·h<sub>as</sub>³)',
+          '5·' + num(asv.q, 6) + '·' + num(asv.L, 0) + '⁴/(32·' +
           num(mat.E, 0) + '·' + num(asv.h, 1) + '³)',
           num(asv.flecha, 4), 'mm'),
         cl('Flecha limite', 'L/' + CADEIRA.divisorFlechaVao,
@@ -709,8 +709,8 @@ export function gerarMemorial(r, dimsExternas){
       'as pernas, pelo método das faixas. O coeficiente 1/16 é conservador ' +
       'frente aos 0,0479 da solução de placa simplesmente apoiada.',
 
-    'O vão livre adotado na verificação do assento é a distância entre eixos ' +
-      'das pernas, que é maior que a abertura interna do quadro de travessas. ' +
+    'O vão livre adotado na verificação do assento é o lado L do quadro de pernas ' +
+      '(faces externas), que é maior que a abertura interna do quadro de travessas. ' +
       'A flecha calculada é, portanto, superior à real.',
 
     'O limite de flecha do assento é a/' + CADEIRA.divisorFlechaAssento +

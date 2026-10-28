@@ -16,7 +16,7 @@
  *   flambagem local      (t-2ep)/ep contra 1,40*raiz(E/sigmaLim) — so vazada
  *   assento em balanco   Ma = P*a, delta = P*a^3/(3EI)
  *   assento entre apoios q = P/(aL*aP), M = q*L^2/16,
- *                        delta = 5q*L^4/(64Eh^3) — so com 4 pernas
+ *                        delta = 5q*L^4/(32Eh^3) — so com 4 pernas
  *   travessas de apoio   viga biapoiada, M = q*Lt^2/8,
  *                        delta = 5q*Lt^4/(384EI) — so com 4 pernas
  *   tombamento           M_tomb/M_estab (so no pedestal)
@@ -114,6 +114,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   const Ptotal = P + pesoCadeira;
 
   let Nmedio, dN, Nmax, Nmin, Mperna;
+  let bracoBinario = 0;
   let levantou = false;
 
   if (n === 1) {
@@ -132,7 +133,13 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
      * modelo nao resolve — fica declarado como simplificacao.
      */
     Nmedio = Ptotal / n;
-    dN = (P * e) / (2 * L);
+    /*
+     * O binario P*e e resistido por dois pares de pernas afastados pela
+     * distancia ENTRE EIXOS (L - t), nao pelo lado externo L. Usar L
+     * subestimava dN em t/(L - t).
+     */
+    bracoBinario = L - t;
+    dN = (P * e) / (2 * bracoBinario);
     Nmax = Nmedio + dN;
     Nmin = Math.max(0, Nmedio - dN);
     Mperna = 0;
@@ -198,6 +205,10 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   const flechaAssento = (P * Math.pow(aBalanco, 3)) / (3 * material.E * Ia);
 
   const flechaLimite = aBalanco / CADEIRA.divisorFlechaAssento;
+  /* Sem balanco (a = 0) nao ha flecha a verificar: evita 0/0 = NaN. */
+  const utilizacaoFlechaBalanco = flechaLimite > 0
+    ? flechaAssento / flechaLimite
+    : 0;
 
   const assento = {
     a: aBalanco,
@@ -212,7 +223,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     flecha: flechaAssento,
     flechaLimite,
     utilizacao: sigmaAssento / sigmaAdm,
-    utilizacaoFlecha: flechaAssento / flechaLimite
+    utilizacaoFlecha: utilizacaoFlechaBalanco
   };
 
   // ---------- Assento entre apoios (so com 4 pernas) ----------
@@ -223,8 +234,11 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     const Mvao = (q * L * L) / 16;
     const Ivao = Math.pow(hAssento, 3) / 12;
     const sigmaVao = (6 * Mvao) / (hAssento * hAssento);
+    /* Faixa biapoiada de largura unitaria: I = h^3/12, logo 5qL^4/(384EI) =
+     * 5qL^4/(32Eh^3). O 64 anterior dava metade. A redistribuicao de placa
+     * justifica reduzir o MOMENTO (1/16), nao a flecha. */
     const flechaVao = (5 * q * Math.pow(L, 4)) /
-                      (64 * material.E * Math.pow(hAssento, 3));
+                      (32 * material.E * Math.pow(hAssento, 3));
     const flechaLimiteVao = L / CADEIRA.divisorFlechaVao;
 
     assentoVao = {
@@ -331,7 +345,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
       interna: sec.interna,
       lambda
     },
-    forcas: { P, Nmedio, dN, Nmax, Nmin, Mperna, levantou },
+    forcas: { P, Nmedio, dN, bracoBinario, Nmax, Nmin, Mperna, levantou },
     assento,
     assentoVao,
     travessas,

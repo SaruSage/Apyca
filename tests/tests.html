@@ -246,7 +246,7 @@
     const hv = 20;
     const qv = (100 * 9.81) / (bAssv * bAssv);
     const Mv = (qv * Lv * Lv) / 16;
-    const flechav = (5 * qv * Math.pow(Lv, 4)) / (64 * 9500 * Math.pow(hv, 3));
+    const flechav = (5 * qv * Math.pow(Lv, 4)) / (32 * 9500 * Math.pow(hv, 3));
 
     verificar('4 pernas tem verificacao do vao', quatro.ok && asv !== null);
     verificar('pedestal nao tem verificacao do vao', ped.ok && ped.assentoVao === null);

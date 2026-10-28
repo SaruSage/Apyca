@@ -372,7 +372,7 @@ function renderResultado(r, dims){
       linha('Seção', r.travessas.vazada
         ? 'Tubular — parede ' + n(r.travessas.parede, 2) + ' mm'
         : 'Maciça'),
-      linha('Vão entre eixos', n(r.travessas.vao, 1) + ' mm'),
+      linha('Vão livre (entre faces internas)', n(r.travessas.vao, 1) + ' mm'),
       linha('Seção (b × h)', n(r.travessas.b, 1) + ' × ' +
         n(r.travessas.h, 1) + ' mm'),
       linha('Área da seção (A)', n(r.travessas.A, 1) + ' mm²'),

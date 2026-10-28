@@ -709,7 +709,7 @@ function desenhar(){
     figura: dclSVG(r, dims),
     nota: 'Vista frontal. A laje do assento usa espessura mínima de leitura, para continuar visível na escala do desenho.',
     formula: `ΣFz = 0   →   ${nEl === 4 ? 'R₁ + R₂ + R₃ + R₄' : 'R'} = P + W\n` +
-      `N_perna = P/n ± P·e/(2L)\nNeste caso: Nmáx = ${n(r.forcas.Nmax, 0)} N   Nmín = ${n(r.forcas.Nmin, 0)} N`,
+      `N_perna = P/n ± P·e/(2·(L−t))\nNeste caso: Nmáx = ${n(r.forcas.Nmax, 0)} N   Nmín = ${n(r.forcas.Nmin, 0)} N`,
     leitura: 'A reação maior fica do lado em que a carga está aplicada. Com e = ' + n(e / 10, 1) +
       ' cm e L = ' + n(L / 10, 1) + ' cm, a diferença entre as pernas é de <strong>' +
       n(r.forcas.dN, 0) + ' N</strong>, cerca de ' + n((r.forcas.dN / r.forcas.Nmedio) * 100, 0) +
@@ -724,8 +724,8 @@ function desenhar(){
       passos: [
         ['Carga do usuário', 'P = m · g', n(r.entrada.m, 1) + ' · ' + n(G, 2), n(P, 1) + ' N'],
         ['Reação média por perna', 'Nmed = P / n', n(P, 1) + ' / ' + nEl, n(r.forcas.Nmedio, 2) + ' N'],
-        ['Parcela da excentricidade', 'dN = P · e / (2 · L)',
-          n(P, 1) + ' · ' + n(e, 0) + ' / (2 · ' + n(L, 0) + ')', n(r.forcas.dN, 2) + ' N'],
+        ['Parcela da excentricidade', 'dN = P · e / (2 · (L − t))',
+          n(P, 1) + ' · ' + n(e, 0) + ' / (2 · ' + n(r.forcas.bracoBinario, 1) + ')', n(r.forcas.dN, 2) + ' N'],
         ['Reação máxima', 'Nmax = Nmed + dN',
           n(r.forcas.Nmedio, 2) + ' + ' + n(r.forcas.dN, 2), n(r.forcas.Nmax, 2) + ' N'],
         ['Reação mínima', 'Nmin = Nmed − dN',
@@ -791,7 +791,7 @@ function desenhar(){
       : 'No pedestal, toda a carga passa por uma única coluna. A excentricidade não redistribui a força normal, mas gera momento.',
     figura: graficoBarras({ itens: itensReacao, legendaY: 'Reação (N)', alt: 'reacoes' }),
     formula: nEl === 4
-      ? 'N = P/n ± P·e/(2L) = ' + n(r.forcas.Nmedio, 0) + ' ± ' + n(r.forcas.dN, 0)
+      ? 'N = P/n ± P·e/(2·(L−t)) = ' + n(r.forcas.Nmedio, 0) + ' ± ' + n(r.forcas.dN, 0)
       : 'N = P = ' + n(P, 0) + ' N',
     leitura: 'É essa diferença que justifica verificar a perna mais carregada, não a média. Todo ' +
       'o cálculo seguinte usa <strong>N = ' + n(r.forcas.Nmax, 0) + ' N</strong>.',
@@ -801,8 +801,8 @@ function desenhar(){
         ['Nmin', n(r.forcas.Nmin, 1) + ' N']],
       passos: nEl === 4 ? [
         ['Dividir a carga entre as pernas', 'Nmed = P / 4', n(P, 1) + ' / 4', n(r.forcas.Nmedio, 2) + ' N'],
-        ['Calcular o acréscimo excêntrico', 'dN = P · e / (2L)',
-          n(P, 1) + ' · ' + n(e, 0) + ' / (2 · ' + n(L, 0) + ')', n(r.forcas.dN, 2) + ' N'],
+        ['Calcular o acréscimo excêntrico', 'dN = P · e / (2 · (L − t))',
+          n(P, 1) + ' · ' + n(e, 0) + ' / (2 · ' + n(r.forcas.bracoBinario, 1) + ')', n(r.forcas.dN, 2) + ' N'],
         ['Somar na perna carregada', 'Nmax = Nmed + dN',
           n(r.forcas.Nmedio, 2) + ' + ' + n(r.forcas.dN, 2), n(r.forcas.Nmax, 2) + ' N'],
         ['Subtrair na perna oposta', 'Nmin = Nmed − dN',
@@ -820,7 +820,7 @@ function desenhar(){
     formula: `F = M_crít / H = ${n(Mcrit, 0)} / ${n(H, 0)} = ${n(Fh, 2)} N\n` +
       `N(y) = −${n(Nperna, 0)} N        (compressão, constante)\n` +
       `V(y) = F = ${n(Fh, 2)} N\nM(y) = F·(H − y)   →   M(0) = ${n(Mcrit, 0)} N·mm`,
-    leitura: 'O peso próprio da perna não é somado ao esforço normal — ele vale ' +
+    leitura: 'O peso próprio já está incluído no esforço normal (peso total da cadeira ÷ n); a perna sozinha pesa ' +
       n(r.massa.pernas * G, 1) + ' N, cerca de ' + n((r.massa.pernas * G / P) * 100, 1) + '% de P.',
     detalhe: {
       simbolos: [['Mcrit', n(Mcrit, 0) + ' N·mm'], ['F', n(Fh, 2) + ' N'],
@@ -850,7 +850,7 @@ function desenhar(){
     detalhe: {
       simbolos: [['Nmax', n(Nperna, 1) + ' N'], ['y', '0 a ' + n(H, 0) + ' mm']],
       passos: [
-        ['Reação máxima na perna', 'Nmax = P/n + P·e/(2L)',
+        ['Reação máxima na perna', 'Nmax = P/n + P·e/(2·(L−t))',
           n(r.forcas.Nmedio, 2) + ' + ' + n(r.forcas.dN, 2), n(Nperna, 2) + ' N'],
         ['Valor em qualquer altura', 'N(y) = −Nmax', '−' + n(Nperna, 2),
           'constante de y = 0 a y = ' + n(H, 0) + ' mm']
@@ -1331,7 +1331,7 @@ function desenhar(){
     'uma força equivalente no nível do assento, com a perna engastada na base. A ligação real ' +
     '(cola, parafuso ou encaixe) transmite parte do momento direto, o que reduziria o cortante ' +
     '— a hipótese adotada está do lado conservador.<br><br>' +
-    'O peso próprio da perna não é somado ao esforço normal. Nesta configuração ele vale ' +
+    'O peso próprio já está incluído no esforço normal (peso total da cadeira ÷ n). As pernas sozinhas pesam ' +
     n(r.massa.pernas * G, 1) + ' N, cerca de ' + n((r.massa.pernas * G / P) * 100, 1) +
     '% da carga do usuário.<br><br>' +
     'No assento entre apoios, o diagrama mostra o modelo de faixa biapoiada, com pico q·L²/8. ' +

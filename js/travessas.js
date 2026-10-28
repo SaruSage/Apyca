@@ -11,13 +11,15 @@
  *            com bi = b - 2ep e hi = h - 2ep
  *
  * HIPOTESES
- *   - Apoio simples nos eixos das pernas (ligacao parafusada, sem rigidez
- *     de momento). E a leitura conservadora: da a maior flecha possivel.
- *     O quadro real e continuo nos cantos, o que reduz a flecha.
+ *   - Apoio simples nas FACES INTERNAS das pernas (ligacao sem rigidez de
+ *     momento). A viga encosta na perna e nao penetra nela, entao o apoio
+ *     esta em x = t e x = L - t. O quadro real e continuo nos cantos, o que
+ *     reduz a flecha; isso fica como folga nao contabilizada.
  *   - A carga do assento se divide igualmente entre as quatro travessas.
- *   - O vao de CALCULO e a distancia entre os eixos das pernas (L - t).
- *     O COMPRIMENTO de cada viga e o vao entre as faces internas (L - 2t),
- *     usado apenas para volume e massa.
+ *   - O vao de CALCULO e o vao livre entre as faces internas das pernas
+ *     (L - 2t), que e tambem o COMPRIMENTO de cada viga: calculo, volume e
+ *     massa usam a mesma medida. Medir o vao entre eixos (L - t) daria um
+ *     vao maior que a propria peca.
  *   - A massa do assento entra na carga: sao as travessas que o sustentam.
  *
  * GEOMETRIA
