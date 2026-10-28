@@ -15,17 +15,21 @@
       <p id="graf-sub" class="graf-sub"></p>
     </div>
     <div class="graf-acoes">
-      <button type="button" class="botao botao--secundario botao--mini" id="graf-imprimir">Imprimir</button>
-      <button type="button" class="botao botao--secundario botao--mini" id="graf-voltar">Voltar ao simulador</button>
+      <button type="button" class="botao botao--secundario botao--mini"
+              id="graf-imprimir">Imprimir</button>
+      <button type="button" class="botao botao--secundario botao--mini"
+              id="graf-voltar">Voltar ao simulador</button>
     </div>
   </header>
 
   <main id="graf-conteudo" class="graf-conteudo"></main>
 
-  <dialog id="graf-modal" class="graf-modal">
+  <dialog id="graf-modal" class="graf-modal"
+          aria-labelledby="graf-modal-titulo">
     <div class="graf-modal__barra">
       <strong id="graf-modal-titulo">Tema</strong>
-      <button type="button" class="botao botao--secundario botao--mini" id="graf-modal-fechar">Fechar</button>
+      <button type="button" class="botao botao--secundario botao--mini"
+              id="graf-modal-fechar">Fechar</button>
     </div>
     <div class="graf-modal__corpo" id="graf-modal-corpo"></div>
   </dialog>
@@ -33,19 +37,30 @@
   <div id="erro-global"></div>
 
   <script>
-  (function(){
-    var box = document.getElementById('erro-global');
-    function show(m){ box.style.display='block'; box.textContent += m + '\n'; }
-    window.addEventListener('error', function(e){
-      show('ERRO: ' + (e.message || 'falha de carregamento') +
-        (e.filename ? '\n  em ' + e.filename + ':' + e.lineno : ''));
-    }, true);
-    window.addEventListener('unhandledrejection', function(e){
-      show('PROMISE: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
-    });
-  })();
+    /* Banner de erro: mostra no alto da página a exceção que o console
+       registraria, para o erro não passar despercebido. */
+    (function(){
+      var box = document.getElementById('erro-global');
+      if (!box) return;
+
+      function show(m){
+        box.style.display = 'block';
+        box.textContent += m + '\n';
+      }
+
+      window.addEventListener('error', function(e){
+        show('ERRO: ' + (e.message || 'falha de carregamento') +
+          (e.filename ? '\n em ' + e.filename + ':' + e.lineno : ''));
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(e){
+        show('PROMISE: ' +
+          (e.reason && e.reason.message ? e.reason.message : e.reason));
+      });
+    })();
   </script>
 
   <script type="module" src="js/graficos.js"></script>
+
 </body>
 </html>

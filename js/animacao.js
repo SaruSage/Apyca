@@ -1,5 +1,5 @@
 /**
- * Animacao da cadeira.
+ * Animacao de ruina da cadeira.
  *
  * RUINA — usada quando a configuracao reprova.
  *   Cada grupo e um corpo rigido simples: gravidade, translacao e rotacao em
@@ -14,9 +14,19 @@
  *      poucos quadros e a perna fica parada em pe — era exatamente o defeito
  *      anterior.
  *
- * JOINHAS — usada quando a configuracao aprova.
- *   Nao toca na cadeira. Sao bolhas de joinha subindo pelas beiradas da tela,
- *   em DOM puro com animacao CSS.
+ *   CAMADA NEUTRALIZADA
+ *   Na pose montada, filtrarOrdenar() usa a camada antes da profundidade, para
+ *   o assento nao brigar com as pernas no ponto de contato. Durante a ruina as
+ *   pecas se separam, e essa heuristica passa a errar: uma perna que girou para
+ *   dentro e esta na FRENTE do assento continuaria sendo pintada primeiro, e o
+ *   assento a cobriria. Por isso desenhar() zera a camada antes de ordenar,
+ *   devolvendo a profundidade pura — criterio correto para corpos soltos.
+ *
+ * ESCOPO DESTE MODULO
+ *   So a ruina. A animacao de aprovacao (joinhas) vive em joinhas.js, com as
+ *   classes .camada-joinhas e .joinha-flutuante. A funcao animarJoinhas que
+ *   existia aqui era duplicata da de la, com CSS diferente, e foi removida
+ *   para nao deixar duas versoes do mesmo efeito.
  */
 
 import {
@@ -76,10 +86,21 @@ function centroDaCadeira(barras){
     if (bb.max[1] > maxY) maxY = bb.max[1];
   }
 
+  /* Sem pecas, os limites ficam em Infinity e o centro vira NaN, que se
+     propaga para a direcao de queda de todas as pecas. */
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return [0, 0];
+
   return [(minX + maxX) / 2, (minY + maxY) / 2];
 }
 
 export function animarRuina(container, barras, material, opcoes = {}){
+  /* Sem pecas nao ha o que animar: encerra na hora, para o chamador nao
+     ficar esperando um callback que nunca viria. */
+  if (!Array.isArray(barras) || barras.length === 0) {
+    if (opcoes.aoTerminar) opcoes.aoTerminar();
+    return function parar(){};
+  }
+
   const largura = opcoes.largura || 860;
   const altura = opcoes.altura || 620;
   const idFiltro = 'borrao-anim';
@@ -162,6 +183,15 @@ export function animarRuina(container, barras, material, opcoes = {}){
   function desenhar(blocos){
     const todas = [];
     for (const b of blocos) for (const f of b.faces) todas.push(f);
+
+    /*
+     * Camada neutralizada. Os objetos aqui vem de transformar(), que devolve
+     * copias — mexer neles nao afeta st.g.faces, que guarda a pose original.
+     *
+     * Sem este laco, uma perna que girou para dentro e esta na frente do
+     * assento seria desenhada antes dele e ficaria escondida.
+     */
+    for (const f of todas) f.camada = 0;
 
     const visiveis = projetarFaces(
       filtrarOrdenar(todas), vista.escala, vista.origem, 'animado'
@@ -256,56 +286,4 @@ export function animarRuina(container, barras, material, opcoes = {}){
     ativo = false;
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
   };
-}
-
-/**
- * Bolhas de joinha subindo pelas beiradas da tela.
- *
- * DOM puro com animacao CSS: nao mexe na cadeira, nao mexe no SVG, nao usa
- * requestAnimationFrame. A camada e removida sozinha ao terminar.
- */
-export function animarJoinhas(opcoes = {}){
-  if (typeof document === 'undefined') return null;
-
-  if (window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    return null;
-  }
-
-  const quantidade = opcoes.quantidade || 24;
-  const duracao = opcoes.duracao || 2600;
-
-  const camada = document.createElement('div');
-  camada.className = 'joinhas';
-  camada.setAttribute('aria-hidden', 'true');
-
-  /* Faixas: beirada esquerda, beirada direita e beirada de baixo. */
-  const faixas = [
-    { de: 0.00, ate: 0.13 },
-    { de: 0.87, ate: 1.00 },
-    { de: 0.20, ate: 0.80 }
-  ];
-
-  for (let i = 0; i < quantidade; i++) {
-    const bolha = document.createElement('span');
-    bolha.className = 'joinha';
-    bolha.textContent = '👍';
-
-    const faixa = faixas[i % faixas.length];
-    const x = (faixa.de + Math.random() * (faixa.ate - faixa.de)) * 100;
-
-    bolha.style.left = x.toFixed(2) + 'vw';
-    bolha.style.fontSize = (22 + Math.random() * 26).toFixed(0) + 'px';
-    bolha.style.setProperty('--dur', (duracao * (0.7 + Math.random() * 0.6)).toFixed(0) + 'ms');
-    bolha.style.setProperty('--atraso', (Math.random() * 900).toFixed(0) + 'ms');
-    bolha.style.setProperty('--deriva', ((Math.random() - 0.5) * 90).toFixed(0) + 'px');
-    bolha.style.setProperty('--giro', ((Math.random() - 0.5) * 60).toFixed(0) + 'deg');
-
-    camada.appendChild(bolha);
-  }
-
-  document.body.appendChild(camada);
-  window.setTimeout(() => camada.remove(), duracao + 1500);
-
-  return camada;
 }

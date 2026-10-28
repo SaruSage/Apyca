@@ -9,9 +9,22 @@
  * Se ela nao aparecer, o servidor esta entregando uma copia antiga (cache) e
  * nenhuma alteracao feita aqui tera efeito.
  */
-export const VERSAO = '2026-10-28-centro-carga-biaxial';
+export const VERSAO = '2026-10-28-revisao-constantes';
 
 export const G = 9.81;
+
+/*
+ * LADO DO QUADRO DE PERNAS — fonte unica.
+ *
+ * O valor existia duplicado em HIPOTESES.L e CADEIRA.L. Funcionava enquanto
+ * os dois fossem iguais, mas a divergencia seria silenciosa: os testes leem
+ * HIPOTESES.L, o chairModel le CADEIRA.L, e o travessas recebe L ja derivado
+ * de CADEIRA.L. Mudar um lado so faria o vao de calculo sair de uma medida e
+ * a verificacao de outra.
+ *
+ * Agora ha uma constante e as duas estruturas apontam para ela.
+ */
+const L_QUADRO = 400;
 
 /*
  * HIPOTESES
@@ -24,18 +37,20 @@ export const G = 9.81;
  */
 export const HIPOTESES = {
   nPernas: 4,
-  L: 400,
+  L: L_QUADRO,
   K: 1.0,
   KPedestal: 2.0
 };
 
 export const CADEIRA = {
-  L: 400,
+  L: L_QUADRO,
 
   /*
    * Folga de referencia entre a face externa da perna e a borda do assento,
    * em mm. Continua em uso pelo memorial, que a utiliza como fallback quando
    * recebe um resultado de solver antigo sem as dimensoes do assento.
+   *
+   * Coerente com o padrao: L 400 + 2 x 20 = 440, que e a largura de ASSENTO.
    */
   folga: 20,
 
@@ -47,7 +62,20 @@ export const CADEIRA = {
    */
   fracaoEspessuraAssento: 0.5,
 
+  /*
+   * Espessura do painel do encosto como fracao da dimensao da perna.
+   *
+   * Com 0,5 e perna de 40 mm, o painel sai com 20 mm. E a base de calculo do
+   * encosto em PAINEL (a profundidade da caixa) e, no encosto em RIPAS, a
+   * espessura do montante de referencia.
+   *
+   * ATENCAO — as ripas nao usam esta fracao como base da espessura. Desde a
+   * revisao do chairModel, pRipa = fracao * espessuraPerna, e a espessura do
+   * painel deixou de entrar nessa conta. Com fracao 0,2 e perna de 40 mm, a
+   * ripa sai com 8 mm.
+   */
   fracaoEspessuraEncosto: 0.5,
+
   alturaAbertura: 90,
   alturaEncosto: 320,
   espessuraMaxima: 150,
@@ -69,6 +97,11 @@ export const CADEIRA = {
    * Valor absoluto, nao fracao de t: e assim que o perfil e comprado.
    * A parede precisa ficar entre 0 e t/2 — o solver valida e reprova fora
    * dessa faixa em vez de corrigir em silencio.
+   *
+   * NAO LIDA POR NINGUEM hoje. O app.js fixa a parede inicial em PADRAO
+   * (paredeMm: 3) e o geometry.js protege com Math.max(paredeMm, 0.1). As
+   * duas constantes ficam como referencia do valor pretendido: se o app
+   * passar a importa-las, o padrao deixa de ser numero solto no app.
    */
   paredePadrao: 3.0,
   paredeMinima: 0.5
@@ -87,6 +120,11 @@ export const ASSENTO = {
   largura: 440,
   profundidade: 440,
   espessura: 20,
+
+  /*
+   * Espessura minima aceitavel da placa, em mm. Corresponde ao min do campo
+   * no formulario (0,5 cm). Quem aplica o limite e o solver.
+   */
   espessuraMinima: 5,
 
   /*
@@ -119,7 +157,7 @@ export const ASSENTO = {
  * em tempo de execucao por definirTravessaSecao() (ver travessas.js).
  * secaoTravessa() aplica os limites: a largura nunca passa da dimensao
  * externa da perna, porque uma viga mais larga que a perna nao teria onde
- * encostar.
+ * encostar. A altura nao passa de metade da altura da perna.
  *
  * A travessa ocupa apenas o vao entre as FACES INTERNAS das pernas, e sua
  * face externa e coplanar com a face externa da perna. O topo fica na mesma
@@ -128,11 +166,29 @@ export const ASSENTO = {
 export const TRAVESSAS = {
   ativa: true,
   nTravessas: 4,
+
+  /*
+   * Valores iniciais, tambem correspondentes ao padrao do formulario (4 e 6
+   * cm). Com perna de 40 mm, a largura pedida iguala o limite superior de
+   * secaoTravessa: a viga encosta na face da perna sem passar dela.
+   */
   largura: 40,
   altura: 60,
+
   vazada: false,
   parede: 2,
+
+  /*
+   * NAO LIDAS por secaoTravessa(). Ela aplica Math.max(valor, 1) e os tetos
+   * de geometria (largura da perna, metade da altura da perna). Os limites
+   * efetivos hoje vem do min/max dos campos no formulario, que por
+   * coincidencia sao 10 e 20 mm.
+   *
+   * Ficam registradas como a faixa pretendida. Quem for centralizar a
+   * validacao deve ler daqui, e nao repetir o numero no HTML.
+   */
   larguraMinima: 10,
   alturaMinima: 20,
+
   divisorFlecha: 300
 };

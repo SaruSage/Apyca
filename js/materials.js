@@ -72,6 +72,18 @@ export const MATERIAIS = {
     render: {
       pernas: '#7f858c',
       assento: CORES.cinzaEscuro,
+      /*
+       * ENCOSTO EM RIPAS — `fracao` está inerte hoje.
+       *
+       * A espessura da ripa sai de fracao * (fracaoEspessuraEncosto * t),
+       * limitada pelo piso RIPA_MIN = 3 mm em chairModel.js. Com t = 40 mm
+       * e fracao = 0,2, a conta dá menos de 1 mm e o piso assume: a ripa sai
+       * com 3 mm quaisquer que seja o valor aqui.
+       *
+       * O número só passa a valer acima de ~0,75. Se quiser ripas
+       * proporcionais de verdade, o ajuste é no cálculo de pRipa em
+       * chairModel.js, não neste arquivo.
+       */
       encosto: { tipo: 'ripas', cor: '#6f757c', n: 3, fracao: 0.2 },
       veios: false
     }

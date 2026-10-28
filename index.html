@@ -108,10 +108,10 @@
           </div>
 
           <!-- Posicao do centro de carga no plano da placa, em percentual de
-               meia dimensao. 0 = centro; +100% = borda direita/tras;
-               -100% = borda esquerda/frente. Percentual, e nao mm, para que
-               100% signifique sempre "na borda", qualquer que seja o
-               tamanho do assento. -->
+               meia dimensao (5% em 5% no controle deslizante) ou em distancia
+               especifica em centimetros no campo numerico logo abaixo.
+               Eixo X: - esquerda | 0 centro | + direita
+               Eixo Y: - fundo (encosto) | 0 centro | + frente -->
           <div class="campo">
             <label for="excent-x">Centro de carga — eixo X</label>
             <div class="deslizante">
@@ -120,8 +120,17 @@
                      aria-describedby="dica-excent-x">
               <output id="saida-excent-x" for="excent-x">centro</output>
             </div>
+            <div class="excent-cm">
+              <label for="excent-x-cm" class="excent-cm__rotulo">Distância específica em X (cm)</label>
+              <div class="excent-cm__linha">
+                <input id="excent-x-cm" name="excent-x-cm" type="number"
+                       min="-22" max="22" step="0.1" value="0"
+                       aria-describedby="dica-excent-x">
+                <span class="excent-cm__direcao" id="direcao-excent-x-cm">0 cm (centro)</span>
+              </div>
+            </div>
             <small class="campo__dica" id="dica-excent-x">
-              −100% borda esquerda · 0 centro · +100% borda direita
+              − esquerda · 0 centro · + direita (limite: ±22,0 cm)
             </small>
           </div>
 
@@ -133,8 +142,17 @@
                      aria-describedby="dica-excent-y">
               <output id="saida-excent-y" for="excent-y">centro</output>
             </div>
+            <div class="excent-cm">
+              <label for="excent-y-cm" class="excent-cm__rotulo">Distância específica em Y (cm)</label>
+              <div class="excent-cm__linha">
+                <input id="excent-y-cm" name="excent-y-cm" type="number"
+                       min="-22" max="22" step="0.1" value="0"
+                       aria-describedby="dica-excent-y">
+                <span class="excent-cm__direcao" id="direcao-excent-y-cm">0 cm (centro)</span>
+              </div>
+            </div>
             <small class="campo__dica" id="dica-excent-y">
-              −100% borda da frente · 0 centro · +100% borda de trás
+              − fundo (encosto) · 0 centro · + frente (limite: ±22,0 cm)
             </small>
           </div>
         </details>

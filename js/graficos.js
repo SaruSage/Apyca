@@ -4,6 +4,17 @@
  * UNIDADES: t, H e assento chegam em CENTIMETROS; o solver trabalha em
  * MILIMETROS. unid=mm na URL desliga a conversao.
  *
+ * ORIENTACAO DOS EIXOS — mesma convencao do chairModel.js
+ *
+ *   +X   direita da cadeira
+ *   +Y   FRENTE — o lado para onde a pessoa sentada olha
+ *   -Y   fundo  — o lado do encosto, onde y = 0
+ *
+ * O encosto e construido em y = 0. Logo a perna com sinalY NEGATIVO e uma
+ * perna do FUNDO, e a com sinalY POSITIVO e da FRENTE. Todo rotulo desta
+ * pagina segue essa convencao. A versao anterior tinha os rotulos invertidos
+ * e mostrava a reacao das pernas do fundo como se fossem as da frente.
+ *
  * APOIO DO ASSENTO — configuracao coplanar
  * O assento apoia no QUADRO: os quatro topos de perna nos cantos, mais as
  * quatro travessas no vao entre elas. Pernas e travessas tem o topo na mesma
@@ -22,6 +33,7 @@
  * de V, M e linha elastica aparecem como VERIFICACAO DE SENSIBILIDADE. No
  * pedestal o momento e real.
  */
+
 import { HIPOTESES, CADEIRA, G } from './constantes.js';
 import { calcular } from './solver.js';
 import { construirBarras, dimensoesExternas, definirAssento,
@@ -43,6 +55,30 @@ const n = (v, c = 1) => Number.isFinite(v)
   : '—';
 
 const px = v => (Number.isFinite(v) ? v.toFixed(1) : '0');
+
+function rotuloExcentDirecao(pct, eixo){
+  if (!Number.isFinite(pct) || Math.abs(pct) < 0.05) return 'centro';
+  const abs = Math.abs(pct);
+  const numTxt = Math.abs(abs - Math.round(abs)) < 0.05
+    ? String(Math.round(abs))
+    : abs.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (eixo === 'y') {
+    return numTxt + '% para ' + (pct > 0 ? 'a frente' : 'o fundo');
+  }
+  return numTxt + '% para a ' + (pct > 0 ? 'direita' : 'esquerda');
+}
+
+function rotuloCmDirecao(cm, eixo){
+  if (!Number.isFinite(cm) || Math.abs(cm) < 0.005) return '0 cm (centro)';
+  const abs = Math.abs(cm).toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2
+  });
+  if (eixo === 'y') {
+    return abs + ' cm para ' + (cm > 0 ? 'a frente' : 'o fundo');
+  }
+  return abs + ' cm para a ' + (cm > 0 ? 'direita' : 'esquerda');
+}
 
 function etiq(v){
   const a = Math.abs(v);
@@ -111,6 +147,7 @@ function graficoLinha(op){
     h += `<line x1="${px(qx)}" y1="${y0}" x2="${px(qx)}" y2="${y1}" stroke="${C.grade}"/>`;
     h += `<text x="${px(qx)}" y="${y1 + 19}" font-size="${FONTE}" text-anchor="middle" fill="${C.texto}" font-family="system-ui,sans-serif">${etiq(val)}</text>`;
   }
+
   if (ymin < 0 && ymax > 0) h += ln(x0, sy(0), x1, sy(0), C.eixo, null, 1.3);
   h += ln(x0, y0, x0, y1, C.eixo, null, 1.5);
   h += ln(x0, y1, x1, y1, C.eixo, null, 1.5);
@@ -130,6 +167,7 @@ function graficoLinha(op){
       pts.push(px(sx(x)) + ',' + px(sy(y)));
     }
     if (pts.length < 2) continue;
+
     if (s.area) {
       const base = sy(Math.max(ymin, Math.min(0, ymax)));
       h += `<polygon points="${pts.join(' ')} ${px(sx(xmax))},${px(base)} ${px(sx(xmin))},${px(base)}" fill="${s.cor || C.azul}" fill-opacity="0.14"/>`;
@@ -163,7 +201,6 @@ function graficoBarras(op){
   for (const it of itens) hi = Math.max(hi, it.valor);
   for (const r of refs) hi = Math.max(hi, r.y);
   if (hi <= 0) hi = 1;
-
   const ymax = op.ymax !== undefined ? op.ymax : hi * 1.2;
   const sy = v => y1 - (v / ymax) * (y1 - y0);
 
@@ -206,7 +243,6 @@ function graficoBarrasH(op){
   const larg = LARG + 60, linha = 30, topo = 30;
   const alt = topo + itens.length * linha + 14;
   const rotW = 178, x0 = rotW, x1 = larg - 60;
-
   const hi = op.ymax !== undefined ? op.ymax
     : Math.max(105, ...itens.map(i => i.valor)) * 1.12;
   const sx = v => x0 + (v / hi) * (x1 - x0);
@@ -244,6 +280,12 @@ function graficoBarrasH(op){
  * A carga se desloca no eixo X, que e o plano do papel. O deslocamento em Y
  * (para dentro/fora da vista) nao aparece aqui: ele diferencia as pernas da
  * frente e as de tras, e quem mostra isso e o cartao 2 e o cartao 3.
+ *
+ * QUAIS PERNAS APARECEM — esta vista e frontal, logo mostra as pernas da
+ * FRENTE, que sao as de sinalY = +1: perna0 (esquerda) e perna1 (direita).
+ * As pernas2 e 3 ficam em y = 0, atras do encosto, e nao sao visiveis. Usar
+ * os indices 2 e 3 aqui desenhava a reacao das pernas do fundo com rotulo de
+ * frente — o desenho mostrava o numero errado no lugar errado.
  */
 function dclSVG(r, dims){
   const L = HIPOTESES.L, e = r.entrada.eX;
@@ -252,15 +294,11 @@ function dclSVG(r, dims){
   const H = r.entrada.H;
   const temEncosto = r.entrada.comEncosto;
   const redonda = r.entrada.forma === 'redonda';
-
   const tAssMm = r.assento.h;
-
   const zAssTopo = H + tAssMm;
   const zTotal = zAssTopo + (temEncosto ? CADEIRA.alturaEncosto : 0);
   const zAbertura = zAssTopo + CADEIRA.alturaAbertura;
-
   const larg = 620, alt = 560, chao = 440, cx = larg / 2;
-
   const largAss = r.assento.b;
 
   /*
@@ -270,21 +308,18 @@ function dclSVG(r, dims){
    */
   const largDesenho = Math.max(largAss, L) * 1.15;
   const s = Math.min(300 / zTotal, 250 / largDesenho);
-
   const yDe = z => chao - z * s;
   const yPernaTopo = yDe(H);
 
   /* Espessura de leitura: a laje real tem 20 mm, que na escala daria 7 px. */
   const hAssPx = Math.max(8, tAssMm * s);
   const yAssTopo = yPernaTopo - hAssPx;
-
   const yEncTopo = yDe(zTotal);
   const yEncBase = yDe(Math.min(zAbertura, zTotal));
 
   const meiaPerna = (L / 2) * s;
   const xPEsq = cx - meiaPerna, xPDir = cx + meiaPerna;
   const tw = Math.max(5, t * s);
-
   const meiaAss = (largAss / 2) * s;
   const xAssEsq = cx - meiaAss, xAssDir = cx + meiaAss;
 
@@ -315,14 +350,12 @@ function dclSVG(r, dims){
     const xPostEsq = xAssEsq;
     const xPostDir = xAssDir - tw;
     const altPoste = yAssTopo - yEncTopo;
-
     g += `<rect x="${px(xPostEsq)}" y="${px(yEncTopo)}" width="${px(tw)}" ` +
       `height="${px(altPoste)}" fill="${C.azul}" fill-opacity="0.22" ` +
       `stroke="${C.azul}" stroke-opacity="0.6" stroke-width="1"/>`;
     g += `<rect x="${px(xPostDir)}" y="${px(yEncTopo)}" width="${px(tw)}" ` +
       `height="${px(altPoste)}" fill="${C.azul}" fill-opacity="0.22" ` +
       `stroke="${C.azul}" stroke-opacity="0.6" stroke-width="1"/>`;
-
     if (yEncBase < yAssTopo) {
       g += `<rect x="${px(xPostEsq + tw)}" y="${px(yEncTopo)}" ` +
         `width="${px(xPostDir - xPostEsq - tw)}" ` +
@@ -358,12 +391,10 @@ function dclSVG(r, dims){
     const hTv = Math.max(4, r.travessas.h * s);
     const xTvEsq = xPEsq + tw;
     const xTvDir = xPDir - tw;
-
     g += `<rect x="${px(xTvEsq)}" y="${px(yPernaTopo)}" ` +
       `width="${px(Math.max(0, xTvDir - xTvEsq))}" height="${px(hTv)}" ` +
       `fill="${C.roxo}" fill-opacity="0.34" stroke="${C.roxo}" ` +
       `stroke-opacity="0.85" stroke-width="1.1"/>`;
-
     g += halo(xTvDir - 6, yPernaTopo + hTv + 12, 'travessa',
       C.roxo, 9.5, 'end', 0, 500);
   }
@@ -394,46 +425,52 @@ function dclSVG(r, dims){
     g += `<polygon points="${px(cx)},${px(yPonta)} ${px(cx - 4.5)},${px(yPonta - 11)} ` +
       `${px(cx + 4.5)},${px(yPonta - 11)}" fill="${C.ambar}"/>`;
 
-    g += ln(xP, yCaudaP, xP, yPonta - 11, C.vermelho, null, 2.4);
-    g += `<polygon points="${px(xP)},${px(yPonta)} ${px(xP - 5)},${px(yPonta - 12)} ` +
-      `${px(xP + 5)},${px(yPonta - 12)}" fill="${C.vermelho}"/>`;
+    /* Flecha semitransparente em cor roxa representando o vetor de forca P */
+    g += `<polygon points="${px(xP - 3.2)},${px(yCaudaP)} ${px(xP + 3.2)},${px(yCaudaP)} ` +
+      `${px(xP + 3.2)},${px(yPonta - 12)} ${px(xP + 7.5)},${px(yPonta - 12)} ` +
+      `${px(xP)},${px(yPonta)} ${px(xP - 7.5)},${px(yPonta - 12)} ` +
+      `${px(xP - 3.2)},${px(yPonta - 12)}" fill="#9333ea" fill-opacity="0.58" ` +
+      `stroke="#e9d5ff" stroke-width="1.2" stroke-opacity="0.88"/>`;
 
     g += ln(cx - 11, yCaudaW + 4, cx - 74, yCaudaW + 4, C.ambar, '2 3');
     g += halo(cx - 78, yCaudaW + 8, 'W = ' + n(Wc, 1) + ' N', C.ambar, 11, 'end');
 
-    g += ln(xP + 11, yCaudaP + 4, cx + 74, yCaudaP + 4, C.vermelho, '2 3');
-    g += halo(cx + 78, yCaudaP + 8, 'P = ' + n(P, 0) + ' N', C.vermelho, 11, 'start');
+    g += ln(xP + 11, yCaudaP + 4, cx + 74, yCaudaP + 4, C.roxo, '2 3');
+    g += halo(cx + 78, yCaudaP + 8, 'P = ' + n(P, 0) + ' N', C.roxo, 11, 'start');
 
     /* Cota da excentricidade em X, so quando existe deslocamento no papel */
     if (Math.abs(e) > 0.5) {
       const yE = yAssTopo - 24;
-      g += ln(cx, yE, xP, yE, C.vermelho);
-      g += ln(cx, yE - 5, cx, yE + 5, C.vermelho);
-      g += ln(xP, yE - 5, xP, yE + 5, C.vermelho);
-      g += halo(cx + 8, yE - 7, 'eX = ' + n(e / 10, 1) + ' cm',
-        C.vermelho, 10.5, 'start');
+      g += ln(cx, yE, xP, yE, C.roxo);
+      g += ln(cx, yE - 5, cx, yE + 5, C.roxo);
+      g += ln(xP, yE - 5, xP, yE + 5, C.roxo);
+      g += halo(cx + 8, yE - 7, 'eX = ' + rotuloCmDirecao(e / 10, 'x'),
+        C.roxo, 10.5, 'start');
     } else {
       const yE = yAssTopo - 24;
       g += halo(cx, yE - 6,
-        'eX = 0 — deslocamento só em Y', C.vermelho, 10, 'middle');
+        'eX = 0 cm — deslocamento em Y (' + rotuloCmDirecao(r.entrada.eY / 10, 'y') + ')',
+        C.roxo, 10, 'middle');
     }
   } else {
     const lenR = compSeta(Ptotal);
     const yCaudaR = yPonta - 11 - lenR;
 
-    g += ln(cx, yCaudaR, cx, yPonta - 11, C.vermelho, null, 2.4);
-    g += `<polygon points="${px(cx)},${px(yPonta)} ${px(cx - 5)},${px(yPonta - 12)} ` +
-      `${px(cx + 5)},${px(yPonta - 12)}" fill="${C.vermelho}"/>`;
-
-    g += ln(cx + 11, yCaudaR + 4, cx + 78, yCaudaR + 4, C.vermelho, '2 3');
+    g += `<polygon points="${px(cx - 3.2)},${px(yCaudaR)} ${px(cx + 3.2)},${px(yCaudaR)} ` +
+      `${px(cx + 3.2)},${px(yPonta - 12)} ${px(cx + 7.5)},${px(yPonta - 12)} ` +
+      `${px(cx)},${px(yPonta)} ${px(cx - 7.5)},${px(yPonta - 12)} ` +
+      `${px(cx - 3.2)},${px(yPonta - 12)}" fill="#9333ea" fill-opacity="0.58" ` +
+      `stroke="#e9d5ff" stroke-width="1.2" stroke-opacity="0.88"/>`;
+    g += ln(cx + 11, yCaudaR + 4, cx + 78, yCaudaR + 4, C.roxo, '2 3');
     g += halo(cx + 82, yCaudaR + 8, 'P + W = ' + n(Ptotal, 0) + ' N',
-      C.vermelho, 11, 'start');
+      C.roxo, 11, 'start');
   }
 
   /*
-   * Reacoes no piso. A vista frontal mostra 2 das 4 pernas: as da frente.
-   * Com carga biaxial, frente-esquerda e frente-direita NAO sao iguais —
-   * cada uma vem da reacao calculada para aquela perna.
+   * Reacoes no piso. A vista frontal mostra 2 das 4 pernas: as da FRENTE,
+   * que sao perna0 e perna1 (sinalY = +1). Com carga biaxial, frente-esquerda
+   * e frente-direita NAO sao iguais — cada uma vem da reacao calculada para
+   * aquela perna, nao da media.
    */
   const compReacao = v => 20 + 42 * (v / Math.max(r.forcas.Nmax, 1));
 
@@ -447,8 +484,8 @@ function dclSVG(r, dims){
   }
 
   if (nEl === 4 && r.forcas.reacoesPernas) {
-    const esq = r.forcas.reacoesPernas[2];
-    const dir = r.forcas.reacoesPernas[3];
+    const esq = r.forcas.reacoesPernas[0];
+    const dir = r.forcas.reacoesPernas[1];
     g += reacao(xPEsq + tw / 2, esq.valor,
       'frente-esq. ' + n(esq.valor, 0) + ' N', C.roxo);
     g += reacao(xPDir - tw / 2, dir.valor,
@@ -501,22 +538,20 @@ function dclSVG(r, dims){
  * largura nunca passa de t, a abertura interna e Lv = L - 2b.
  *
  * A carga e posicionada nos DOIS eixos: e o cartao que mostra onde a pessoa
- * senta no plano da placa.
+ * senta no plano da placa. Em Y, +1 e a borda da FRENTE e -1 a do FUNDO,
+ * junto ao encosto.
  */
 function assentoSVG(r){
   const nEl = r.entrada.numPernas;
   const L = HIPOTESES.L;
   const P = r.forcas.P;
-
   const eX = r.entrada.eX, eY = r.entrada.eY;
   const centrada = Math.abs(r.entrada.fracX) < 0.005 &&
                    Math.abs(r.entrada.fracY) < 0.005;
-
   const aL = r.assento.b;
   const aP = Number.isFinite(r.assento.p) ? r.assento.p : r.assento.b;
   const fX = Number.isFinite(r.assento.folgaX) ? r.assento.folgaX : (aL - L) / 2;
   const fY = Number.isFinite(r.assento.folgaY) ? r.assento.folgaY : (aP - L) / 2;
-
   const tPerna = Math.min(r.entrada.t, CADEIRA.espessuraMaxima);
   const bTV = (r.assentoVao && Number.isFinite(r.assentoVao.bTravessa))
     ? r.assentoVao.bTravessa
@@ -528,7 +563,6 @@ function assentoSVG(r){
   const w = aL * s, hh = aP * s;
   const x0 = (larg - w) / 2;
   const y0 = 74;
-
   const X = mm => x0 + mm * s;
   const Y = mm => y0 + mm * s;
 
@@ -579,34 +613,39 @@ function assentoSVG(r){
       `fill="${C.azul}" fill-opacity="0.45" stroke="${C.azul}" stroke-width="1.6"/>`;
   }
 
+  /* Indicadores de orientacao da placa (fundo = y=0 no topo, frente = +Y embaixo) */
+  g += halo(x0 + w / 2, y0 - 12, 'FUNDO (encosto, −Y)', C.texto, 9.5, 'middle', 0, 500);
+  g += halo(x0 + w / 2, y0 + hh + 13, 'FRENTE (+Y)', C.texto, 9.5, 'middle', 0, 500);
+
   /* Eixos de referencia que passam pelo centro geometrico */
   const xC = X(aL / 2), yC = Y(aP / 2);
   g += ln(x0 - 6, yC, x0 + w + 6, yC, C.texto, '2 4', 0.8);
   g += ln(xC, y0 - 6, xC, y0 + hh + 6, C.texto, '2 4', 0.8);
 
-  /* Carga P: no centro ou deslocada nos dois eixos */
+  /* Carga P: vetor e ponto de aplicacao em roxo semitransparente */
   const xP = X(aL / 2 + eX);
   const yP = Y(aP / 2 + eY);
-
-  g += `<circle cx="${px(xP)}" cy="${px(yP)}" r="6.4" fill="${C.vermelho}" ` +
-    `stroke="${C.fundo}" stroke-width="1.6"/>`;
-  g += halo(xP + 12, yP - 8, 'P = ' + n(P, 0) + ' N', C.vermelho, 11, 'start');
-
   if (!centrada) {
-    g += ln(xC, yP, xP, yP, C.vermelho, '4 3');
-    g += ln(xP, yC, xP, yP, C.vermelho, '4 3');
-
+    g += ln(xC, yP, xP, yP, C.roxo, '4 3', 1.4);
+    g += ln(xP, yC, xP, yP, C.roxo, '4 3', 1.4);
     if (Math.abs(eX) > 0.5) {
-      g += halo((xC + xP) / 2, yP - 6,
-        'eX = ' + n(eX, 1) + ' mm', C.vermelho, 9.5);
+      g += halo((xC + xP) / 2, yP - 8,
+        'eX = ' + n(eX / 10, 1) + ' cm', C.roxo, 9.5);
     }
     if (Math.abs(eY) > 0.5) {
-      g += halo(xP + 8, (yC + yP) / 2,
-        'eY = ' + n(eY, 1) + ' mm', C.vermelho, 9.5, 'start');
+      g += halo(xP + 10, (yC + yP) / 2,
+        'eY = ' + n(eY / 10, 1) + ' cm', C.roxo, 9.5, 'start');
     }
   } else {
-    g += halo(xP + 12, yP + 20, 'centro do assento', C.vermelho, 9.5, 'start');
+    g += halo(xP + 14, yP + 20, 'centro do assento', C.roxo, 9.5, 'start');
   }
+
+  /* Alvo e flecha semitransparente roxa indicando o vetor P sobre o banco */
+  g += `<circle cx="${px(xP)}" cy="${px(yP)}" r="10.5" fill="#9333ea" fill-opacity="0.28" ` +
+    `stroke="#e9d5ff" stroke-width="1.3" stroke-opacity="0.85"/>`;
+  g += `<circle cx="${px(xP)}" cy="${px(yP)}" r="5.2" fill="#9333ea" fill-opacity="0.72" ` +
+    `stroke="${C.fundo}" stroke-width="1.4"/>`;
+  g += halo(xP + 14, yP - 8, 'P = ' + n(P, 0) + ' N', '#d8b4fe', 11, 'start');
 
   /* Cota da largura do assento */
   const yCota = y0 + hh + 26;
@@ -629,23 +668,20 @@ function assentoSVG(r){
   const yLeg = yCota + 34;
   g += caixa(x0, yLeg - 9, 11, 11, C.azul, 0.62);
   g += halo(x0 + 16, yLeg, 'topo da perna', C.texto, 10, 'start', 0, 500);
-
   if (nEl === 4) {
     g += caixa(x0 + 130, yLeg - 9, 11, 11, C.ambar, 0.42);
     g += halo(x0 + 146, yLeg, 'travessa (no vão)', C.texto, 10, 'start', 0, 500);
-
     g += caixa(x0 + 288, yLeg - 9, 11, 11, C.roxo, 0.14, '3 2');
     g += halo(x0 + 304, yLeg,
       'vão livre ' + n(vaoLivre, 0) + ' mm', C.texto, 10, 'start', 0, 500);
   }
-
   g += halo(x0 + w / 2, yLeg + 20,
     centrada
       ? 'carga no centro — quatro reações iguais'
-      : 'ponto de aplicação deslocado: X ' +
-        n(r.entrada.fracX * 100, 0) + '% · Y ' +
-        n(r.entrada.fracY * 100, 0) + '%',
-    C.verde, 10.5);
+      : 'vetor P aplicado em: X ' +
+        rotuloExcentDirecao(r.entrada.fracX * 100, 'x') + ' · Y ' +
+        rotuloExcentDirecao(r.entrada.fracY * 100, 'y'),
+    C.roxo, 10.5);
 
   return `<svg viewBox="0 0 ${larg} ${alt}" width="100%" role="img" ` +
     `aria-label="assento isolado com centro de carga deslocado">${g}</svg>`;
@@ -807,12 +843,10 @@ function card(op){
 
 /* ---------- Entrada ---------- */
 const qs = new URLSearchParams(location.search);
-
 const numQS = (k, d) => {
   const v = parseFloat(qs.get(k));
   return Number.isFinite(v) ? v : d;
 };
-
 const fator = qs.get('unid') === 'mm' ? 1 : 10;
 
 /*
@@ -886,7 +920,6 @@ function desenhar(){
   const A = r.secao.A, I = r.secao.I, W = r.secao.W, E = mat.E;
   const Wpeso = r.massa.total * G;
   const temEnc = r.entrada.comEncosto;
-
   const eX = r.entrada.eX, eY = r.entrada.eY, eRes = r.entrada.eRes;
   const fracX = r.entrada.fracX, fracY = r.entrada.fracY;
   const centrada = Math.abs(fracX) < 0.005 && Math.abs(fracY) < 0.005;
@@ -916,9 +949,9 @@ function desenhar(){
   const McritReal = r.forcas.Mperna;
   const Msens = (P * eRes) / nEl;
   const Mcrit = axialPuro ? Msens : McritReal;
-
   const Fh = Mcrit / H;
   const Nperna = r.forcas.Nmax;
+
   const Mperna = y => Fh * (H - y);
   const defPerna = y => (Fh * y * y * (3 * H - y)) / (6 * E * I);
 
@@ -964,8 +997,10 @@ function desenhar(){
         : 'topo da coluna, apoio central'],
       ['Centro de carga', centrada
         ? 'no centro do assento'
-        : 'X ' + n(fracX * 100, 0) + '% · Y ' + n(fracY * 100, 0) + '%'],
-      ['Deslocamento', n(eX, 1) + ' mm em X · ' + n(eY, 1) + ' mm em Y'],
+        : 'X: ' + rotuloExcentDirecao(fracX * 100, 'x') +
+          ' · Y: ' + rotuloExcentDirecao(fracY * 100, 'y')],
+      ['Deslocamento', rotuloCmDirecao(eX / 10, 'x') + ' (' + n(eX, 1) + ' mm) · ' +
+        rotuloCmDirecao(eY / 10, 'y') + ' (' + n(eY, 1) + ' mm)'],
       ['Massa do usuário', n(r.entrada.m, 1) + ' kg'],
       ['Massa própria', n(r.massa.total, 2) + ' kg'],
       ['Encosto', temEnc ? 'presente' : 'ausente (banco)']
@@ -973,8 +1008,10 @@ function desenhar(){
     detalhe: {
       simbolos: [['P', n(P, 1) + ' N'], ['m', n(r.entrada.m, 1) + ' kg'],
         ['g', n(G, 2) + ' m/s²'], ['W', n(Wpeso, 1) + ' N'],
-        ['eX', n(eX, 1) + ' mm'], ['eY', n(eY, 1) + ' mm'],
-        ['fracX', n(fracX * 100, 0) + '%'], ['fracY', n(fracY * 100, 0) + '%'],
+        ['eX', n(eX / 10, 2) + ' cm (' + n(eX, 1) + ' mm)'],
+        ['eY', n(eY / 10, 2) + ' cm (' + n(eY, 1) + ' mm)'],
+        ['fracX', rotuloExcentDirecao(fracX * 100, 'x')],
+        ['fracY', rotuloExcentDirecao(fracY * 100, 'y')],
         ['L', n(L, 1) + ' mm'], ['H', n(H, 1) + ' mm'], ['t', n(tPerna, 1) + ' mm'],
         ['E', n(E, 0) + ' MPa'], ['sigmaAdm', n(r.tensoes.sigmaAdm, 2) + ' MPa'],
         ['n', String(nEl)]],
@@ -1002,13 +1039,13 @@ function desenhar(){
       'só o vão entre as faces internas das pernas. O encosto está em traço leve porque aqui é ' +
       'contexto: massa, não estrutura verificada.',
     figura: dclSVG(r, dims),
-    nota: 'Vista frontal, com 2 das 4 pernas: as da frente. O deslocamento em X aparece no ' +
-      'papel; o deslocamento em Y ocorre para dentro ou para fora da vista e por isso não ' +
-      'aparece aqui — ele é o que diferencia as pernas da frente das de trás, e quem mostra ' +
-      'isso é o cartão 3. A travessa tem o topo coplanar ao topo da perna e aparece em roxo ' +
-      'logo abaixo da laje. A laje usa espessura mínima de leitura e as setas guardam a ' +
-      'proporção em raiz da força, para que a carga menor continue visível; os valores ' +
-      'impressos são exatos.',
+    nota: 'Vista frontal, com 2 das 4 pernas: as da frente, que são as que ficam do lado oposto ' +
+      'ao encosto. O deslocamento em X aparece no papel; o deslocamento em Y ocorre para dentro ' +
+      'ou para fora da vista e por isso não aparece aqui — ele é o que diferencia as pernas da ' +
+      'frente das de trás, e quem mostra isso é o cartão 3. A travessa tem o topo coplanar ao ' +
+      'topo da perna e aparece em roxo logo abaixo da laje. A laje usa espessura mínima de ' +
+      'leitura e as setas guardam a proporção em raiz da força, para que a carga menor continue ' +
+      'visível; os valores impressos são exatos.',
     formula: centrada
       ? `ΣFz = 0   →   ${nEl === 4 ? 'R₁ + R₂ + R₃ + R₄' : 'R'} = P + W\n` +
         `carga centrada: eX = eY = 0, reações iguais\n` +
@@ -1084,20 +1121,23 @@ function desenhar(){
         'de apoio, então não existe vão entre apoios: toda a beirada trabalha em balanço, e o ' +
         'braço cresce quando a carga se afasta do centro.',
     figura: assentoSVG(r),
-    nota: 'Vista superior da placa. Azul é o topo da perna; âmbar é a travessa, restrita ao vão entre as pernas; roxo é a abertura interna do quadro; vermelho é o sobrepasso em balanço e o ponto de aplicação da carga.',
+    nota: 'Vista superior da placa. Azul é o topo da perna; âmbar é a travessa, restrita ao vão entre as pernas; o tracejado roxo interno é a abertura do quadro; vermelho claro é o sobrepasso em balanço; e o alvo roxo semitransparente marca a posição de aplicação do vetor de força P. A borda superior do desenho é o fundo da cadeira (lado do encosto, −Y) e a inferior é a frente (+Y).',
     formula: nEl === 4
       ? `apoios: 4 topos (${n(tPerna, 0)} × ${n(tPerna, 0)}) + 4 travessas (comprimento ${n(L - 2 * tPerna, 0)})\n` +
-        `centro de carga: X ${n(fracX * 100, 0)}%  ·  Y ${n(fracY * 100, 0)}%\n` +
+        `centro de carga: X ${rotuloExcentDirecao(fracX * 100, 'x')}  ·  Y ${rotuloExcentDirecao(fracY * 100, 'y')}\n` +
+        `deslocamento: eX = ${n(eX / 10, 2)} cm (${n(eX, 1)} mm)  ·  eY = ${n(eY / 10, 2)} cm (${n(eY, 1)} mm)\n` +
         `balanço nominal: a = ${n(aNom, 1)} mm   →   balanço com carga = ${n(a, 1)} mm\n` +
         `vão livre: Lv = L − 2·b = ${n(L, 0)} − 2·${n(bTV, 0)} = ${n(vaoLivre, 0)} mm`
-      : `centro de carga: X ${n(fracX * 100, 0)}%  ·  Y ${n(fracY * 100, 0)}%\n` +
+      : `centro de carga: X ${rotuloExcentDirecao(fracX * 100, 'x')}  ·  Y ${rotuloExcentDirecao(fracY * 100, 'y')}\n` +
+        `deslocamento: eX = ${n(eX / 10, 2)} cm (${n(eX, 1)} mm)  ·  eY = ${n(eY / 10, 2)} cm (${n(eY, 1)} mm)\n` +
         `balanço: a = a_L/2 − t/2 + |eX| = ${n(a, 1)} mm\n` +
         `sem vão: no pedestal a placa engasta na coluna`,
     leitura: nEl === 4
       ? 'O quadro entrega a carga às pernas ao longo das quatro bordas da placa. ' +
         (centrada
           ? 'Com a carga centrada a distribuição é simétrica: metade para cada par de pernas. '
-          : 'A carga está ' + n(eX / 10, 1) + ' cm em X e ' + n(eY / 10, 1) + ' cm em Y, o que ' +
+          : 'A carga está deslocada em X (' + rotuloCmDirecao(eX / 10, 'x') + ') e em Y (' +
+            rotuloCmDirecao(eY / 10, 'y') + '), o que ' +
             'carrega mais o canto para onde ela se desloca. ') +
         'A beirada trabalha em balanço e o buraco do quadro trabalha entre apoios: duas contas ' +
         'diferentes sobre a mesma placa.'
@@ -1139,13 +1179,18 @@ function desenhar(){
   });
 
   /* 3. Reações no piso — quatro pernas separadas */
+  /*
+   * ORIENTACAO DOS EIXOS: sinalY > 0 e a FRENTE, sinalY < 0 e o FUNDO, junto
+   * ao encosto. O rotulo anterior invertia os dois e mandava o usuario olhar
+   * a perna errada ao identificar qual levanta.
+   */
   const itensReacao = nEl === 1
     ? [{ rotulo:'Pedestal', valor:P + Wpeso,
          valorTexto:n(P + Wpeso, 0) + ' N', cor:C.verde }]
     : (r.forcas.reacoesPernas || []).map(p => ({
         rotulo: 'P' + p.indice,
         sub: (p.sinalX > 0 ? 'dir.' : 'esq.') + ' · ' +
-             (p.sinalY > 0 ? 'trás' : 'frente'),
+             (p.sinalY > 0 ? 'frente' : 'fundo'),
         valor: p.valor,
         valorTexto: n(p.valor, 0) + ' N',
         cor: p.levantou ? C.vermelho
@@ -1161,7 +1206,7 @@ function desenhar(){
         : 'a perna do canto para onde a pessoa se desloca recebe bem mais carga que a do canto oposto.',
     cenario: nEl === 1
       ? 'No pedestal, toda a carga passa por uma única coluna. A excentricidade não redistribui a força normal, mas gera momento.'
-      : 'As pernas não recebem a mesma carga. A placa rígida transmite a carga por flexão biaxial, e cada perna responde ao seu quadrante: <strong>Ni = P/4 ± P·eX/(2b) ± P·eY/(2b)</strong>. A perna do canto carregado soma as duas parcelas; a do canto oposto subtrai as duas.',
+      : 'As pernas não recebem a mesma carga. A placa rígida transmite a carga por flexão biaxial, e cada perna responde ao seu quadrante: <strong>Ni = P/4 ± P·eX/(2b) ± P·eY/(2b)</strong>. A perna do canto carregado soma as duas parcelas; a do canto oposto subtrai as duas. A frente é o lado oposto ao encosto.',
     figura: graficoBarras({ itens: itensReacao, legendaY: 'Reação (N)', alt: 'reacoes' }),
     formula: nEl === 1
       ? 'N = P + W = ' + n(P + Wpeso, 0) + ' N'
@@ -1844,7 +1889,6 @@ function desenhar(){
   if (r.estabilidade) {
     util.push({ rotulo:'Tombamento', valor:r.estabilidade.utilizacao * 100 });
   }
-
   const pior = util.reduce((x, y) => (y.valor > x.valor ? y : x));
 
   out += card({
@@ -1875,13 +1919,18 @@ function desenhar(){
     'interna da travessa, Lv = L − 2·b = ' + n(L, 0) + ' − 2·' + n(bTV, 0) + ' = ' +
     n(vaoLivre, 0) + ' mm. Adotar o lado L superestimaria o momento em (L/Lv)² e a flecha em ' +
     '(L/Lv)⁴.<br><br>' +
+    'A orientação dos eixos é fixa: <strong>+Y aponta para a frente</strong>, o lado oposto ao ' +
+    'encosto, e o encosto fica em y = 0. Por isso a perna com deslocamento positivo em Y é da ' +
+    'frente, e a com deslocamento negativo é do fundo, junto ao encosto. Todo rótulo de frente e ' +
+    'fundo nesta página segue essa convenção.<br><br>' +
     (centrada
       ? 'O centro de carga está no centro do assento. A carga distribuída equivale, para o ' +
         'equilíbrio global, a uma resultante única no centroide — e com distribuição uniforme o ' +
         'centroide é o centro geométrico. Por isso as quatro reações ficam iguais e não há casal.'
-      : 'O centro de carga está em X ' + n(fracX * 100, 0) + '% e Y ' + n(fracY * 100, 0) +
-        '% da meia dimensão do assento, o que dá ' + n(eX, 1) + ' mm e ' + n(eY, 1) +
-        ' mm de deslocamento. A carga distribuída equivale a uma resultante única no centroide ' +
+      : 'O centro de carga está em X (' + rotuloExcentDirecao(fracX * 100, 'x') + ') e Y (' +
+        rotuloExcentDirecao(fracY * 100, 'y') + ') da meia dimensão do assento, o que corresponde a ' +
+        n(eX / 10, 2) + ' cm (' + n(eX, 1) + ' mm) em X e ' +
+        n(eY / 10, 2) + ' cm (' + n(eY, 1) + ' mm) em Y. A carga distribuída equivale a uma resultante única no centroide ' +
         'da distribuição; deslocada do centro, ela gera um momento em duas direções, e a placa ' +
         'rígida transmite isso às pernas como flexão biaxial.') +
     '<br><br>' +
@@ -1905,7 +1954,7 @@ function desenhar(){
     'sozinhas pesam ' + n(r.massa.pernas * G, 1) + ' N, cerca de ' +
     n((r.massa.pernas * G / P) * 100, 1) + '% da carga do usuário.<br><br>' +
     (r.assentoVao
-        ?'A carga de cada travessa segue o mesmo critério biaxial das pernas: ' +
+        ? 'A carga de cada travessa segue o mesmo critério biaxial das pernas: ' +
         'as vigas frontal e traseira respondem ao deslocamento em Y, as ' +
         'laterais ao deslocamento em X, e a borda para onde a carga se move ' +
         'recebe mais. A verificação usa a viga mais solicitada, e a soma das ' +
@@ -1953,19 +2002,24 @@ conteudo.addEventListener('click', ev => {
 document.addEventListener('click', fecharMenus);
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') fecharMenus(); });
 
-/* ---------- Modal ---------- */
+/* ---------- Modal ----------
+ * A nota da figura tambem entra aqui. Ela existia no cartao mas ficava de
+ * fora do modal — justamente onde o leitor vai ler a figura com mais atencao
+ * e precisa da ressalva ("vista frontal, 2 das 4 pernas", por exemplo).
+ */
 function abrirModal(id){
   const op = CARDS.get(id);
   if (!op) return;
 
   tituloModal.textContent = op.titulo;
-
   let h = '';
+
   if (op.simples) {
     h += `<p class="graf-simples"><strong>Em palavras simples:</strong> ${op.simples}</p>`;
   }
   if (op.cenario) h += `<p class="graf-cenario">${op.cenario}</p>`;
   if (op.figura) h += `<div class="graf-figura graf-figura--ampla">${op.figura}</div>`;
+  if (op.nota) h += `<p class="graf-nota-figura">${op.nota}</p>`;
   if (op.formula) h += `<pre class="graf-formula">${op.formula}</pre>`;
   if (op.detalhe) {
     h += blocoSimbolos(op.detalhe.simbolos);
@@ -1982,6 +2036,7 @@ modal.addEventListener('click', ev => { if (ev.target === modal) modal.close(); 
 
 /* ---------- Topo ---------- */
 document.getElementById('graf-imprimir').addEventListener('click', () => window.print());
+
 document.getElementById('graf-voltar').addEventListener('click', () => {
   const origem = window.opener;
   if (origem && !origem.closed) {

@@ -21,6 +21,11 @@
  * momento resultante tem duas componentes, e a tensao na fibra extrema
  * depende da forma da secao.
  *
+ * ORIENTACAO DOS EIXOS
+ * O encosto fica em y = 0, logo +Y aponta para a FRENTE da cadeira e -Y para
+ * tras. Quem rotular as reacoes por perna precisa respeitar isso: a perna do
+ * quadrante (+X, +Y) e a da frente a direita.
+ *
  * VERIFICACOES
  *   tensao na perna      sigma = N/A + M*c/I
  *   flambagem global     Euler com K do regime
@@ -80,8 +85,10 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     erros.push('A espessura do assento deve ser de pelo menos ' +
                ASSENTO.espessuraMinima.toLocaleString('pt-BR') + ' mm.');
   }
+
   if (nPernasFinal === 4 &&
-      (ASSENTO.largura < HIPOTESES.L || ASSENTO.profundidade < HIPOTESES.L)) {
+      (ASSENTO.largura < HIPOTESES.L ||
+       ASSENTO.profundidade < HIPOTESES.L)) {
     erros.push('O assento precisa cobrir o quadro de pernas: largura e ' +
                'profundidade de pelo menos ' +
                HIPOTESES.L.toLocaleString('pt-BR') + ' mm. Abaixo disso ele ' +
@@ -95,7 +102,6 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
    */
   const aL = ASSENTO.largura;
   const aP = ASSENTO.profundidade;
-
   const fracX = ASSENTO.excentricidadeX;
   const fracY = ASSENTO.excentricidadeY;
 
@@ -123,12 +129,10 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const formaFinal = forma === 'redonda' ? 'redonda' : 'quadrada';
   const n = nPernasFinal;
-
   const t = espessuraMm;
   const H = alturaMm;
   const m = massaKg;
   const L = HIPOTESES.L;
-
   const K = n === 1 ? HIPOTESES.KPedestal : HIPOTESES.K;
 
   const sec = propriedadesSecao(t, formaFinal, vazadaFinal, paredeMm);
@@ -138,9 +142,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
   const barras = construirBarras(t, H, material, formaFinal, n,
                                  vazadaFinal, paredeMm, comEncostoFinal);
-
   const massas = massasPorParte(barras, material);
-
   const massaTotal = massas.total;
   const pesoCadeira = massaTotal * G;
   const Ptotal = P + pesoCadeira;
@@ -153,6 +155,10 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
    * Reacao individual de cada perna, na ordem do desenho (chairModel):
    *   perna0 (-x,+y) · perna1 (+x,+y) · perna2 (-x,-y) · perna3 (+x,-y)
    * Serve aos graficos, que mostram as quatro reacoes separadas.
+   *
+   * `bruta` mantem o sinal — negativa significa perna tracionada, ou seja,
+   * levantando. `valor` e limitado a zero para exibicao. Quem soma as quatro
+   * precisa usar `bruta`, senao a soma nao fecha com a carga total.
    */
   let reacoesPernas = null;
 
@@ -196,18 +202,21 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
 
     dNx = (P * Math.abs(eX)) / (2 * bracoBinario);
     dNy = (P * Math.abs(eY)) / (2 * bracoBinario);
-
     dN = dNx + dNy;
+
     Nmax = Nmedio + dN;
     Nmin = Math.max(0, Nmedio - dN);
     Mperna = 0;
     levantou = dN > Nmedio;
 
+    const deltaNx = (P * eX) / (2 * bracoBinario);
+    const deltaNy = (P * eY) / (2 * bracoBinario);
+
     const sinalX = [-1, +1, -1, +1];
     const sinalY = [+1, +1, -1, -1];
 
     reacoesPernas = sinalX.map((sx, i) => {
-      const bruta = Nmedio + sx * dNx + sinalY[i] * dNy;
+      const bruta = Nmedio + sx * deltaNx + sinalY[i] * deltaNy;
       return {
         indice: i + 1,
         sinalX: sx,
@@ -237,6 +246,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   if (vazadaFinal) {
     const lambdaLocal = sec.interna / sec.parede;
     const lambdaLimite = 1.40 * Math.sqrt(material.E / material.sigmaLimite);
+
     flambagemLocal = {
       lambdaLocal,
       lambdaLimite,
@@ -250,8 +260,14 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   // ---------- Assento: geometria propria ----------
   const hAssento = ASSENTO.espessura;
 
-  const folgaX = (aL - CADEIRA.L) / 2;
-  const folgaY = (aP - CADEIRA.L) / 2;
+  /*
+   * Sobrepasso em cada eixo, ambos medidos contra o lado do quadro.
+   * Usa L da hipotese, e nao CADEIRA.L: as duas constantes apontam hoje para
+   * o mesmo valor, mas ler a mesma fonte que o resto do calculo elimina o
+   * risco de divergirem sem aviso.
+   */
+  const folgaX = (aL - L) / 2;
+  const folgaY = (aP - L) / 2;
 
   /*
    * Faixa de placa: a MENOR dimensao do assento, que e o caso mais
@@ -269,15 +285,16 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
    * aumenta o braco. O acrescimo e a projecao da excentricidade na direcao
    * do balanco critico.
    */
-  const aBalancoEfetivo = aBalanco + (n === 1 ? 0 : Math.max(Math.abs(eX), Math.abs(eY)));
+  const aBalancoEfetivo = aBalanco +
+    (n === 1 ? 0 : Math.max(Math.abs(eX), Math.abs(eY)));
 
   const Ma = P * aBalancoEfetivo;
   const Wa = (larguraFaixa * hAssento * hAssento) / 6;
   const Ia = (larguraFaixa * Math.pow(hAssento, 3)) / 12;
 
   const sigmaAssento = Ma / Wa;
-  const flechaAssento = (P * Math.pow(aBalancoEfetivo, 3)) / (3 * material.E * Ia);
-
+  const flechaAssento = (P * Math.pow(aBalancoEfetivo, 3)) /
+                        (3 * material.E * Ia);
   const flechaLimite = aBalancoEfetivo / CADEIRA.divisorFlechaAssento;
 
   /* Sem balanco (a = 0) nao ha flecha a verificar: evita 0/0 = NaN. */
@@ -308,7 +325,10 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   };
 
   // ---------- Assento entre apoios (so com 4 pernas) ----------
-  const bTravessa = (n === 4 && TRAVESSAS.ativa) ? secaoTravessa(t, H).b : 0;
+  const bTravessa = (n === 4 && TRAVESSAS.ativa)
+    ? secaoTravessa(t, H).b
+    : 0;
+
   const vaoAssento = Math.max(L - 2 * bTravessa, 1);
 
   let assentoVao = null;
@@ -318,7 +338,6 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     const Mvao = (q * vaoAssento * vaoAssento) / 16;
     const Ivao = Math.pow(hAssento, 3) / 12;
     const sigmaVao = (6 * Mvao) / (hAssento * hAssento);
-
     const flechaVao = (5 * q * Math.pow(vaoAssento, 4)) /
                       (32 * material.E * Math.pow(hAssento, 3));
 
@@ -353,6 +372,13 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   }
 
   // ---------- Tombamento ----------
+  /*
+   * Declarada antes do ramo. A versao anterior usava `var` dentro dos dois
+   * lados do if: funcionava por hoisting, mas dava a impressao de que a
+   * variavel so existia dentro do bloco.
+   */
+  let estabilidade = null;
+
   if (n === 1) {
     const R_est = bracoEstabilidade(CADEIRA.coneRaioBase, formaFinal);
 
@@ -363,7 +389,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
      * menor que R_est — logo o resultado e conservador.
      */
     const utTombamento = (P * eRes) / ((P + pesoCadeira) * R_est);
-    var estabilidade = {
+
+    estabilidade = {
       braco: R_est,
       raioCone: CADEIRA.coneRaioBase,
       eX, eY, eRes,
@@ -372,8 +399,6 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
       utilizacao: utTombamento,
       tombou: utTombamento > 1
     };
-  } else {
-    var estabilidade = null;
   }
 
   // ---------- Veredito ----------
@@ -428,6 +453,7 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     ok: true,
     entrada: {
       material, t, H, m,
+      L,
       forma: formaFinal,
       numPernas: n,
       vazada: vazadaFinal,

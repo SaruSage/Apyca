@@ -197,15 +197,56 @@ body{
 
 .deslizante output{
   flex:0 0 auto;
-  min-width:68px;
-  padding:3px 6px;
+  min-width:128px;
+  padding:3px 8px;
   border:1px solid var(--borda);
   border-radius:6px;
   background:#0e1218;
   color:var(--texto);
-  font-size:.73rem;
+  font-size:.71rem;
   font-variant-numeric:tabular-nums;
   text-align:center;
+  white-space:nowrap;
+}
+
+/* Entrada numerica de distancia especifica em centimetros abaixo do slider */
+.excent-cm{
+  margin-top:6px;
+  padding:6px 8px;
+  background:rgba(14,18,24,.55);
+  border:1px solid rgba(42,51,65,.75);
+  border-radius:7px;
+}
+
+.excent-cm__rotulo{
+  display:block;
+  margin-bottom:4px;
+  font-size:.71rem;
+  color:var(--fraco);
+}
+
+.excent-cm__linha{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.excent-cm__linha input[type="number"]{
+  width:82px;
+  flex:0 0 82px;
+  padding:4px 7px;
+  font-size:.82rem;
+}
+
+.excent-cm__direcao{
+  flex:1 1 auto;
+  min-width:0;
+  font-size:.71rem;
+  color:#c084fc;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
 /* ==========================================================================
@@ -1704,4 +1745,44 @@ dialog.memorial{
     break-after:avoid;
     page-break-after:avoid;
   }
+}
+
+/* A camada cobre o palco inteiro. Exige position:relative em #palco. */
+.camada-joinhas{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  pointer-events:none;
+  z-index:5;
+}
+
+.joinha-flutuante{
+  position:absolute;
+  bottom:-8%;
+  display:block;
+  color:var(--ok, #3ecf8e);
+  opacity:0;
+  will-change:transform, opacity;
+  animation-name:joinha-sobe;
+  animation-timing-function:cubic-bezier(.22,.61,.36,1);
+  animation-fill-mode:forwards;
+}
+
+.joinha-flutuante svg{
+  display:block;
+  width:100%;
+  height:100%;
+}
+
+@keyframes joinha-sobe{
+  0%   { opacity:0; transform:translate(0, 0) rotate(0deg) scale(.7) }
+  18%  { opacity:1 }
+  70%  { opacity:1 }
+  100% { opacity:0;
+         transform:translate(var(--deriva, 0), -72vh)
+                   rotate(var(--giro, 0deg)) scale(1) }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .camada-joinhas{display:none}
 }

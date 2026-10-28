@@ -10,16 +10,27 @@
  *   vazada : A = b*h - bi*hi            I = (b*h^3 - bi*hi^3)/12
  *            com bi = b - 2ep e hi = h - 2ep
  *
+ * ORIENTACAO DOS EIXOS — mesma convencao do chairModel.js
+ *
+ *   +Y   FRENTE da cadeira (o lado para onde a pessoa olha)
+ *   -Y   FUNDO, junto ao encosto, onde y = 0
+ *
+ * O encosto e construido em y = 0. Logo a viga em y = 0 e a TRASEIRA, do
+ * lado do encosto, e a viga em y = L e a FRONTAL. A versao anterior deste
+ * arquivo tinha os dois nomes trocados: chamava de "frontal" a viga do
+ * fundo. O calculo sempre esteve certo — so o rotulo enganava quem lia o
+ * painel ou o memorial.
+ *
  * DISTRIBUICAO DA CARGA — FLEXAO BIAXIAL
  * Cada viga vence o vao entre duas pernas, e recebe do assento a carga da
  * sua borda. Com a carga centrada, as quatro recebem o mesmo. Deslocada, a
  * placa carrega mais a borda para onde a pessoa se move, pelo mesmo
  * criterio biaxial que o solver aplica as pernas:
  *
- *   viga frontal  (borda y = 0)   Nbase - dNy
- *   viga traseira (borda y = L)   Nbase + dNy
- *   viga esquerda (borda x = 0)   Nbase - dNx
- *   viga direita  (borda x = L)   Nbase + dNx
+ *   viga traseira (borda y = 0, junto ao encosto)   Nbase - dNy
+ *   viga frontal  (borda y = L, lado da frente)     Nbase + dNy
+ *   viga esquerda (borda x = 0)                     Nbase - dNx
+ *   viga direita  (borda x = L)                     Nbase + dNx
  *
  * com dNx = P*|eX|/(2*(L-t)) e dNy = P*|eY|/(2*(L-t)), o mesmo braco do
  * casal entre as pernas. A soma das quatro cargas fecha exatamente com o
@@ -123,8 +134,8 @@ export function secaoTravessa(t, H){
  * POSICIONAMENTO — a face externa de cada viga fica no MESMO plano da face
  * externa da perna:
  *
- *   frontal  ocupa y de 0 a b        (face externa em y = 0)
- *   traseira ocupa y de L-b a L      (face externa em y = L)
+ *   traseira ocupa y de 0 a b        (face externa em y = 0, junto ao encosto)
+ *   frontal  ocupa y de L-b a L      (face externa em y = L, lado da frente)
  *   esquerda ocupa x de 0 a b        (face externa em x = 0)
  *   direita  ocupa x de L-b a L      (face externa em x = L)
  *
@@ -157,9 +168,9 @@ export function geometriaTravessas(L, t, H){
     A: sec.A,
     I: sec.I,
     pecas: ok ? [
-      /* Frontal: face externa em y = 0. */
+      /* Traseira: face externa em y = 0, junto ao encosto. */
       { x: t,      y: 0,       dx: vao, dy: b, dz: h },
-      /* Traseira: face externa em y = L. */
+      /* Frontal: face externa em y = L, lado da frente. */
       { x: t,      y: L - b,   dx: vao, dy: b, dz: h },
       /* Lateral esquerda: face externa em x = 0. */
       { x: 0,      y: t,       dx: b,   dy: vao, dz: h },
@@ -280,15 +291,21 @@ export function verificarTravessas({ P, massaAssento, L, t, H, material }){
   }
 
   /*
-   * As vigas frontal e traseira respondem ao deslocamento em Y; as laterais,
+   * As vigas traseira e frontal respondem ao deslocamento em Y; as laterais,
    * ao deslocamento em X. Os sinais sao os mesmos do casal entre as pernas:
    * a borda para onde a carga se move recebe mais.
+   *
+   * Com +Y = frente, a viga em y = 0 e a traseira e recebe MENOS quando a
+   * carga se desloca para a frente. Por isso Nbase - dNy nela.
    */
+  const deltaNx = (P * eX) / (2 * braco);
+  const deltaNy = (P * eY) / (2 * braco);
+
   const porViga = [
-    viga('frontal',  'eY', Nbase - dNy),
-    viga('traseira', 'eY', Nbase + dNy),
-    viga('esquerda', 'eX', Nbase - dNx),
-    viga('direita',  'eX', Nbase + dNx)
+    viga('traseira', 'eY', Nbase - deltaNy),
+    viga('frontal',  'eY', Nbase + deltaNy),
+    viga('esquerda', 'eX', Nbase - deltaNx),
+    viga('direita',  'eX', Nbase + deltaNx)
   ];
 
   const critica = porViga.reduce(

@@ -35,6 +35,12 @@ const campoExcentX = document.getElementById('excent-x');
 const campoExcentY = document.getElementById('excent-y');
 const saidaExcentX = document.getElementById('saida-excent-x');
 const saidaExcentY = document.getElementById('saida-excent-y');
+const campoExcentXCm = document.getElementById('excent-x-cm');
+const campoExcentYCm = document.getElementById('excent-y-cm');
+const direcaoExcentXCm = document.getElementById('direcao-excent-x-cm');
+const direcaoExcentYCm = document.getElementById('direcao-excent-y-cm');
+const dicaExcentX = document.getElementById('dica-excent-x');
+const dicaExcentY = document.getElementById('dica-excent-y');
 
 /* Travessas */
 const grupoTravessas = document.getElementById('grupo-travessas');
@@ -52,9 +58,11 @@ const painel = document.getElementById('resultado');
 const palco = document.getElementById('palco');
 const situacao = document.getElementById('situacao');
 const legenda = document.getElementById('legenda');
+
 const menuBotao = document.getElementById('menu-botao');
 const menuPainel = document.getElementById('menu-painel');
 const itemGraficos = document.getElementById('item-graficos');
+
 const dialogMemorial = document.getElementById('memorial-dialog');
 const conteudoMemorial = document.getElementById('memorial-conteudo');
 const btnAbrirMemorial = document.getElementById('abrir-memorial');
@@ -63,10 +71,14 @@ const btnImprimirMemorial = document.getElementById('memorial-imprimir');
 
 /* ---------- Estado ---------- */
 const gavetasAbertas = new Map();
+
 let ultimoResultado = null;
 let ultimasDims = null;
 let ultimasBarras = null;
 let pararAnimacao = null;
+let fracExcentX = 0;
+let fracExcentY = 0;
+let vetorForcaVisivel = false;
 
 /* ---------- Valores iniciais ---------- */
 const PADRAO = {
@@ -109,11 +121,16 @@ campoSecao.value = PADRAO.secao;
 campoEncosto.value = PADRAO.encosto;
 campoPernas.value = String(PADRAO.numPernas);
 campoParede.value = PADRAO.paredeMm;
+
 campoAssentoLargura.value = PADRAO.assentoLarguraCm;
 campoAssentoProfundidade.value = PADRAO.assentoProfundidadeCm;
 campoAssentoEspessura.value = PADRAO.assentoEspessuraCm;
+
 if (campoExcentX) campoExcentX.value = PADRAO.excentXPct;
 if (campoExcentY) campoExcentY.value = PADRAO.excentYPct;
+if (campoExcentXCm) campoExcentXCm.value = '0';
+if (campoExcentYCm) campoExcentYCm.value = '0';
+
 campoLarguraTravessa.value = PADRAO.travessaLarguraCm;
 campoAlturaTravessa.value = PADRAO.travessaAlturaCm;
 campoTravessaSecao.value = PADRAO.travessaSecao;
@@ -163,34 +180,136 @@ function listaHumana(itens){
 }
 
 /* ---------- Centro de carga ----------
- * Os controles devolvem percentual (-100 a +100). O solver trabalha com
- * fracao de meia dimensao (-1 a +1): a conversao e dividir por 100.
- * Fracao, e nao mm, para que 100% signifique sempre "na borda", qualquer
- * que seja o tamanho do assento. */
+ * Os seletores deslizantes ajustam de 5% em 5% (-100% a +100%) e os campos
+ * numericos abaixo permitem digitar distancias especificas em centimetros.
+ * O solver trabalha com fracao de meia dimensao (-1 a +1). */
+function meiaDimAssentoCm(){
+  const largCm = numOu(campoAssentoLargura ? campoAssentoLargura.value : 0, PADRAO.assentoLarguraCm);
+  const profCm = numOu(campoAssentoProfundidade ? campoAssentoProfundidade.value : 0, PADRAO.assentoProfundidadeCm);
+  return { meiaLargCm: largCm / 2, meiaProfCm: profCm / 2 };
+}
+
+function rotuloExcentDirecao(pct, eixo){
+  if (!Number.isFinite(pct) || Math.abs(pct) < 0.05) return 'centro';
+  const abs = Math.abs(pct);
+  const numTxt = Math.abs(abs - Math.round(abs)) < 0.05
+    ? String(Math.round(abs))
+    : abs.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (eixo === 'y') {
+    return numTxt + '% para ' + (pct > 0 ? 'a frente' : 'o fundo');
+  }
+  return numTxt + '% para a ' + (pct > 0 ? 'direita' : 'esquerda');
+}
+
+function rotuloCmDirecao(cm, eixo){
+  if (!Number.isFinite(cm) || Math.abs(cm) < 0.005) return '0 cm (centro)';
+  const abs = Math.abs(cm).toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2
+  });
+  if (eixo === 'y') {
+    return abs + ' cm para ' + (cm > 0 ? 'a frente' : 'o fundo');
+  }
+  return abs + ' cm para a ' + (cm > 0 ? 'direita' : 'esquerda');
+}
+
+function atualizarSaidasExcent(origemEvento){
+  const { meiaLargCm, meiaProfCm } = meiaDimAssentoCm();
+
+  if (campoExcentXCm) {
+    campoExcentXCm.min = String(-meiaLargCm);
+    campoExcentXCm.max = String(meiaLargCm);
+  }
+  if (campoExcentYCm) {
+    campoExcentYCm.min = String(-meiaProfCm);
+    campoExcentYCm.max = String(meiaProfCm);
+  }
+  if (dicaExcentX) {
+    dicaExcentX.textContent = '− esquerda · 0 centro · + direita (limite: ±' +
+      n(meiaLargCm, 1) + ' cm)';
+  }
+  if (dicaExcentY) {
+    dicaExcentY.textContent = '− fundo (encosto) · 0 centro · + frente (limite: ±' +
+      n(meiaProfCm, 1) + ' cm)';
+  }
+
+  if (origemEvento === campoExcentX && campoExcentX) {
+    const pct = parseFloat(campoExcentX.value) || 0;
+    fracExcentX = Math.max(-1, Math.min(1, pct / 100));
+    if (campoExcentXCm) {
+      campoExcentXCm.value = String(Number((fracExcentX * meiaLargCm).toFixed(2)));
+    }
+    vetorForcaVisivel = true;
+  } else if (origemEvento === campoExcentXCm && campoExcentXCm) {
+    const cm = parseFloat(campoExcentXCm.value);
+    if (Number.isFinite(cm) && meiaLargCm > 0) {
+      fracExcentX = Math.max(-1, Math.min(1, cm / meiaLargCm));
+      if (campoExcentX) {
+        campoExcentX.value = String(Math.round((fracExcentX * 100) / 5) * 5);
+      }
+    } else {
+      fracExcentX = 0;
+      if (campoExcentX) campoExcentX.value = '0';
+    }
+    vetorForcaVisivel = true;
+  } else if (origemEvento === campoExcentY && campoExcentY) {
+    const pct = parseFloat(campoExcentY.value) || 0;
+    fracExcentY = Math.max(-1, Math.min(1, pct / 100));
+    if (campoExcentYCm) {
+      campoExcentYCm.value = String(Number((fracExcentY * meiaProfCm).toFixed(2)));
+    }
+    vetorForcaVisivel = true;
+  } else if (origemEvento === campoExcentYCm && campoExcentYCm) {
+    const cm = parseFloat(campoExcentYCm.value);
+    if (Number.isFinite(cm) && meiaProfCm > 0) {
+      fracExcentY = Math.max(-1, Math.min(1, cm / meiaProfCm));
+      if (campoExcentY) {
+        campoExcentY.value = String(Math.round((fracExcentY * 100) / 5) * 5);
+      }
+    } else {
+      fracExcentY = 0;
+      if (campoExcentY) campoExcentY.value = '0';
+    }
+    vetorForcaVisivel = true;
+  } else if (origemEvento === campoAssentoLargura || origemEvento === campoAssentoProfundidade) {
+    if (campoExcentXCm && document.activeElement !== campoExcentXCm) {
+      campoExcentXCm.value = String(Number((fracExcentX * meiaLargCm).toFixed(2)));
+    }
+    if (campoExcentYCm && document.activeElement !== campoExcentYCm) {
+      campoExcentYCm.value = String(Number((fracExcentY * meiaProfCm).toFixed(2)));
+    }
+  } else if (!origemEvento) {
+    const pctX = campoExcentX ? (parseFloat(campoExcentX.value) || 0) : 0;
+    const pctY = campoExcentY ? (parseFloat(campoExcentY.value) || 0) : 0;
+    fracExcentX = Math.max(-1, Math.min(1, pctX / 100));
+    fracExcentY = Math.max(-1, Math.min(1, pctY / 100));
+    if (campoExcentXCm) {
+      campoExcentXCm.value = String(Number((fracExcentX * meiaLargCm).toFixed(2)));
+    }
+    if (campoExcentYCm) {
+      campoExcentYCm.value = String(Number((fracExcentY * meiaProfCm).toFixed(2)));
+    }
+  }
+
+  const cmAtualX = fracExcentX * meiaLargCm;
+  const cmAtualY = fracExcentY * meiaProfCm;
+
+  if (saidaExcentX) {
+    saidaExcentX.textContent = rotuloExcentDirecao(fracExcentX * 100, 'x');
+  }
+  if (saidaExcentY) {
+    saidaExcentY.textContent = rotuloExcentDirecao(fracExcentY * 100, 'y');
+  }
+  if (direcaoExcentXCm) {
+    direcaoExcentXCm.textContent = rotuloCmDirecao(cmAtualX, 'x');
+  }
+  if (direcaoExcentYCm) {
+    direcaoExcentYCm.textContent = rotuloCmDirecao(cmAtualY, 'y');
+  }
+}
+
 function lerExcent(){
-  const ler = (el) => {
-    if (!el) return 0;
-    const v = parseFloat(el.value);
-    if (!Number.isFinite(v)) return 0;
-    return Math.min(1, Math.max(-1, v / 100));
-  };
-  return { x: ler(campoExcentX), y: ler(campoExcentY) };
-}
-
-/* Rotulo do mostrador: "centro", "+45%" ou "−30%". */
-function rotuloExcent(pct){
-  if (!Number.isFinite(pct) || Math.abs(pct) < 0.5) return 'centro';
-  const sinal = pct > 0 ? '+' : '−';
-  return sinal + Math.abs(Math.round(pct)) + '%';
-}
-
-function atualizarSaidasExcent(){
-  const lerPct = (el) => {
-    const v = el ? parseFloat(el.value) : 0;
-    return Number.isFinite(v) ? v : 0;
-  };
-  if (saidaExcentX) saidaExcentX.textContent = rotuloExcent(lerPct(campoExcentX));
-  if (saidaExcentY) saidaExcentY.textContent = rotuloExcent(lerPct(campoExcentY));
+  return { x: fracExcentX, y: fracExcentY };
 }
 
 /* Verdadeiro quando a carga esta no centro geometrico da placa. */
@@ -337,23 +456,30 @@ function renderResultado(r, dims){
   }
 
   let h = '';
+
   h += gaveta('secao', 'Seção e apoios', lSecao, true);
 
   /* ---------- Massa por parte ---------- */
   const lMassa = [linha('Pernas', n(r.massa.pernas, 2) + ' kg')];
+
   if (r.massa.pe > 0) {
     lMassa.push(linha('Pé do pedestal', n(r.massa.pe, 2) + ' kg'));
   }
+
   lMassa.push(linha('Assento', n(r.massa.assento, 2) + ' kg'));
+
   if (r.massa.travessas > 0) {
     lMassa.push(linha('Travessas do assento', n(r.massa.travessas, 2) + ' kg'));
   }
+
   if (r.entrada.comEncosto) {
     lMassa.push(linha('Postes do encosto', n(r.massa.postes, 2) + ' kg'));
     lMassa.push(linha('Painel do encosto', n(r.massa.encosto, 2) + ' kg'));
   }
+
   lMassa.push(linha('Massa total', n(r.massa.total, 2) + ' kg'));
   lMassa.push(linha('Peso próprio', n(r.massa.total * 9.81, 1) + ' N'));
+
   h += gaveta('massa', 'Massa por parte', lMassa, false);
 
   /* ---------- Esforços ---------- */
@@ -364,10 +490,12 @@ function renderResultado(r, dims){
     linha('Centro de carga',
       centrada
         ? 'no centro do assento'
-        : 'X ' + rotuloExcent(r.entrada.fracX * 100) +
-          ' · Y ' + rotuloExcent(r.entrada.fracY * 100)),
-    linha('Deslocamento em X', n(r.entrada.eX, 1) + ' mm'),
-    linha('Deslocamento em Y', n(r.entrada.eY, 1) + ' mm'),
+        : 'X: ' + rotuloExcentDirecao(r.entrada.fracX * 100, 'x') +
+          ' · Y: ' + rotuloExcentDirecao(r.entrada.fracY * 100, 'y')),
+    linha('Deslocamento em X',
+      n(r.entrada.eX / 10, 2) + ' cm (' + n(r.entrada.eX, 1) + ' mm)'),
+    linha('Deslocamento em Y',
+      n(r.entrada.eY / 10, 2) + ' cm (' + n(r.entrada.eY, 1) + ' mm)'),
     linha('Reação média por perna', n(r.forcas.Nmedio, 1) + ' N')
   ];
 
@@ -392,16 +520,30 @@ function renderResultado(r, dims){
 
   h += gaveta('esforcos', 'Esforços', lEsforcos, false);
 
-  /* ---------- Reações por perna ---------- */
+  /* ---------- Reações por perna ----------
+   *
+   * ORIENTACAO DOS EIXOS
+   * O encosto fica em y = 0, logo +Y aponta para a FRENTE da cadeira e -Y
+   * para tras. Um rotulo invertido aqui manda o usuario olhar a perna errada
+   * na hora de identificar qual levanta.
+   *
+   * bruta x valor
+   * `valor` e limitado a zero e serve para exibir. `bruta` mantem o sinal:
+   * negativa significa perna tracionada, ou seja, levantando. So a soma das
+   * brutas fecha com a carga total — somar `valor` perde a parcela negativa
+   * e a linha "Soma das quatro" deixa de conferir com o peso sustentado.
+   */
   if (r.forcas.reacoesPernas) {
     const lReacoes = r.forcas.reacoesPernas.map(p => {
       const lado = (p.sinalX > 0 ? 'direita' : 'esquerda') + ' / ' +
-                   (p.sinalY > 0 ? 'trás' : 'frente');
+                   (p.sinalY > 0 ? 'frente' : 'trás');
       return linha('Perna ' + p.indice + ' (' + lado + ')',
         n(p.valor, 1) + ' N' + (p.levantou ? ' — levanta' : ''));
     });
+
     lReacoes.push(linha('Soma das quatro',
-      n(r.forcas.reacoesPernas.reduce((s, p) => s + p.valor, 0), 1) + ' N'));
+      n(r.forcas.reacoesPernas.reduce((s, p) => s + p.bruta, 0), 1) + ' N'));
+
     h += gaveta('reacoes', 'Reações por perna', lReacoes, false);
   } else {
     h += gaveta('reacoes', 'Reações por perna', [
@@ -528,11 +670,14 @@ function renderResultado(r, dims){
 painel.addEventListener('click', (ev) => {
   const cabecalho = ev.target.closest('.gaveta__cabecalho');
   if (!cabecalho) return;
+
   const gav = cabecalho.closest('.gaveta');
   if (!gav) return;
+
   const chave = gav.dataset.chave;
   const abrir = !gav.classList.contains('is-aberta');
   const corpo = document.getElementById('gaveta-' + chave);
+
   gav.classList.toggle('is-aberta', abrir);
   cabecalho.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   if (corpo) corpo.hidden = !abrir;
@@ -559,12 +704,15 @@ btnFecharMemorial.addEventListener('click', () => {
 function prepararImpressao(){
   const alvo = document.getElementById('memorial-print');
   if (!alvo) return false;
+
   const html = conteudoMemorial.innerHTML.trim();
+
   if (!dialogMemorial.open || !html) {
     alvo.innerHTML = '';
     document.body.classList.remove('imprimindo-memorial');
     return false;
   }
+
   alvo.innerHTML = html;
   document.body.classList.add('imprimindo-memorial');
   return true;
@@ -635,6 +783,7 @@ function numOu(valor, padrao){
 
 function lerCampos(){
   const faltando = [];
+
   const materialId = selectMaterial.value;
   if (!materialId) faltando.push('material');
 
@@ -702,23 +851,42 @@ function lerCampos(){
 function mostrarPendencia(faltando){
   palco.className = 'palco';
   palco.innerHTML = '<p class="palco__vazio">Faltam dados para calcular.</p>';
+
   situacao.hidden = false;
   situacao.classList.remove('situacao--ok', 'situacao--risco');
   situacao.classList.add('situacao--aviso');
   situacao.textContent = 'Informe ' + listaHumana(faltando) + ' para simular.';
+
   painel.innerHTML = '<p class="aviso-painel">A simulação precisa de todos os ' +
     'campos preenchidos.</p>';
   legenda.textContent = '';
+
   ultimoResultado = null;
   ultimasBarras = null;
   ultimasDims = null;
 }
 
 /* ---------- Desenho estático ---------- */
+function opcoesVetorForca(r){
+  return {
+    vetorForca: {
+      ativo: vetorForcaVisivel || !cargaCentrada(r),
+      eX: r.entrada.eX,
+      eY: r.entrada.eY,
+      P: r.forcas.P
+    }
+  };
+}
+
 function desenharEstatica(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
-  renderCadeira(palco, ultimasBarras, ultimoResultado.entrada.material);
-  ultimasDims = dimensoesExternas(ultimasBarras);
+
+  ultimasDims = renderCadeira(
+    palco,
+    ultimasBarras,
+    ultimoResultado.entrada.material,
+    opcoesVetorForca(ultimoResultado)
+  );
   atualizarLegenda(ultimasDims, ultimoResultado.entrada.material);
 }
 
@@ -726,7 +894,9 @@ function desenharEstatica(){
 function iniciarRuina(){
   if (!ultimoResultado || !ultimoResultado.ok || !ultimasBarras) return;
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
+
   const alvo = ultimoResultado;
+
   pararAnimacao = animarRuina(
     palco,
     ultimasBarras,
@@ -747,6 +917,7 @@ function iniciarRuina(){
 /* ---------- Simulação ao vivo ---------- */
 function simular(){
   if (pararAnimacao) { pararAnimacao(); pararAnimacao = null; }
+
   atualizarParede();
   atualizarParedeTravessa();
   atualizarTravessa();
@@ -796,10 +967,10 @@ function simular(){
 
   if (!r.ok) {
     renderResultado(r, null);
-    aplicarSituacao(r);
     palco.className = 'palco';
     palco.innerHTML = '<p class="palco__vazio">Revise os valores informados.</p>';
     legenda.textContent = '';
+    aplicarSituacao(r);
     return r;
   }
 
@@ -814,8 +985,14 @@ function simular(){
     r.entrada.comEncosto
   );
 
-  renderCadeira(palco, ultimasBarras, r.entrada.material);
-  ultimasDims = dimensoesExternas(ultimasBarras);
+  /* renderCadeira ja devolve as dimensoes externas: recalcular aqui seria
+     percorrer todas as pecas uma segunda vez para o mesmo numero. */
+  ultimasDims = renderCadeira(
+    palco,
+    ultimasBarras,
+    r.entrada.material,
+    opcoesVetorForca(r)
+  );
   atualizarLegenda(ultimasDims, r.entrada.material);
   renderResultado(r, ultimasDims);
   aplicarSituacao(r);
@@ -826,10 +1003,17 @@ function simular(){
 /* ---------- Botão Animar ---------- */
 function acionarAnimar(){
   if (!ultimoResultado || !ultimoResultado.ok) return;
+
   if (ultimoResultado.veredito.aprovado) {
-    animarJoinhas();
+    /*
+     * O retorno e guardado: sem isso, digitar no formulario durante os
+     * joinhas nao tinha o que cancelar, e o renderCadeira seguinte apagava
+     * a camada no meio da animacao.
+     */
+    pararAnimacao = animarJoinhas();
     return;
   }
+
   iniciarRuina();
 }
 
@@ -838,8 +1022,8 @@ form.addEventListener('submit', ev => {
   acionarAnimar();
 });
 
-form.addEventListener('input', () => {
-  atualizarSaidasExcent();
+form.addEventListener('input', (ev) => {
+  atualizarSaidasExcent(ev.target);
   simular();
 });
 
@@ -870,6 +1054,7 @@ document.addEventListener('keydown', (ev) => {
  * pagina de graficos converte para fracao antes de chamar o solver. */
 function urlGraficos(){
   const q = new URLSearchParams();
+
   q.set('material', selectMaterial.value);
   q.set('t', campoEspessura.value);
   q.set('H', campoAltura.value);
@@ -879,15 +1064,19 @@ function urlGraficos(){
   q.set('parede', campoParede.value);
   q.set('n', campoPernas.value);
   q.set('encosto', campoEncosto.value);
+
   q.set('assentoB', campoAssentoLargura.value);
   q.set('assentoP', campoAssentoProfundidade.value);
   q.set('assentoH', campoAssentoEspessura.value);
-  if (campoExcentX) q.set('excentX', campoExcentX.value);
-  if (campoExcentY) q.set('excentY', campoExcentY.value);
+
+  q.set('excentX', String(Number((fracExcentX * 100).toFixed(4))));
+  q.set('excentY', String(Number((fracExcentY * 100).toFixed(4))));
+
   q.set('travessaB', campoLarguraTravessa.value);
   q.set('travessaH', campoAlturaTravessa.value);
   q.set('travessaSecao', campoTravessaSecao.value);
   q.set('travessaParede', campoTravessaParede.value);
+
   return 'graficos.html?' + q.toString();
 }
 

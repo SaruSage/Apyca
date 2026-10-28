@@ -43,6 +43,30 @@ function num(v, casas = 2){
   });
 }
 
+function rotuloExcentDirecao(pct, eixo){
+  if (!Number.isFinite(pct) || Math.abs(pct) < 0.05) return 'centro';
+  const abs = Math.abs(pct);
+  const numTxt = Math.abs(abs - Math.round(abs)) < 0.05
+    ? String(Math.round(abs))
+    : abs.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (eixo === 'y') {
+    return numTxt + '% para ' + (pct > 0 ? 'a frente' : 'o fundo');
+  }
+  return numTxt + '% para a ' + (pct > 0 ? 'direita' : 'esquerda');
+}
+
+function rotuloCmDirecao(cm, eixo){
+  if (!Number.isFinite(cm) || Math.abs(cm) < 0.005) return '0 cm (centro)';
+  const abs = Math.abs(cm).toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2
+  });
+  if (eixo === 'y') {
+    return abs + ' cm para ' + (cm > 0 ? 'a frente' : 'o fundo');
+  }
+  return abs + ' cm para a ' + (cm > 0 ? 'direita' : 'esquerda');
+}
+
 function linha(rotulo, valor){
   return '<tr><th>' + rotulo + '</th><td class="num">' + valor + '</td></tr>';
 }
@@ -93,7 +117,13 @@ function figuraCadeira(r, barras){
     altura: 620,
     margem: 40,
     idFiltro: 'borrao-memorial',
-    opacidadeSombra: 0.16
+    opacidadeSombra: 0.16,
+    vetorForca: {
+      ativo: true,
+      eX: r.entrada.eX,
+      eY: r.entrada.eY,
+      P: r.forcas.P
+    }
   });
 
   const legenda = num(dims.largura / 10, 1) + ' × ' +
@@ -239,11 +269,12 @@ export function gerarMemorial(r, dimsExternas){
     linha('Profundidade do assento (a<sub>P</sub>)', num(aProf, 0) + ' mm'),
     linha('Espessura do assento (h<sub>as</sub>)', num(aEsp, 1) + ' mm'),
     linha('Centro de carga — eixo X',
-      num(fracX * 100, 0) + '% da meia largura'),
+      rotuloExcentDirecao(fracX * 100, 'x') + ' (' + rotuloCmDirecao(eX / 10, 'x') + ')'),
     linha('Centro de carga — eixo Y',
-      num(fracY * 100, 0) + '% da meia profundidade'),
+      rotuloExcentDirecao(fracY * 100, 'y') + ' (' + rotuloCmDirecao(eY / 10, 'y') + ')'),
     linha('Deslocamento do centro de carga',
-      num(eX, 1) + ' mm em X · ' + num(eY, 1) + ' mm em Y' +
+      num(eX / 10, 2) + ' cm (' + num(eX, 1) + ' mm) em X · ' +
+      num(eY / 10, 2) + ' cm (' + num(eY, 1) + ' mm) em Y' +
       (centrada ? ' — carga centrada' : ''))
   );
 
@@ -261,8 +292,8 @@ export function gerarMemorial(r, dimsExternas){
   const linhasPrem = [
     linha('Aceleração da gravidade (g)', num(G, 2) + ' m/s²'),
     linha('Lado do quadro de pernas (L)', num(HIPOTESES.L, 0) + ' mm'),
-    linha('Centro de carga — eixo X', num(fracX * 100, 0) + '%'),
-    linha('Centro de carga — eixo Y', num(fracY * 100, 0) + '%'),
+    linha('Centro de carga — eixo X', rotuloExcentDirecao(fracX * 100, 'x')),
+    linha('Centro de carga — eixo Y', rotuloExcentDirecao(fracY * 100, 'y')),
     linha('Fator de comprimento efetivo (K)', num(r.flambagem.K, 2) +
       (n === 1 ? ' — coluna engastada e livre' : ' — perna entre apoios')),
     linha('Massa própria da cadeira', num(r.massa.total, 2) +
@@ -448,23 +479,33 @@ export function gerarMemorial(r, dimsExternas){
 
   /* ---------- 6b. Casal de equilíbrio (só com carga excêntrica) ---------- */
   if (n === 4 && r.forcas.Mperna === 0 && !centrada) {
-    h += sec('Equilíbrio do momento de excentricidade',
-      tabelaCalc('Casal entre as pernas', [
-        cl('Momento em torno de X', 'M<sub>x</sub> = P·e<sub>Y</sub>',
+    const linhasCasal = [];
+    if (Math.abs(eY) > 0) {
+      linhasCasal.push(
+        cl('Momento em torno de X (M<sub>x</sub>)', 'P·e<sub>Y</sub>',
           num(r.forcas.P, 2) + '·' + num(eY, 1),
           num(Mx, 2), 'N·mm'),
-        cl('Momento em torno de Y', 'M<sub>y</sub> = P·e<sub>X</sub>',
+        cl('Casal resistente em Y', 'ΔN<sub>y</sub>·(2·(L − t))',
+          num(r.forcas.dNy, 2) + '·(2·' + num(r.forcas.bracoBinario, 1) + ')',
+          num(r.forcas.dNy * 2 * r.forcas.bracoBinario, 2), 'N·mm')
+      );
+    }
+    if (Math.abs(eX) > 0) {
+      linhasCasal.push(
+        cl('Momento em torno de Y (M<sub>y</sub>)', 'P·e<sub>X</sub>',
           num(r.forcas.P, 2) + '·' + num(eX, 1),
           num(My, 2), 'N·mm'),
-        cl('Momento resultante', 'P·e<sub>res</sub>',
-          num(r.forcas.P, 2) + '·' + num(eRes, 1),
-          num(r.forcas.P * eRes, 2), 'N·mm'),
-        cl('Casal resistente nas pernas', 'ΔN·(2·(L − t))',
-          num(r.forcas.dN, 2) + '·(2·' + num(r.forcas.bracoBinario, 1) + ')',
-          num(r.forcas.dN * 2 * r.forcas.bracoBinario, 2), 'N·mm'),
-        cl('Momento fletor na perna', 'nulo — resistido pelo casal',
-          '—', num(0, 2), 'N·mm')
-      ]));
+        cl('Casal resistente em X', 'ΔN<sub>x</sub>·(2·(L − t))',
+          num(r.forcas.dNx, 2) + '·(2·' + num(r.forcas.bracoBinario, 1) + ')',
+          num(r.forcas.dNx * 2 * r.forcas.bracoBinario, 2), 'N·mm')
+      );
+    }
+    linhasCasal.push(
+      cl('Momento fletor na perna', 'nulo — resistido pelos casais',
+        '—', num(0, 2), 'N·mm')
+    );
+    h += sec('Equilíbrio do momento de excentricidade',
+      tabelaCalc('Casal entre as pernas', linhasCasal));
   }
 
   /* ---------- 7. Tensões na perna ---------- */
@@ -632,8 +673,9 @@ export function gerarMemorial(r, dimsExternas){
       tabelaCalc('Flexão da placa sobre o quadro de apoio', [
         cl('Lado do quadro de pernas (L)', 'entre faces externas',
           '—', num(ladoQ, 0), 'mm'),
-        cl('Apoios da placa', 'topos de perna + travessas',
-          '4 topos de ' + num(t, 1) + ' mm + 4 vigas', 'apoio contínuo', ''),
+        cl('Apoios da placa', bTv > 0 ? 'topos de perna + travessas' : 'topos das pernas',
+          bTv > 0 ? ('4 topos de ' + num(t, 1) + ' mm + 4 vigas') : ('4 topos de ' + num(t, 1) + ' mm'),
+          bTv > 0 ? 'apoio contínuo' : 'apoio nos cantos', ''),
         cl('Largura da travessa (b)', 'seção transversal da viga',
           '—', num(bTv, 1), 'mm'),
         cl('Vão livre do assento (L<sub>v</sub>)', 'L − 2·b',
