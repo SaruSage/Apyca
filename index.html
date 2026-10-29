@@ -46,8 +46,8 @@
         </div>
 
         <!-- As gavetas usam <details>: abrem e fecham sem JavaScript e
-             funcionam no teclado. A primeira e a do assento abrem por
-             padrao, porque sao as dimensoes que mudam com mais frequencia. -->
+             funcionam no teclado. A do assento abre por padrao, porque e a
+             que muda com mais frequencia. -->
         <details class="grupo-campos" id="grupo-perna" open>
           <summary>Pernas</summary>
 
@@ -92,13 +92,18 @@
           <div class="campo">
             <label for="assento-largura">Largura do assento (cm)</label>
             <input id="assento-largura" name="assento-largura" type="number"
-                   min="20" max="80" step="1" value="44">
+                   min="5" max="120" step="1" value="44"
+                   aria-describedby="dica-assento-esquadria">
           </div>
 
           <div class="campo">
             <label for="assento-profundidade">Profundidade do assento (cm)</label>
             <input id="assento-profundidade" name="assento-profundidade"
-                   type="number" min="20" max="80" step="1" value="44">
+                   type="number" min="5" max="120" step="1" value="44"
+                   aria-describedby="dica-assento-esquadria">
+            <small class="campo__dica" id="dica-assento-esquadria">
+              Esquadria de apoio (pernas + travessas): 40,0 × 40,0 cm
+            </small>
           </div>
 
           <div class="campo">
@@ -106,10 +111,96 @@
             <input id="assento-espessura" name="assento-espessura"
                    type="number" min="0.5" max="10" step="0.5" value="2">
           </div>
+
+          <!-- Posicao do centro de carga no plano da placa, em percentual de
+               meia dimensao (5% em 5% no controle deslizante) ou em distancia
+               especifica em centimetros no campo numerico logo abaixo.
+               Eixo X: - esquerda | 0 centro | + direita
+               Eixo Y: - fundo (encosto) | 0 centro | + frente -->
+          <div class="campo">
+            <label for="excent-x">Centro de carga — eixo X</label>
+            <div class="deslizante">
+              <input id="excent-x" name="excent-x" type="range"
+                     min="-100" max="100" step="5" value="0"
+                     aria-describedby="dica-excent-x">
+              <output id="saida-excent-x" for="excent-x">centro</output>
+            </div>
+            <div class="excent-cm">
+              <label for="excent-x-cm" class="excent-cm__rotulo">Distância específica em X (cm)</label>
+              <div class="excent-cm__linha">
+                <input id="excent-x-cm" name="excent-x-cm" type="number"
+                       min="-22" max="22" step="0.1" value="0"
+                       aria-describedby="dica-excent-x">
+                <span class="excent-cm__direcao" id="direcao-excent-x-cm">0 cm (centro)</span>
+              </div>
+            </div>
+            <small class="campo__dica" id="dica-excent-x">
+              − esquerda · 0 centro · + direita (limite: ±22,0 cm)
+            </small>
+          </div>
+
+          <div class="campo">
+            <label for="excent-y">Centro de carga — eixo Y</label>
+            <div class="deslizante">
+              <input id="excent-y" name="excent-y" type="range"
+                     min="-100" max="100" step="5" value="0"
+                     aria-describedby="dica-excent-y">
+              <output id="saida-excent-y" for="excent-y">centro</output>
+            </div>
+            <div class="excent-cm">
+              <label for="excent-y-cm" class="excent-cm__rotulo">Distância específica em Y (cm)</label>
+              <div class="excent-cm__linha">
+                <input id="excent-y-cm" name="excent-y-cm" type="number"
+                       min="-22" max="22" step="0.1" value="0"
+                       aria-describedby="dica-excent-y">
+                <span class="excent-cm__direcao" id="direcao-excent-y-cm">0 cm (centro)</span>
+              </div>
+            </div>
+            <small class="campo__dica" id="dica-excent-y">
+              − fundo (encosto) · 0 centro · + frente (limite: ±22,0 cm)
+            </small>
+          </div>
         </details>
 
         <details class="grupo-campos" id="grupo-travessas">
           <summary>Travessas</summary>
+
+          <div class="campo">
+            <label for="travessa-modo-comprimento">Ajuste de comprimento das travessas</label>
+            <select id="travessa-modo-comprimento" name="travessa-modo-comprimento">
+              <option value="todas" selected>Todas com o mesmo comprimento</option>
+              <option value="frontal-traseira">Alargar/ajustar frontal e traseira (eixo X)</option>
+              <option value="laterais">Alargar/ajustar laterais de cada lado (eixo Y)</option>
+              <option value="independente">Frontal/traseira e laterais separadamente</option>
+            </select>
+          </div>
+
+          <div class="campo" id="grupo-travessa-comp-unico">
+            <label for="travessa-comprimento">Comprimento das travessas (cm)</label>
+            <input id="travessa-comprimento" name="travessa-comprimento"
+                   type="number" min="2" max="100" step="0.5" value="32"
+                   aria-describedby="dica-travessa-esquadria">
+          </div>
+
+          <div class="campo" id="grupo-travessa-comp-x" hidden>
+            <label for="travessa-comprimento-x">Comprimento — frontal e traseira, eixo X (cm)</label>
+            <input id="travessa-comprimento-x" name="travessa-comprimento-x"
+                   type="number" min="2" max="100" step="0.5" value="32"
+                   aria-describedby="dica-travessa-esquadria">
+          </div>
+
+          <div class="campo" id="grupo-travessa-comp-y" hidden>
+            <label for="travessa-comprimento-y">Comprimento — laterais de cada lado, eixo Y (cm)</label>
+            <input id="travessa-comprimento-y" name="travessa-comprimento-y"
+                   type="number" min="2" max="100" step="0.5" value="32"
+                   aria-describedby="dica-travessa-esquadria">
+          </div>
+
+          <div class="campo campo--dica">
+            <small class="campo__dica" id="dica-travessa-esquadria">
+              * Esquadria resultante (pernas + travessas): 40,0 × 40,0 cm
+            </small>
+          </div>
 
           <div class="campo">
             <label for="travessa-largura">Largura da travessa (cm)</label>

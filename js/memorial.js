@@ -13,8 +13,18 @@
  * primeiro, conta depois, para quem quiser conferir.
  *
  * A numeracao das secoes e dinamica: a flambagem local so existe na secao
- * vazada, a estabilidade so existe no pedestal e as travessas so existem no
- * quadro de quatro pernas. Numeracao fixa deixaria buracos na sequencia.
+ * vazada, a estabilidade so existe no pedestal, o casal so existe com carga
+ * excentrica e as travessas so existem no quadro de quatro pernas. Numeracao
+ * fixa deixaria buracos na sequencia.
+ *
+ * CENTRO DE CARGA BIAXIAL
+ * A posicao do centro de carga vem de ASSENTO via r.entrada, em dois eixos:
+ * fracX/fracY (fracao de meia dimensao, -1 a +1) e eX/eY (deslocamento em
+ * mm). O padrao e 0 nos dois eixos. Com 4 pernas a placa rigida distribui a
+ * carga por flexao biaxial, e cada perna responde ao seu quadrante.
+ *
+ * O mesmo criterio se aplica as travessas: as vigas frontal e traseira
+ * respondem ao deslocamento em Y, as laterais ao deslocamento em X.
  *
  * As pecas sao geradas UMA vez, no inicio do documento, e reaproveitadas na
  * figura isometrica, no desenho tecnico e na secao de massa.
@@ -31,6 +41,30 @@ function num(v, casas = 2){
     minimumFractionDigits: casas,
     maximumFractionDigits: casas
   });
+}
+
+function rotuloExcentDirecao(pct, eixo){
+  if (!Number.isFinite(pct) || Math.abs(pct) < 0.05) return 'centro';
+  const abs = Math.abs(pct);
+  const numTxt = Math.abs(abs - Math.round(abs)) < 0.05
+    ? String(Math.round(abs))
+    : abs.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  if (eixo === 'y') {
+    return numTxt + '% para ' + (pct > 0 ? 'a frente' : 'o fundo');
+  }
+  return numTxt + '% para a ' + (pct > 0 ? 'direita' : 'esquerda');
+}
+
+function rotuloCmDirecao(cm, eixo){
+  if (!Number.isFinite(cm) || Math.abs(cm) < 0.005) return '0 cm (centro)';
+  const abs = Math.abs(cm).toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2
+  });
+  if (eixo === 'y') {
+    return abs + ' cm para ' + (cm > 0 ? 'a frente' : 'o fundo');
+  }
+  return abs + ' cm para a ' + (cm > 0 ? 'direita' : 'esquerda');
 }
 
 function linha(rotulo, valor){
@@ -83,7 +117,13 @@ function figuraCadeira(r, barras){
     altura: 620,
     margem: 40,
     idFiltro: 'borrao-memorial',
-    opacidadeSombra: 0.16
+    opacidadeSombra: 0.16,
+    vetorForca: {
+      ativo: true,
+      eX: r.entrada.eX,
+      eY: r.entrada.eY,
+      P: r.forcas.P
+    }
   });
 
   const legenda = num(dims.largura / 10, 1) + ' × ' +
@@ -129,6 +169,18 @@ export function gerarMemorial(r, dimsExternas){
   const H = r.entrada.H;
   const m = r.entrada.m;
 
+  /*
+   * Centro de carga: fracao de meia dimensao em cada eixo, e o deslocamento
+   * em mm que dela deriva. eRes e a resultante, usada no tombamento.
+   */
+  const fracX = r.entrada.fracX;
+  const fracY = r.entrada.fracY;
+  const eX = r.entrada.eX;
+  const eY = r.entrada.eY;
+  const eRes = r.entrada.eRes;
+
+  const centrada = Math.abs(fracX) < 0.005 && Math.abs(fracY) < 0.005;
+
   const ep = r.secao.parede;
   const di = r.secao.interna;
 
@@ -148,8 +200,15 @@ export function gerarMemorial(r, dimsExternas){
   const fX = Number.isFinite(as.folgaX) ? as.folgaX : (aLarg - CADEIRA.L) / 2;
   const fY = Number.isFinite(as.folgaY) ? as.folgaY : (aProf - CADEIRA.L) / 2;
 
-  const Mtomb = estab ? r.forcas.P * estab.e : 0;
+  /* Balanco efetivo (com o deslocamento somado) e o nominal, sem ele. */
+  const aNom = Number.isFinite(as.aNominal) ? as.aNominal : as.a;
+
+  const Mtomb = estab ? r.forcas.P * estab.eRes : 0;
   const Mestab = estab ? (r.forcas.P + estab.pesoCadeira) * estab.braco : 0;
+
+  /* Momentos externos, decompostos nos dois eixos. */
+  const Mx = r.forcas.P * eY;   // momento em torno de X, gerado pelo deslocamento em Y
+  const My = r.forcas.P * eX;   // momento em torno de Y, gerado pelo deslocamento em X
 
   const formaTxt = redonda ? 'Redonda — diâmetro t' : 'Quadrada — lado t';
   const secaoTxt = vaz ? 'Tubular (vazada)' : 'Maciça';
@@ -208,7 +267,15 @@ export function gerarMemorial(r, dimsExternas){
   linhasEntrada.push(
     linha('Largura do assento (a<sub>L</sub>)', num(aLarg, 0) + ' mm'),
     linha('Profundidade do assento (a<sub>P</sub>)', num(aProf, 0) + ' mm'),
-    linha('Espessura do assento (h<sub>as</sub>)', num(aEsp, 1) + ' mm')
+    linha('Espessura do assento (h<sub>as</sub>)', num(aEsp, 1) + ' mm'),
+    linha('Centro de carga — eixo X',
+      rotuloExcentDirecao(fracX * 100, 'x') + ' (' + rotuloCmDirecao(eX / 10, 'x') + ')'),
+    linha('Centro de carga — eixo Y',
+      rotuloExcentDirecao(fracY * 100, 'y') + ' (' + rotuloCmDirecao(eY / 10, 'y') + ')'),
+    linha('Deslocamento do centro de carga',
+      num(eX / 10, 2) + ' cm (' + num(eX, 1) + ' mm) em X · ' +
+      num(eY / 10, 2) + ' cm (' + num(eY, 1) + ' mm) em Y' +
+      (centrada ? ' — carga centrada' : ''))
   );
 
   if (dimsExternas) {
@@ -225,7 +292,8 @@ export function gerarMemorial(r, dimsExternas){
   const linhasPrem = [
     linha('Aceleração da gravidade (g)', num(G, 2) + ' m/s²'),
     linha('Lado do quadro de pernas (L)', num(HIPOTESES.L, 0) + ' mm'),
-    linha('Excentricidade de projeto (e)', num(HIPOTESES.e, 0) + ' mm'),
+    linha('Centro de carga — eixo X', rotuloExcentDirecao(fracX * 100, 'x')),
+    linha('Centro de carga — eixo Y', rotuloExcentDirecao(fracY * 100, 'y')),
     linha('Fator de comprimento efetivo (K)', num(r.flambagem.K, 2) +
       (n === 1 ? ' — coluna engastada e livre' : ' — perna entre apoios')),
     linha('Massa própria da cadeira', num(r.massa.total, 2) +
@@ -239,12 +307,19 @@ export function gerarMemorial(r, dimsExternas){
       num(CADEIRA.fracaoLadoPiramide, 3) + ' do diâmetro do cone'));
   }
   if (r.travessas) {
-    linhasPrem.push(linha('Quadro de travessas',
-      '4 vigas, seção ' + num(r.travessas.b, 1) + ' × ' +
-      num(r.travessas.h, 1) + ' mm, ' +
-      (r.travessas.vazada
-        ? 'tubular com parede ' + num(r.travessas.parede, 2) + ' mm'
-        : 'maciça')));
+    linhasPrem.push(
+      linha('Esquadria de apoio (L<sub>x</sub> × L<sub>y</sub>)',
+        num(r.travessas.Lx / 10, 1) + ' × ' + num(r.travessas.Ly / 10, 1) +
+        ' cm (' + num(r.travessas.Lx, 0) + ' × ' + num(r.travessas.Ly, 0) + ' mm)'),
+      linha('Quadro de travessas',
+        '4 vigas, seção ' + num(r.travessas.b, 1) + ' × ' +
+        num(r.travessas.h, 1) + ' mm, ' +
+        (r.travessas.vazada
+          ? 'tubular com parede ' + num(r.travessas.parede, 2) + ' mm'
+          : 'maciça') +
+        ' — comprimentos: ' + num(r.travessas.vaoX / 10, 1) + ' cm (X) e ' +
+        num(r.travessas.vaoY / 10, 1) + ' cm (Y)')
+    );
   }
 
   h += sec('Premissas de projeto',
@@ -367,41 +442,77 @@ export function gerarMemorial(r, dimsExternas){
     linhasEsforcos.push(cl('Esforço normal (N)', 'P + W<sub>c</sub>',
       num(r.forcas.P, 2) + ' + ' + num(r.massa.total * G, 2),
       num(r.forcas.Nmax, 2), 'N'));
-    linhasEsforcos.push(cl('Momento fletor (M)', 'P·e',
-      num(r.forcas.P, 2) + '·' + num(HIPOTESES.e, 0),
+    linhasEsforcos.push(cl('Momento em torno de X', 'M<sub>x</sub> = P·e<sub>Y</sub>',
+      num(r.forcas.P, 2) + '·' + num(eY, 1),
+      num(Mx, 2), 'N·mm'));
+    linhasEsforcos.push(cl('Momento em torno de Y', 'M<sub>y</sub> = P·e<sub>X</sub>',
+      num(r.forcas.P, 2) + '·' + num(eX, 1),
+      num(My, 2), 'N·mm'));
+    linhasEsforcos.push(cl('Momento equivalente na seção',
+      redonda ? '[(M<sub>x</sub>)² + (M<sub>y</sub>)²]<sup>1/2</sup>'
+              : '|M<sub>x</sub>| + |M<sub>y</sub>|',
+      redonda
+        ? '[(' + num(Mx, 2) + ')² + (' + num(My, 2) + ')²]<sup>1/2</sup>'
+        : num(Math.abs(Mx), 2) + ' + ' + num(Math.abs(My), 2),
       num(r.forcas.Mperna, 2), 'N·mm'));
   } else {
     linhasEsforcos.push(cl('Reação média por perna', '(P + W<sub>c</sub>)/n',
       '(' + num(r.forcas.P, 2) + ' + ' + num(r.massa.total * G, 2) +
       ')/4', num(r.forcas.Nmedio, 2), 'N'));
-    linhasEsforcos.push(cl('Parcela da excentricidade (ΔN)', 'P·e/(2L)',
-      num(r.forcas.P, 2) + '·' + num(HIPOTESES.e, 0) + '/(2·' +
-      num(HIPOTESES.L, 0) + ')',
-      num(r.forcas.dN, 2), 'N'));
-    linhasEsforcos.push(cl('Reação máxima (N<sub>máx</sub>)', 'N<sub>méd</sub> + ΔN',
-      num(r.forcas.Nmedio, 2) + ' + ' + num(r.forcas.dN, 2),
+    linhasEsforcos.push(cl('Parcela da excentricidade em X',
+      'ΔN<sub>x</sub> = P·|e<sub>X</sub>|/(2·(L − t))',
+      num(r.forcas.P, 2) + '·' + num(Math.abs(eX), 1) + '/(2·' +
+      num(r.forcas.bracoBinario, 1) + ')',
+      num(r.forcas.dNx, 2), 'N'));
+    linhasEsforcos.push(cl('Parcela da excentricidade em Y',
+      'ΔN<sub>y</sub> = P·|e<sub>Y</sub>|/(2·(L − t))',
+      num(r.forcas.P, 2) + '·' + num(Math.abs(eY), 1) + '/(2·' +
+      num(r.forcas.bracoBinario, 1) + ')',
+      num(r.forcas.dNy, 2), 'N'));
+    linhasEsforcos.push(cl('Reação máxima (N<sub>máx</sub>)',
+      'N<sub>méd</sub> + ΔN<sub>x</sub> + ΔN<sub>y</sub>',
+      num(r.forcas.Nmedio, 2) + ' + ' + num(r.forcas.dNx, 2) +
+      ' + ' + num(r.forcas.dNy, 2),
       num(r.forcas.Nmax, 2), 'N'));
-    linhasEsforcos.push(cl('Reação mínima (N<sub>mín</sub>)', 'N<sub>méd</sub> − ΔN',
-      num(r.forcas.Nmedio, 2) + ' − ' + num(r.forcas.dN, 2),
+    linhasEsforcos.push(cl('Reação mínima (N<sub>mín</sub>)',
+      'N<sub>méd</sub> − ΔN<sub>x</sub> − ΔN<sub>y</sub>',
+      num(r.forcas.Nmedio, 2) + ' − ' + num(r.forcas.dNx, 2) +
+      ' − ' + num(r.forcas.dNy, 2),
       num(r.forcas.Nmin, 2), 'N'));
   }
 
   h += sec('Ações e esforços solicitantes',
     tabelaCalc('Transmissão das cargas', linhasEsforcos));
 
-  /* ---------- 6b. Casal de equilíbrio (quadro de 4 pernas) ---------- */
-  if (n === 4 && r.forcas.Mperna === 0) {
+  /* ---------- 6b. Casal de equilíbrio (só com carga excêntrica) ---------- */
+  if (n === 4 && r.forcas.Mperna === 0 && !centrada) {
+    const linhasCasal = [];
+    if (Math.abs(eY) > 0) {
+      linhasCasal.push(
+        cl('Momento em torno de X (M<sub>x</sub>)', 'P·e<sub>Y</sub>',
+          num(r.forcas.P, 2) + '·' + num(eY, 1),
+          num(Mx, 2), 'N·mm'),
+        cl('Casal resistente em Y', 'ΔN<sub>y</sub>·(2·(L − t))',
+          num(r.forcas.dNy, 2) + '·(2·' + num(r.forcas.bracoBinario, 1) + ')',
+          num(r.forcas.dNy * 2 * r.forcas.bracoBinario, 2), 'N·mm')
+      );
+    }
+    if (Math.abs(eX) > 0) {
+      linhasCasal.push(
+        cl('Momento em torno de Y (M<sub>y</sub>)', 'P·e<sub>X</sub>',
+          num(r.forcas.P, 2) + '·' + num(eX, 1),
+          num(My, 2), 'N·mm'),
+        cl('Casal resistente em X', 'ΔN<sub>x</sub>·(2·(L − t))',
+          num(r.forcas.dNx, 2) + '·(2·' + num(r.forcas.bracoBinario, 1) + ')',
+          num(r.forcas.dNx * 2 * r.forcas.bracoBinario, 2), 'N·mm')
+      );
+    }
+    linhasCasal.push(
+      cl('Momento fletor na perna', 'nulo — resistido pelos casais',
+        '—', num(0, 2), 'N·mm')
+    );
     h += sec('Equilíbrio do momento de excentricidade',
-      tabelaCalc('Casal entre as pernas', [
-        cl('Momento de tombamento da carga', 'P·e',
-          num(r.forcas.P, 2) + '·' + num(HIPOTESES.e, 0),
-          num(r.forcas.P * HIPOTESES.e, 2), 'N·mm'),
-        cl('Casal resistente', 'ΔN·(2L)',
-          num(r.forcas.dN, 2) + '·(2·' + num(HIPOTESES.L, 0) + ')',
-          num(r.forcas.dN * 2 * HIPOTESES.L, 2), 'N·mm'),
-        cl('Momento fletor na perna', 'nulo — resistido pelo casal',
-          '—', num(0, 2), 'N·mm')
-      ]));
+      tabelaCalc('Casal entre as pernas', linhasCasal));
   }
 
   /* ---------- 7. Tensões na perna ---------- */
@@ -478,73 +589,113 @@ export function gerarMemorial(r, dimsExternas){
   }
 
   /* ---------- 10. Assento em balanço ---------- */
+  const linhasBalanco = [
+    cl('Dimensões do assento (a<sub>L</sub> × a<sub>P</sub> × h<sub>as</sub>)',
+      'configuradas em separado da perna', '—',
+      num(aLarg, 0) + ' × ' + num(aProf, 0) + ' × ' + num(aEsp, 1),
+      'mm'),
+    cl('Sobrepasso nominal (a<sub>n</sub>)',
+      n === 1 ? 'a<sub>L</sub>/2 − t/2' : 'máx[(a<sub>L</sub>−L)/2 , (a<sub>P</sub>−L)/2]',
+      n === 1
+        ? num(aLarg / 2, 0) + ' − ' + num(t / 2, 1)
+        : 'máx[' + num(fX, 1) + ' ; ' + num(fY, 1) + ']',
+      num(aNom, 1), 'mm'),
+    cl('Sobrepasso em X', '(a<sub>L</sub> − L)/2',
+      '(' + num(aLarg, 0) + ' − ' + num(CADEIRA.L, 0) + ')/2',
+      num(fX, 1), 'mm'),
+    cl('Sobrepasso em Y', '(a<sub>P</sub> − L)/2',
+      '(' + num(aProf, 0) + ' − ' + num(CADEIRA.L, 0) + ')/2',
+      num(fY, 1), 'mm')
+  ];
+
+  if (n === 4) {
+    linhasBalanco.push(cl('Balanço de cálculo com a carga deslocada',
+      'a = a<sub>n</sub> + máx(|e<sub>X</sub>|, |e<sub>Y</sub>|)',
+      num(aNom, 1) + ' + ' + num(Math.max(Math.abs(eX), Math.abs(eY)), 1),
+      num(as.a, 1), 'mm'));
+  } else {
+    linhasBalanco.push(cl('Balanço de cálculo',
+      'a<sub>L</sub>/2 − t/2 (já é a condição de borda)',
+      '—', num(as.a, 1), 'mm'));
+  }
+
+  linhasBalanco.push(
+    cl('Largura da faixa (b<sub>f</sub>)', 'mín(a<sub>L</sub>, a<sub>P</sub>)',
+      'mín(' + num(aLarg, 0) + ' ; ' + num(aProf, 0) + ')',
+      num(aFaixa, 0), 'mm'),
+    cl('Momento no engaste (M<sub>a</sub>)', 'P·a',
+      num(r.forcas.P, 2) + '·' + num(as.a, 1),
+      num(as.M, 2), 'N·mm'),
+    cl('Módulo resistente (W<sub>a</sub>)', 'b<sub>f</sub>·h<sub>as</sub>²/6',
+      num(aFaixa, 0) + '·' + num(aEsp, 1) + '²/6',
+      num(as.W, 2), 'mm³'),
+    cl('Tensão de flexão (σ<sub>as</sub>)', 'M<sub>a</sub>/W<sub>a</sub>',
+      num(as.M, 2) + '/' + num(as.W, 2),
+      num(as.sigma, 3), 'MPa'),
+    cl('Utilização à flexão', 'σ<sub>as</sub>/σ<sub>adm</sub>',
+      num(as.sigma, 3) + '/' + num(r.tensoes.sigmaAdm, 3),
+      num(as.utilizacao * 100, 1), '%'),
+    cl('Momento de inércia (I<sub>a</sub>)', 'b<sub>f</sub>·h<sub>as</sub>³/12',
+      num(aFaixa, 0) + '·' + num(aEsp, 1) + '³/12',
+      num(as.I, 2), 'mm⁴'),
+    cl('Flecha (δ<sub>a</sub>)', 'P·a³/(3·E·I<sub>a</sub>)',
+      num(r.forcas.P, 2) + '·' + num(as.a, 1) + '³/(3·' +
+      num(mat.E, 0) + '·' + num(as.I, 2) + ')',
+      num(as.flecha, 4), 'mm'),
+    cl('Flecha limite', 'a/' + CADEIRA.divisorFlechaAssento,
+      num(as.a, 1) + '/' + CADEIRA.divisorFlechaAssento,
+      num(as.flechaLimite, 4), 'mm'),
+    cl('Utilização à flecha', 'δ<sub>a</sub>/δ<sub>lim</sub>',
+      num(as.flecha, 4) + '/' + num(as.flechaLimite, 4),
+      num(as.utilizacaoFlecha * 100, 1), '%')
+  );
+
   h += sec('Verificação do assento em balanço',
     tabelaCalc(
       n === 1
         ? 'Placa em balanço a partir da face da coluna'
-        : 'Sobrepasso do assento além das pernas',
-      [
-        cl('Dimensões do assento (a<sub>L</sub> × a<sub>P</sub> × h<sub>as</sub>)',
-          'configuradas em separado da perna', '—',
-          num(aLarg, 0) + ' × ' + num(aProf, 0) + ' × ' + num(aEsp, 1),
-          'mm'),
-        cl('Comprimento do balanço (a)',
-          n === 1 ? 'a<sub>L</sub>/2 − t/2' : 'máx[(a<sub>L</sub>−L)/2 , (a<sub>P</sub>−L)/2]',
-          n === 1
-            ? num(aLarg / 2, 0) + ' − ' + num(t / 2, 1)
-            : 'máx[' + num(fX, 1) + ' ; ' + num(fY, 1) + ']',
-          num(as.a, 1), 'mm'),
-        cl('Sobrepasso em X', '(a<sub>L</sub> − L)/2',
-          '(' + num(aLarg, 0) + ' − ' + num(CADEIRA.L, 0) + ')/2',
-          num(fX, 1), 'mm'),
-        cl('Sobrepasso em Y', '(a<sub>P</sub> − L)/2',
-          '(' + num(aProf, 0) + ' − ' + num(CADEIRA.L, 0) + ')/2',
-          num(fY, 1), 'mm'),
-        cl('Largura da faixa (b<sub>f</sub>)', 'mín(a<sub>L</sub>, a<sub>P</sub>)',
-          'mín(' + num(aLarg, 0) + ' ; ' + num(aProf, 0) + ')',
-          num(aFaixa, 0), 'mm'),
-        cl('Momento no engaste (M<sub>a</sub>)', 'P·a',
-          num(r.forcas.P, 2) + '·' + num(as.a, 1),
-          num(as.M, 2), 'N·mm'),
-        cl('Módulo resistente (W<sub>a</sub>)', 'b<sub>f</sub>·h<sub>as</sub>²/6',
-          num(aFaixa, 0) + '·' + num(aEsp, 1) + '²/6',
-          num(as.W, 2), 'mm³'),
-        cl('Tensão de flexão (σ<sub>as</sub>)', 'M<sub>a</sub>/W<sub>a</sub>',
-          num(as.M, 2) + '/' + num(as.W, 2),
-          num(as.sigma, 3), 'MPa'),
-        cl('Utilização à flexão', 'σ<sub>as</sub>/σ<sub>adm</sub>',
-          num(as.sigma, 3) + '/' + num(r.tensoes.sigmaAdm, 3),
-          num(as.utilizacao * 100, 1), '%'),
-        cl('Momento de inércia (I<sub>a</sub>)', 'b<sub>f</sub>·h<sub>as</sub>³/12',
-          num(aFaixa, 0) + '·' + num(aEsp, 1) + '³/12',
-          num(as.I, 2), 'mm⁴'),
-        cl('Flecha (δ<sub>a</sub>)', 'P·a³/(3·E·I<sub>a</sub>)',
-          num(r.forcas.P, 2) + '·' + num(as.a, 1) + '³/(3·' +
-          num(mat.E, 0) + '·' + num(as.I, 2) + ')',
-          num(as.flecha, 4), 'mm'),
-        cl('Flecha limite', 'a/' + CADEIRA.divisorFlechaAssento,
-          num(as.a, 1) + '/' + CADEIRA.divisorFlechaAssento,
-          num(as.flechaLimite, 4), 'mm'),
-        cl('Utilização à flecha', 'δ<sub>a</sub>/δ<sub>lim</sub>',
-          num(as.flecha, 4) + '/' + num(as.flechaLimite, 4),
-          num(as.utilizacaoFlecha * 100, 1), '%')
-      ]));
+        : 'Sobrepasso do assento além do quadro de apoios',
+      linhasBalanco));
 
   /* ---------- 11. Assento entre apoios (só com 4 pernas) ---------- */
+  /*
+   * O assento apoia no QUADRO: os quatro topos de perna nos cantos mais as
+   * quatro travessas no vao entre elas, todos coplanares em z = H. A abertura
+   * interna dessa moldura e L - 2b, e e esse o vao que a placa vence.
+   *
+   * Normalizacao defensiva: se este documento for gerado por um solver
+   * anterior, que devolvia apenas L, o bTravessa e reconstruido a partir da
+   * diferenca para que a substituicao impressa nunca minta.
+   */
   if (r.assentoVao) {
     const asv = r.assentoVao;
+
+    const vaoAss = Number.isFinite(asv.vaoLivre) ? asv.vaoLivre : asv.L;
+    const bTv = Number.isFinite(asv.bTravessa)
+      ? asv.bTravessa
+      : (CADEIRA.L - vaoAss) / 2;
+    const ladoQ = Number.isFinite(asv.ladoQuadro) ? asv.ladoQuadro : CADEIRA.L;
+
     h += sec('Verificação do assento entre apoios',
-      tabelaCalc('Flexão da placa entre as pernas', [
-        cl('Vão livre (L)', 'distância entre eixos das pernas',
-          '—', num(asv.L, 0), 'mm'),
+      tabelaCalc('Flexão da placa sobre o quadro de apoio', [
+        cl('Lado do quadro de pernas (L)', 'entre faces externas',
+          '—', num(ladoQ, 0), 'mm'),
+        cl('Apoios da placa', bTv > 0 ? 'topos de perna + travessas' : 'topos das pernas',
+          bTv > 0 ? ('4 topos de ' + num(t, 1) + ' mm + 4 vigas') : ('4 topos de ' + num(t, 1) + ' mm'),
+          bTv > 0 ? 'apoio contínuo' : 'apoio nos cantos', ''),
+        cl('Largura da travessa (b)', 'seção transversal da viga',
+          '—', num(bTv, 1), 'mm'),
+        cl('Vão livre do assento (L<sub>v</sub>)', 'L − 2·b',
+          num(ladoQ, 0) + ' − 2·' + num(bTv, 1),
+          num(vaoAss, 0), 'mm'),
         cl('Área carregada (A<sub>as</sub>)', 'a<sub>L</sub>·a<sub>P</sub>',
           num(aLarg, 0) + '·' + num(aProf, 0),
           num(asv.area, 0), 'mm²'),
         cl('Pressão uniforme (q)', 'P/A<sub>as</sub>',
           num(r.forcas.P, 2) + '/' + num(asv.area, 0),
           num(asv.q, 6), 'N/mm²'),
-        cl('Momento por unidade de largura', 'q·L²/16',
-          num(asv.q, 6) + '·' + num(asv.L, 0) + '²/16',
+        cl('Momento por unidade de largura', 'q·L<sub>v</sub>²/16',
+          num(asv.q, 6) + '·' + num(vaoAss, 0) + '²/16',
           num(asv.M, 3), 'N·mm/mm'),
         cl('Tensão de flexão (σ<sub>vão</sub>)', '6·M/h<sub>as</sub>²',
           '6·' + num(asv.M, 3) + '/' + num(asv.h, 1) + '²',
@@ -552,12 +703,12 @@ export function gerarMemorial(r, dimsExternas){
         cl('Utilização à flexão', 'σ<sub>vão</sub>/σ<sub>adm</sub>',
           num(asv.sigma, 3) + '/' + num(r.tensoes.sigmaAdm, 3),
           num(asv.utilizacao * 100, 1), '%'),
-        cl('Flecha (δ<sub>vão</sub>)', '5·q·L⁴/(64·E·h<sub>as</sub>³)',
-          '5·' + num(asv.q, 6) + '·' + num(asv.L, 0) + '⁴/(64·' +
+        cl('Flecha (δ<sub>vão</sub>)', '5·q·L<sub>v</sub>⁴/(32·E·h<sub>as</sub>³)',
+          '5·' + num(asv.q, 6) + '·' + num(vaoAss, 0) + '⁴/(32·' +
           num(mat.E, 0) + '·' + num(asv.h, 1) + '³)',
           num(asv.flecha, 4), 'mm'),
-        cl('Flecha limite', 'L/' + CADEIRA.divisorFlechaVao,
-          num(asv.L, 0) + '/' + CADEIRA.divisorFlechaVao,
+        cl('Flecha limite', 'L<sub>v</sub>/' + CADEIRA.divisorFlechaVao,
+          num(vaoAss, 0) + '/' + CADEIRA.divisorFlechaVao,
           num(asv.flechaLimite, 4), 'mm'),
         cl('Utilização à flecha', 'δ<sub>vão</sub>/δ<sub>lim</sub>',
           num(asv.flecha, 4) + '/' + num(asv.flechaLimite, 4),
@@ -569,8 +720,11 @@ export function gerarMemorial(r, dimsExternas){
   if (estab) {
     h += sec('Estabilidade ao tombamento',
       tabelaCalc('Equilíbrio em torno da borda da base', [
-        cl('Momento de tombamento', 'P·e',
-          num(r.forcas.P, 2) + '·' + num(estab.e, 0),
+        cl('Excentricidade resultante', 'e<sub>res</sub> = [(e<sub>X</sub>)² + (e<sub>Y</sub>)²]<sup>1/2</sup>',
+          '[(' + num(eX, 1) + ')² + (' + num(eY, 1) + ')²]<sup>1/2</sup>',
+          num(eRes, 2), 'mm'),
+        cl('Momento de tombamento', 'P·e<sub>res</sub>',
+          num(r.forcas.P, 2) + '·' + num(eRes, 1),
           num(Mtomb, 2), 'N·mm'),
         cl('Massa própria da cadeira (m<sub>cad</sub>)',
           'da geometria', '—', num(estab.massaCadeira, 3), 'kg'),
@@ -603,6 +757,33 @@ export function gerarMemorial(r, dimsExternas){
   if (r.travessas) {
     const tv = r.travessas;
 
+    const linhasDist = [
+      linha('Carga do assento (P + m<sub>as</sub>·g)',
+        num(tv.cargaAssento, 2) + ' N'),
+      linha('Peso próprio das quatro vigas',
+        num(tv.massaTotal * G, 2) + ' N'),
+      linha('Carga de referência por viga (centrada)',
+        num(tv.Nbase, 2) + ' N'),
+      linha('Centro de carga — eixo X', num(tv.fracX * 100, 0) + '%'),
+      linha('Centro de carga — eixo Y', num(tv.fracY * 100, 0) + '%'),
+      linha('Desequilíbrio em X (ΔN<sub>x</sub>)',
+        num(tv.dNx, 2) + ' N'),
+      linha('Desequilíbrio em Y (ΔN<sub>y</sub>)',
+        num(tv.dNy, 2) + ' N')
+    ];
+
+    const linhasVigas = tv.porViga.map(v =>
+      linha(
+        v.nome.charAt(0).toUpperCase() + v.nome.slice(1) +
+        ' (responde a ' + v.depende + ')',
+        num(v.cargaEf, 2) + ' N' +
+        (v.semContato ? ' — sem contato com a placa' : '') +
+        ' · ' + num(v.utilizacao * 100, 1) + '%'
+      ));
+
+    const nomeCritica = tv.vigaCritica.charAt(0).toUpperCase() +
+      tv.vigaCritica.slice(1);
+
     const linhasTv = [
       cl('Número de travessas', 'quadro de quatro vigas', '—',
         num(tv.n, 0), 'un'),
@@ -621,11 +802,10 @@ export function gerarMemorial(r, dimsExternas){
         num(tv.comprimento, 1), 'mm'),
       cl('Vão de cálculo', 'L<sub>t</sub> (apoio nas faces internas)',
         num(tv.vao, 1), num(tv.vao, 1), 'mm'),
-      cl('Carga do assento', 'P + m<sub>as</sub>·g',
-        num(r.forcas.P, 2) + ' + ' + num(r.massa.assento, 3) + '·' + num(G, 2),
-        num(tv.cargaAssento, 2), 'N'),
-      cl('Carga por travessa (N)', 'carga/4 + peso próprio',
-        num(tv.cargaAssento, 2) + '/4 + ' + num(tv.pesoProprio, 2),
+      cl('Carga na viga crítica (' + nomeCritica + ')',
+        'N<sub>base</sub> + desequilíbrio',
+        num(tv.Nbase, 2) + ' + ' +
+        num(Math.abs(tv.N - tv.Nbase), 2),
         num(tv.N, 2), 'N'),
       cl('Carga distribuída (q)', 'N/L<sub>t</sub>',
         num(tv.N, 2) + '/' + num(tv.vao, 1),
@@ -666,6 +846,10 @@ export function gerarMemorial(r, dimsExternas){
         num(tv.massaTotal, 3), 'kg')
     ];
 
+    h += sec('Distribuição da carga entre as travessas',
+      tabelaSimples('Carga de referência e desequilíbrio', linhasDist) +
+      tabelaSimples('Carga e utilização de cada viga', linhasVigas));
+
     h += sec('Verificação das travessas de apoio do assento',
       tabelaCalc('Viga biapoiada sob carga uniformemente distribuída',
         linhasTv));
@@ -693,11 +877,29 @@ export function gerarMemorial(r, dimsExternas){
 
     'O assento tem dimensões próprias — largura, profundidade e espessura — ' +
       'e não deriva da dimensão da perna. As duas peças são independentes: ' +
-      'perna grossa não implica assento grosso.',
+      'perna grossa não implica assento grosso.'
+  ];
 
-    'A excentricidade de projeto é fixa em ' + num(HIPOTESES.e, 0) +
-      ' mm e representa o deslocamento do centro de carga do usuário.',
+  if (centrada) {
+    notas.push('O centro de carga está no centro geométrico do assento. A ' +
+      'carga distribuída equivale, para o equilíbrio global, a uma ' +
+      'resultante única no centroide da distribuição — e, com distribuição ' +
+      'uniforme, o centroide é o centro geométrico. Por isso as quatro ' +
+      'reações ficam iguais, o momento de excentricidade é nulo e não há ' +
+      'casal a equilibrar. A checagem do casal fica inativa por ausência de ' +
+      'solicitação, não por simplificação do modelo.');
+  } else {
+    notas.push('O centro de carga está em X ' + num(fracX * 100, 0) + '% e Y ' +
+      num(fracY * 100, 0) + '% da meia dimensão do assento, o que corresponde ' +
+      'a ' + num(eX, 1) + ' mm e ' + num(eY, 1) + ' mm de deslocamento. A ' +
+      'posição é dada em fração de meia dimensão, e não em milímetros, para ' +
+      'que 100% signifique sempre a borda da placa, qualquer que seja o ' +
+      'tamanho do assento. A carga distribuída equivale a uma resultante ' +
+      'única no centroide da distribuição; deslocada do centro, ela gera ' +
+      'momento em duas direções.');
+  }
 
+  notas.push(
     'A base é modelada como engastada no piso. Na prática ela apoia por ' +
       'contato; o efeito é coberto pela verificação de tombamento.',
 
@@ -705,18 +907,44 @@ export function gerarMemorial(r, dimsExternas){
       'da carga. A placa real redistribui a carga em duas direções, de modo ' +
       'que o modelo é conservador quanto ao momento por unidade de largura.',
 
-    'Com 4 pernas o assento é verificado no sobrepasso externo e no vão entre ' +
-      'as pernas, pelo método das faixas. O coeficiente 1/16 é conservador ' +
-      'frente aos 0,0479 da solução de placa simplesmente apoiada.',
+    'Com 4 pernas o assento é verificado em duas situações distintas: o ' +
+      'sobrepasso externo, como placa em balanço, e o vão central, pelo ' +
+      'método das faixas. O coeficiente 1/16 é conservador frente aos 0,0479 ' +
+      'da solução de placa simplesmente apoiada.'
+  );
 
-    'O vão livre adotado na verificação do assento é a distância entre eixos ' +
-      'das pernas, que é maior que a abertura interna do quadro de travessas. ' +
-      'A flecha calculada é, portanto, superior à real.',
+  if (!centrada && n === 4) {
+    notas.push(
+      'No quadro de quatro pernas, a placa rígida distribui a carga por ' +
+      'flexão biaxial. Com as pernas nos quatro cantos de um quadrado de ' +
+      'lado b = L − t, a reação de cada uma segue ' +
+      'Ni = P/4 ± P·e_X/(2b) ± P·e_Y/(2b), e o sinal depende do quadrante: ' +
+      'a perna do canto carregado soma as duas parcelas, a do canto oposto ' +
+      'subtrai as duas. No caso uniaxial a expressão se reduz à fórmula ' +
+      'anterior — a generalização é consistente, não um modelo novo.',
+
+      'O casal resistente nas pernas vale ΔN·(2·(L − t)) = ' +
+      num(r.forcas.dN * 2 * r.forcas.bracoBinario, 0) + ' N·mm, que ' +
+      'corresponde a P·(|e_X| + |e_Y|) — a soma dos módulos das duas ' +
+      'componentes. É essa a condição de equilíbrio do canto carregado, e ' +
+      'ela é maior ou igual ao momento resultante P·e_res = ' +
+      num(r.forcas.P * eRes, 0) + ' N·mm. Depois de fechado o equilíbrio, o ' +
+      'momento externo já está resistido: somar flexão à perna contaria o ' +
+      'mesmo momento duas vezes.'
+    );
+  }
+
+  notas.push(
+    'O apoio do assento é o quadro formado pelos quatro topos de perna nos ' +
+      'cantos mais as quatro travessas no vão entre elas, todos com o topo na ' +
+      'mesma cota z = H. Vista de cima, a abertura interna dessa moldura mede ' +
+      'L − 2·b, e é esse o vão que a placa vence no meio. Adotar o lado L do ' +
+      'quadro superestimaria o momento em (L/L_v)² e a flecha em (L/L_v)⁴.',
 
     'O limite de flecha do assento é a/' + CADEIRA.divisorFlechaAssento +
       ', adotado como critério de serviço. Ajuste em constantes.js se o ' +
       'orientador exigir outro valor.'
-  ];
+  );
 
   if (r.travessas) {
     notas.push('As travessas são modeladas como vigas biapoiadas nas faces ' +
@@ -729,10 +957,30 @@ export function gerarMemorial(r, dimsExternas){
       'O quadro também enrijece o conjunto de pernas, mas essa redução do ' +
       'comprimento de flambagem não é aproveitada no cálculo.');
 
-    notas.push('As travessas são as peças que materializam o apoio contínuo ' +
-      'nas quatro bordas do assento, hipótese já adotada na verificação do ' +
-      'assento entre apoios. Sem elas, o assento estaria apoiado apenas nos ' +
-      'quatro topos de perna.');
+    notas.push('As travessas ocupam o vão entre as faces internas das pernas ' +
+      'e têm o topo no mesmo plano do topo das pernas. Elas completam o apoio ' +
+      'do assento ao longo das bordas, ligando um topo de perna ao outro: o ' +
+      'caminho de carga do assento é quadro → pernas → piso.');
+
+    notas.push('A carga de cada travessa segue o mesmo critério biaxial das ' +
+      'pernas: as vigas frontal e traseira respondem ao deslocamento em Y, ' +
+      'as laterais ao deslocamento em X, e a borda para onde a carga se ' +
+      'move recebe mais. Com a carga centrada as quatro recebem o mesmo ' +
+      'valor. A soma das quatro fecha exatamente com o peso que o quadro ' +
+      'sustenta — assento mais as próprias vigas —, porque as parcelas de ' +
+      'desequilíbrio se cancelam duas a duas.');
+
+    notas.push('A verificação usa a viga mais solicitada, não a média. Cada ' +
+      'viga é calculada com a sua carga uniformemente distribuída no seu ' +
+      'vão, que é o envelope entre as formas lineares: para o mesmo total, ' +
+      'a distribuição uniforme dá o maior momento e a maior flecha. Só uma ' +
+      'carga concentrada no meio do vão seria mais severa, e não é o caso — ' +
+      'a placa pressiona a borda inteira.');
+
+    notas.push('O peso próprio das vigas entra na carga do quadro, porque é ' +
+      'ele que as carrega. As pernas e o encosto não entram: eles se apoiam ' +
+      'direto nas pernas, sem passar pelas travessas. É por isso que a soma ' +
+      'das quatro vigas é menor que a soma das quatro reações nas pernas.');
 
     if (r.travessas.vazada) {
       notas.push('Na travessa tubular a área e a inércia descontam o furo da ' +
@@ -748,14 +996,6 @@ export function gerarMemorial(r, dimsExternas){
     num((r.massa.assento * G / r.forcas.P) * 100, 1) +
     '% do peso do usuário.');
 
-  if (n === 4) {
-    notas.push('No quadro de quatro pernas o momento de excentricidade é ' +
-      'resistido pelo casal entre as pernas, que já satisfaz o equilíbrio. ' +
-      'Nenhuma flexão é somada à perna, para não contar o mesmo momento duas ' +
-      'vezes. A parcela que o anel das travessas transmite às pernas é um ' +
-      'efeito hiperestático que este modelo não resolve, e fica de fora.');
-  }
-
   if (vaz) {
     notas.push('A flambagem local é verificada pela relação entre a dimensão ' +
       'interna e a parede, comparada a 1,40·√(E/σ<sub>lim</sub>). O critério ' +
@@ -769,9 +1009,17 @@ export function gerarMemorial(r, dimsExternas){
   }
 
   if (estab) {
-    notas.push('O braço de tombamento adotado é o menor da base: o semiapótema, ' +
-      'na direção perpendicular às faces. Nas diagonais o braço é maior, ' +
-      'de modo que o resultado é conservador.');
+    notas.push('No pedestal o momento resultante tem duas componentes. ' +
+      'Na seção quadrada as duas parcelas se somam no canto, e o momento ' +
+      'equivalente é |M_x| + |M_y|. Na seção redonda há uma única fibra ' +
+      'extrema, na direção resultante, e o equivalente é a raiz da soma dos ' +
+      'quadrados. A tensão de flexão é calculada com esse momento ' +
+      'equivalente e um único módulo resistente.',
+
+      'O braço de tombamento adotado é o menor da base: o semiapótema, ' +
+      'na direção perpendicular às faces. A verificação usa a excentricidade ' +
+      'resultante, e a distância do centro à borda em qualquer direção nunca ' +
+      'é menor que esse braço — logo o resultado é conservador.');
   }
 
   if (!temEncosto) {
@@ -798,6 +1046,11 @@ export function gerarMemorial(r, dimsExternas){
   notas.push('As propriedades dos materiais vêm da tabela de propriedades ' +
     'médias de ' + mat.fonte + '. O coeficiente de segurança é decisão de ' +
     'projeto deste simulador, não valor de tabela.');
+
+  notas.push('O deslocamento do centro de carga aumenta o braço do balanço do ' +
+    'assento. O cálculo soma ao sobrepasso nominal a projeção da ' +
+    'excentricidade, o que representa a pessoa sentada na beirada: o ponto ' +
+    'de carga fica mais longe do apoio e o momento cresce.');
 
   h += '<section class="mem-sec"><h2>Notas e limitações</h2>' +
     '<ul class="mem-notas">' +

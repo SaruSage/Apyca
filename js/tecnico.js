@@ -18,13 +18,26 @@
  * para o conjunto: espessura da perna por dentro, largura total por fora.
  * No pedestal cotam-se a base e a altura do pe, alem da espessura da coluna.
  *
+ * COTA DA ALTURA DO ASSENTO
+ * So e emitida quando existe encosto. Sem encosto, o topo do assento E o
+ * topo da peca: a cota coincidiria em intervalo e em valor com a altura
+ * total, e a mesma dimensao apareceria duas vezes na prancha.
+ *
  * LIMITACAO DO PEDESTAL
  * A coluna nasce no topo do pe, nao no piso. Por isso a cota da espessura
  * da coluna tem origem no topo do pe, e suas linhas de chamada descem
  * cruzando o trapezio do pe. E a solucao usual quando a peca esta dentro
  * de outra: a linha de chamada parte do contorno real da peca cotada.
+ *
+ * ESPACO ENTRE VISTAS
+ * O gap base e 36% da maior dimensao, mas ele nao basta sozinho: as cotas
+ * empilhadas e o rotulo da vista frontal usam deslocamentos FIXOS em px,
+ * enquanto o gap encolhe junto com a escala. Numa cadeira muito alta e
+ * estreita o rotulo frontal invadia a vista superior. GAP_MIN_PX e o piso
+ * em pixels que o rotulo exige, e o gap e resolvido em forma fechada para
+ * garanti-lo nos dois regimes de escala: largura limitante e altura
+ * limitante (VBH_MAX).
  */
-
 import { bboxPeca } from './chairModel.js';
 
 const VBW = 900;              // largura do viewBox, em px
@@ -35,10 +48,19 @@ const SETA_W = 2.4;
 const TRACO_FINO = 0.55;
 const TRACO_GROSSO = 1.2;
 const VBH_MAX = 1260;
-
 const NIVEL_A = 13;           // cota de detalhe (espessura)
 const NIVEL_B = 31;           // cota intermediaria (base do pe)
 const NIVEL_C = 49;           // cota de conjunto (largura total)
+
+/**
+ * Piso de espaco entre vistas, em px.
+ *
+ * A pilha de cotas abaixo da vista frontal chega a NIVEL_C = 49 px, e o
+ * rotulo comeca em 54 + 12 = 66 px abaixo do piso no pedestal, ou 36 + 12
+ * no quadro de quatro pernas. Somando a descendencia do texto e uma folga,
+ * 96 px e o minimo que nunca deixa o rotulo encostar na vista de baixo.
+ */
+const GAP_MIN_PX = 96;
 
 function coord(v){
   return v.toFixed(1);
@@ -65,7 +87,6 @@ function pyDe(v, valor, s){
 }
 
 /* ---------- Primitivas de desenho ---------- */
-
 function linha(x1, y1, x2, y2, w){
   return '<line x1="' + coord(x1) + '" y1="' + coord(y1) +
     '" x2="' + coord(x2) + '" y2="' + coord(y2) +
@@ -112,18 +133,26 @@ function rotulo(x, y, txt){
     'letter-spacing="0.6">' + txt + '</text>';
 }
 
-/* ---------- Cotas ---------- */
-
+/* ---------- Cotas ----------
+ * Quando o vao entre as linhas de chamada e menor que o par de setas, as
+ * setas passam para FORA e apontam para dentro, e a linha de cota avanca
+ * para fora do vao. E a pratica usual, e evita que as duas setas de 7 px se
+ * sobreponham numa espessura de 5 mm.
+ */
 function cotaH(x1, x2, yCota, yOrigem, txt){
   const paraBaixo = yCota > yOrigem;
   const fim = paraBaixo ? yCota + 5 : yCota - 5;
 
+  const estreita = (x2 - x1) < 2 * SETA + 2;
+  const bordaEsq = estreita ? x1 - SETA - 4 : x1;
+  const bordaDir = estreita ? x2 + SETA + 4 : x2;
+
   let h = '';
   h += linha(x1, yOrigem, x1, fim);
   h += linha(x2, yOrigem, x2, fim);
-  h += linha(x1, yCota, x2, yCota);
-  h += setaH(x1, yCota, -1);
-  h += setaH(x2, yCota, 1);
+  h += linha(bordaEsq, yCota, bordaDir, yCota);
+  h += setaH(x1, yCota, estreita ? 1 : -1);
+  h += setaH(x2, yCota, estreita ? -1 : 1);
   h += textoCota((x1 + x2) / 2, yCota - 4, txt);
   return h;
 }
@@ -132,18 +161,21 @@ function cotaV(y1, y2, xCota, xOrigem, txt){
   const paraDireita = xCota > xOrigem;
   const fim = paraDireita ? xCota + 5 : xCota - 5;
 
+  const estreita = (y2 - y1) < 2 * SETA + 2;
+  const bordaSup = estreita ? y1 - SETA - 4 : y1;
+  const bordaInf = estreita ? y2 + SETA + 4 : y2;
+
   let h = '';
   h += linha(xOrigem, y1, fim, y1);
   h += linha(xOrigem, y2, fim, y2);
-  h += linha(xCota, y1, xCota, y2);
-  h += setaV(xCota, y1, -1);
-  h += setaV(xCota, y2, 1);
+  h += linha(xCota, bordaSup, xCota, bordaInf);
+  h += setaV(xCota, y1, estreita ? 1 : -1);
+  h += setaV(xCota, y2, estreita ? -1 : 1);
   h += textoCota(xCota - 5, (y1 + y2) / 2, txt, -90);
   return h;
 }
 
 /* ---------- Projecao de uma peca ---------- */
-
 function desenharPeca(p, v, s){
   const bb = bboxPeca(p);
   const uIdx = v.uIdx, vIdx = v.vIdx;
@@ -193,7 +225,6 @@ function svgDaForma(f){
 }
 
 /* ---------- Prancha ---------- */
-
 export function desenhoTecnico(barras){
   if (!Array.isArray(barras) || barras.length === 0) return '';
 
@@ -240,26 +271,45 @@ export function desenhoTecnico(barras){
   const bbColuna = pecaColuna ? bboxPeca(pecaColuna) : null;
 
   /*
-   * O espaco entre a vista frontal e a superior precisa acomodar as cotas
-   * empilhadas mais o rotulo. 36% da maior dimensao da conta.
+   * ---------- Escala e espaco entre vistas ----------
+   *
+   * O gap precisa acomodar, abaixo da vista frontal, as cotas empilhadas
+   * mais o rotulo. Esses deslocamentos sao FIXOS em px, mas o gap e uma
+   * fracao da geometria em mm: ao reduzir a escala para caber em VBH_MAX,
+   * o gap encolhe e o rotulo passa a invadir a vista superior.
+   *
+   * As duas desigualdades abaixo dao o gap minimo que garante GAP_MIN_PX
+   * em cada regime de escala:
+   *
+   *   largura limitante   gap * s >= G   com s = utilW/(W + gap + colW2)
+   *                       => gap >= G*(W + colW2)/(utilW - G)
+   *
+   *   altura limitante    gap * s >= G   com s = alturaUtil/(H + gap + D)
+   *                       => gap >= G*(H + D)/(alturaUtil - G)
    */
-  const gap = 0.36 * Math.max(W, D);
+  const utilW = VBW - 2 * MARGEM;
+  const alturaUtil = VBH_MAX - 2 * MARGEM - 32;
+
   const colW2 = Math.max(W, D);
+
+  const gapBase = 0.36 * Math.max(W, D);
+  const gapLargura = (GAP_MIN_PX * (W + colW2)) / (utilW - GAP_MIN_PX);
+  const gapAltura = (GAP_MIN_PX * (H + D)) / (alturaUtil - GAP_MIN_PX);
+  const gap = Math.max(gapBase, gapLargura, gapAltura);
+
   const totalW = W + gap + colW2;
   const totalH = H + gap + D;
 
-  const utilW = VBW - 2 * MARGEM;
   let s = utilW / totalW;
   let vbh = Math.round(totalH * s + 2 * MARGEM + 32);
 
   if (vbh > VBH_MAX) {
-    s = (VBH_MAX - 2 * MARGEM - 32) / totalH;
+    s = alturaUtil / totalH;
     vbh = VBH_MAX;
   }
 
   const offX = (VBW - totalW * s) / 2;
   const offY = MARGEM;
-
   const col2 = offX + (W + gap) * s;
   const lin2 = offY + (H + gap) * s;
 
@@ -267,15 +317,12 @@ export function desenhoTecnico(barras){
     { nome: 'VISTA FRONTAL', x: offX, y: offY,
       uIdx: 0, vIdx: 2, profIdx: 1, asc: true, plano: false, vParaBaixo: false,
       uMin: min[0], uMax: max[0], vMin: min[2], vMax: max[2] },
-
     { nome: 'VISTA LATERAL', x: col2, y: offY,
       uIdx: 1, vIdx: 2, profIdx: 0, asc: false, plano: false, vParaBaixo: false,
       uMin: min[1], uMax: max[1], vMin: min[2], vMax: max[2] },
-
     { nome: 'VISTA SUPERIOR', x: offX, y: lin2,
       uIdx: 0, vIdx: 1, profIdx: 2, asc: true, plano: true, vParaBaixo: true,
       uMin: min[0], uMax: max[0], vMin: min[1], vMax: max[1] },
-
     { nome: 'VISTA INFERIOR', x: col2, y: lin2,
       uIdx: 0, vIdx: 1, profIdx: 2, asc: false, plano: true, vParaBaixo: true,
       uMin: min[0], uMax: max[0], vMin: min[1], vMax: max[1] }
@@ -320,11 +367,20 @@ export function desenhoTecnico(barras){
   /* Frontal: altura total, largura e altura do assento. */
   cotas += cotaV(fYA, fYB, fX0 - 28, fX0, cm(H));
   cotas += cotaH(fX0, fX1, fYB + NIVEL_C, fYB, cm(W));
-  cotas += cotaV(pyAssento, fYB, fX1 + (ehPedestal ? 44 : 26), fX1,
-                 cm(topoAssento - min[2]));
+
+  /*
+   * Altura do assento: so faz sentido quando existe encosto. Sem encosto o
+   * topo do assento e o topo da peca, e esta cota repetiria em intervalo e
+   * em valor a altura total, ja cotada a esquerda.
+   */
+  if (topoAssento < max[2] - 0.5) {
+    cotas += cotaV(pyAssento, fYB, fX1 + (ehPedestal ? 44 : 26), fX1,
+                   cm(topoAssento - min[2]));
+  }
 
   /* Lateral: profundidade e altura do encosto. */
   cotas += cotaH(lX0, lX1, fYB + NIVEL_B, fYB, cm(D));
+
   if (temEncosto && topoAssento < max[2]) {
     cotas += cotaV(fYA, pyAssento, lX1 + 26, lX1, cm(max[2] - topoAssento));
   }

@@ -10,15 +10,57 @@
  *   vazada : A = b*h - bi*hi            I = (b*h^3 - bi*hi^3)/12
  *            com bi = b - 2ep e hi = h - 2ep
  *
+ * ORIENTACAO DOS EIXOS — mesma convencao do chairModel.js
+ *
+ *   +Y   FRENTE da cadeira (o lado para onde a pessoa olha)
+ *   -Y   FUNDO, junto ao encosto, onde y = 0
+ *
+ * O encosto e construido em y = 0. Logo a viga em y = 0 e a TRASEIRA, do
+ * lado do encosto, e a viga em y = L e a FRONTAL. A versao anterior deste
+ * arquivo tinha os dois nomes trocados: chamava de "frontal" a viga do
+ * fundo. O calculo sempre esteve certo — so o rotulo enganava quem lia o
+ * painel ou o memorial.
+ *
+ * DISTRIBUICAO DA CARGA — FLEXAO BIAXIAL
+ * Cada viga vence o vao entre duas pernas, e recebe do assento a carga da
+ * sua borda. Com a carga centrada, as quatro recebem o mesmo. Deslocada, a
+ * placa carrega mais a borda para onde a pessoa se move, pelo mesmo
+ * criterio biaxial que o solver aplica as pernas:
+ *
+ *   viga traseira (borda y = 0, junto ao encosto)   Nbase - dNy
+ *   viga frontal  (borda y = L, lado da frente)     Nbase + dNy
+ *   viga esquerda (borda x = 0)                     Nbase - dNx
+ *   viga direita  (borda x = L)                     Nbase + dNx
+ *
+ * com dNx = P*|eX|/(2*(L-t)) e dNy = P*|eY|/(2*(L-t)), o mesmo braco do
+ * casal entre as pernas. A soma das quatro cargas fecha exatamente com o
+ * peso que o quadro sustenta — assento mais as proprias vigas —, porque
+ * (-dNy) + (+dNy) + (-dNx) + (+dNx) = 0.
+ *
+ * Cada viga e verificada com a SUA carga, uniformemente distribuida no seu
+ * vao. A distribuicao uniforme e o envelope entre as formas lineares
+ * (uniforme, trapezoidal e triangular): para o mesmo total, ela da o maior
+ * momento — M = W*L/8 contra W*L/(9*raiz(3)) da triangular — e tambem a
+ * maior flecha. So uma carga concentrada no meio do vao seria pior, e nao e
+ * o caso: a placa pressiona a borda inteira.
+ *
+ * A carga de cada viga sofre piso em zero. Carga negativa significaria que
+ * aquela borda perde contato com a viga, o que acontece no regime em que as
+ * pernas do lado oposto ja levantam e o solver reporta.
+ *
  * HIPOTESES
- *   - Apoio simples nos eixos das pernas (ligacao parafusada, sem rigidez
- *     de momento). E a leitura conservadora: da a maior flecha possivel.
- *     O quadro real e continuo nos cantos, o que reduz a flecha.
- *   - A carga do assento se divide igualmente entre as quatro travessas.
- *   - O vao de CALCULO e a distancia entre os eixos das pernas (L - t).
- *     O COMPRIMENTO de cada viga e o vao entre as faces internas (L - 2t),
- *     usado apenas para volume e massa.
+ *   - Apoio simples nas FACES INTERNAS das pernas (ligacao sem rigidez de
+ *     momento). A viga encosta na perna e nao penetra nela, entao o apoio
+ *     esta em x = t e x = L - t. O quadro real e continuo nos cantos, o que
+ *     reduz a flecha; isso fica como folga nao contabilizada.
+ *   - O vao de CALCULO e o vao livre entre as faces internas das pernas
+ *     (L - 2t), que e tambem o COMPRIMENTO de cada viga: calculo, volume e
+ *     massa usam a mesma medida. Medir o vao entre eixos (L - t) daria um
+ *     vao maior que a propria peca.
  *   - A massa do assento entra na carga: sao as travessas que o sustentam.
+ *   - O peso proprio das vigas tambem entra, porque e o proprio quadro que o
+ *     carrega. As pernas e o encosto NAO entram: eles se apoiam direto nas
+ *     pernas, sem passar pelo quadro.
  *
  * GEOMETRIA
  * geometriaTravessas() e a fonte unica das dimensoes do quadro. chairModel.js
@@ -28,7 +70,7 @@
  * Unidades: mm, N, MPa, kg.
  */
 
-import { G, TRAVESSAS } from './constantes.js';
+import { G, HIPOTESES, TRAVESSAS, ASSENTO } from './constantes.js';
 
 /**
  * Define a secao pedida pelo usuario. Chamado pelo app antes de calcular,
@@ -53,6 +95,52 @@ export function definirTravessaSecao(larguraMm, alturaMm, vazada, paredeMm){
     vazada: TRAVESSAS.vazada,
     parede: TRAVESSAS.parede
   };
+}
+
+/**
+ * Define os comprimentos livres das travessas (entre as faces internas das
+ * pernas), em mm.
+ *   compXMm : travessas frontal e traseira (ligam esquerda e direita, eixo X)
+ *   compYMm : travessas laterais de cada lado (ligam frente e fundo, eixo Y)
+ * Se apenas um valor for passado, aplica o mesmo comprimento a todas as 4
+ * travessas. Passar null restaura o comportamento padrao (L_QUADRO = 400 mm).
+ */
+export function definirTravessaComprimento(compXMm, compYMm = compXMm){
+  if (compXMm === null) {
+    TRAVESSAS.comprimentoX = null;
+  } else if (Number.isFinite(compXMm)) {
+    TRAVESSAS.comprimentoX = compXMm;
+  }
+
+  if (compYMm === null) {
+    TRAVESSAS.comprimentoY = null;
+  } else if (Number.isFinite(compYMm)) {
+    TRAVESSAS.comprimentoY = compYMm;
+  }
+
+  return {
+    comprimentoX: TRAVESSAS.comprimentoX,
+    comprimentoY: TRAVESSAS.comprimentoY
+  };
+}
+
+/**
+ * Devolve as dimensoes externas da esquadria (Lx, Ly) e os vaos livres das
+ * travessas (vaoX, vaoY) em mm.
+ * Quando comprimentoX / comprimentoY estao configurados, a esquadria vale
+ * Lx = vaoX + 2*t e Ly = vaoY + 2*t. Quando null, usa Lpadrao (400 mm).
+ */
+export function dimensoesEsquadria(t, Lpadrao = HIPOTESES.L){
+  const temCompX = Number.isFinite(TRAVESSAS.comprimentoX);
+  const temCompY = Number.isFinite(TRAVESSAS.comprimentoY);
+
+  const vaoX = temCompX ? TRAVESSAS.comprimentoX : (Lpadrao - 2 * t);
+  const vaoY = temCompY ? TRAVESSAS.comprimentoY : (Lpadrao - 2 * t);
+
+  const Lx = temCompX ? vaoX + 2 * t : Lpadrao;
+  const Ly = temCompY ? vaoY + 2 * t : Lpadrao;
+
+  return { Lx, Ly, vaoX, vaoY };
 }
 
 /**
@@ -92,8 +180,8 @@ export function secaoTravessa(t, H){
  * POSICIONAMENTO — a face externa de cada viga fica no MESMO plano da face
  * externa da perna:
  *
- *   frontal  ocupa y de 0 a b        (face externa em y = 0)
- *   traseira ocupa y de L-b a L      (face externa em y = L)
+ *   traseira ocupa y de 0 a b        (face externa em y = 0, junto ao encosto)
+ *   frontal  ocupa y de L-b a L      (face externa em y = L, lado da frente)
  *   esquerda ocupa x de 0 a b        (face externa em x = 0)
  *   direita  ocupa x de L-b a L      (face externa em x = L)
  *
@@ -109,16 +197,17 @@ export function secaoTravessa(t, H){
  */
 export function geometriaTravessas(L, t, H){
   const sec = secaoTravessa(t, H);
+  const { Lx, Ly, vaoX, vaoY } = dimensoesEsquadria(t, L);
 
   const z = H - sec.h;
-  const vao = L - 2 * t;          // comprimento de cada viga
-  const ok = sec.b > 0 && sec.h > 0 && vao > 0;
+  const vao = Math.max(vaoX, vaoY);
+  const ok = sec.b > 0 && sec.h > 0 && vaoX > 0 && vaoY > 0;
 
   const b = sec.b;
   const h = sec.h;
 
   return {
-    b, h, z, vao, ok,
+    b, h, z, vao, vaoX, vaoY, Lx, Ly, ok,
     vazada: sec.vazada,
     parede: sec.parede,
     bi: sec.bi,
@@ -126,14 +215,14 @@ export function geometriaTravessas(L, t, H){
     A: sec.A,
     I: sec.I,
     pecas: ok ? [
-      /* Frontal: face externa em y = 0. */
-      { x: t,      y: 0,       dx: vao, dy: b, dz: h },
-      /* Traseira: face externa em y = L. */
-      { x: t,      y: L - b,   dx: vao, dy: b, dz: h },
-      /* Lateral esquerda: face externa em x = 0. */
-      { x: 0,      y: t,       dx: b,   dy: vao, dz: h },
-      /* Lateral direita: face externa em x = L. */
-      { x: L - b,  y: t,       dx: b,   dy: vao, dz: h }
+      /* Traseira: face externa em y = 0, junto ao encosto (comprimento vaoX). */
+      { x: t,       y: 0,       dx: vaoX, dy: b,    dz: h },
+      /* Frontal: face externa em y = Ly, lado da frente (comprimento vaoX). */
+      { x: t,       y: Ly - b,  dx: vaoX, dy: b,    dz: h },
+      /* Lateral esquerda: face externa em x = 0 (comprimento vaoY). */
+      { x: 0,       y: t,       dx: b,    dy: vaoY, dz: h },
+      /* Lateral direita: face externa em x = Lx (comprimento vaoY). */
+      { x: Lx - b,  y: t,       dx: b,    dy: vaoY, dz: h }
     ] : []
   };
 }
@@ -147,71 +236,173 @@ export function verificarTravessas({ P, massaAssento, L, t, H, material }){
   const I = geo.I;
 
   const n = TRAVESSAS.nTravessas;
+
   /* O vao de CALCULO e o vao livre entre as faces internas das pernas, que e
    * exatamente o comprimento da peca. A travessa nao penetra na perna: ela
    * encosta na face, entao o apoio esta em x = t e x = L - t.
    *
    * Antes usava-se L - t (eixo da perna), o que dava um vao de 360 mm para
-   * uma peca de 320 mm — vao maior que a viga, inconsistente no memorial.
-   */
-  const vao = Math.max(L - 2 * t, 1);
+   * uma peca de 320 mm — vao maior que a viga, inconsistente no memorial. */
+  const vaoX = Math.max(geo.vaoX, 1);
+  const vaoY = Math.max(geo.vaoY, 1);
+  const Lx = geo.Lx;
+  const Ly = geo.Ly;
 
   const E = material.E;
   const sigmaAdm = material.sigmaLimite / material.CS;
 
+  /* Bracos do casal entre as pernas em cada direcao: os mesmos que o solver usa. */
+  const bracoX = Math.max(Lx - t, 1);
+  const bracoY = Math.max(Ly - t, 1);
+
   /*
-   * Volume do quadro a partir da AREA da secao — macica ou vazada. As quatro
-   * vigas tem o mesmo comprimento (vao livre), entao nao ha sobreposicao de
-   * volume a descontar.
+   * Volume do quadro a partir da AREA da secao — 2 vigas de comprimento vaoX
+   * (traseira e frontal) e 2 vigas de comprimento vaoY (laterais).
    */
-  const volume = A * geo.vao * n;
+  const volume = A * (2 * Math.max(0, geo.vaoX) + 2 * Math.max(0, geo.vaoY));
 
   const massaTotal = (volume / 1e9) * material.rho;
   const massa = massaTotal / n;
   const pesoProprio = massa * G;
 
+  const pesoProprioX = ((A * Math.max(0, geo.vaoX)) / 1e9) * material.rho * G;
+  const pesoProprioY = ((A * Math.max(0, geo.vaoY)) / 1e9) * material.rho * G;
+
   const cargaAssento = P + massaAssento * G;
-  const N = cargaAssento / n + pesoProprio;
-
-  const q = N / vao;
-  const M = (q * vao * vao) / 8;
-  const V = (q * vao) / 2;
-
-  const c = h / 2;
-  const W = I / c;
-
-  const tensao = M / W;
 
   /*
-   * Solicitacao tangencial: na secao retangular macica o pico vale 1,5*V/A.
-   * Na vazada a alma e fina e o pico sobe, chegando perto de 2,0*V/A — valor
-   * adotado aqui.
+   * Carga de referencia media: a que cada viga receberia com a carga centrada,
+   * ja incluindo a parcela do proprio peso.
    */
-  const tau = ((geo.vazada ? 2.0 : 1.5) * V) / A;
+  const Nbase = cargaAssento / n + pesoProprio;
+  const NbaseX = cargaAssento / n + pesoProprioX;
+  const NbaseY = cargaAssento / n + pesoProprioY;
 
-  const flecha = (5 * q * Math.pow(vao, 4)) / (384 * E * I);
-  const flechaLimite = vao / TRAVESSAS.divisorFlecha;
+  /* ---------- Centro de carga ----------
+   * As mesmas fracoes e o mesmo braco que o solver usa nas pernas: as
+   * travessas e as pernas fazem parte do mesmo quadro resistente, e o
+   * desequilibrio de um lado acompanha o do outro. */
+  const fracX = Number.isFinite(ASSENTO.excentricidadeX)
+    ? ASSENTO.excentricidadeX : 0;
+  const fracY = Number.isFinite(ASSENTO.excentricidadeY)
+    ? ASSENTO.excentricidadeY : 0;
 
-  const utilizacaoTensao = tensao / sigmaAdm;
-  const utilizacaoFlecha = flecha / flechaLimite;
+  const larg = Number.isFinite(ASSENTO.largura) ? ASSENTO.largura : 0;
+  const prof = Number.isFinite(ASSENTO.profundidade) ? ASSENTO.profundidade : 0;
+
+  const eX = fracX * larg / 2;
+  const eY = fracY * prof / 2;
+
+  const dNx = (P * Math.abs(eX)) / (2 * bracoX);
+  const dNy = (P * Math.abs(eY)) / (2 * bracoY);
+
+  /*
+   * A placa nao traciona: carga negativa significa que aquela borda perde
+   * contato com a viga, e ela nao recebe nada. Todas as grandezas de flexao
+   * sao lineares na carga, entao aplicar o piso aqui propaga coerencia para
+   * q, M, V, tensao, cisalhamento e flecha de uma vez.
+   */
+  function viga(nome, depende, carga, vaoViga){
+    const semContato = carga < 0;
+    const cargaEf = Math.max(0, carga);
+    const q = cargaEf / vaoViga;
+    const M = (q * vaoViga * vaoViga) / 8;
+    const V = (q * vaoViga) / 2;
+
+    const c = h / 2;
+    const W = I / c;
+
+    const tensao = M / W;
+
+    /*
+     * Solicitacao tangencial: na secao retangular macica o pico vale
+     * 1,5*V/A. Na vazada a alma e fina e o pico sobe, chegando perto de
+     * 2,0*V/A — valor adotado aqui.
+     */
+    const tau = ((geo.vazada ? 2.0 : 1.5) * V) / A;
+
+    const flecha = (5 * q * Math.pow(vaoViga, 4)) / (384 * E * I);
+    const flechaLimiteViga = vaoViga / TRAVESSAS.divisorFlecha;
+
+    const utilizacaoTensao = tensao / sigmaAdm;
+    const utilizacaoFlecha = flecha / flechaLimiteViga;
+
+    return {
+      nome, depende, carga, cargaEf, semContato,
+      vao: vaoViga,
+      comprimento: vaoViga,
+      q, M, V, c, W,
+      tensao, cisalhamento: tau,
+      flecha,
+      flechaLimite: flechaLimiteViga,
+      utilizacaoTensao, utilizacaoFlecha,
+      utilizacao: Math.max(utilizacaoTensao, utilizacaoFlecha)
+    };
+  }
+
+  /*
+   * As vigas traseira e frontal (comprimento vaoX) respondem ao deslocamento em Y;
+   * as laterais (comprimento vaoY), ao deslocamento em X. Os sinais sao os mesmos
+   * do casal entre as pernas: a borda para onde a carga se move recebe mais.
+   */
+  const deltaNx = (P * eX) / (2 * bracoX);
+  const deltaNy = (P * eY) / (2 * bracoY);
+
+  const porViga = [
+    viga('traseira', 'eY', NbaseX - deltaNy, vaoX),
+    viga('frontal',  'eY', NbaseX + deltaNy, vaoX),
+    viga('esquerda', 'eX', NbaseY - deltaNx, vaoY),
+    viga('direita',  'eX', NbaseY + deltaNx, vaoY)
+  ];
+
+  const critica = porViga.reduce(
+    (a, v) => (v.utilizacao > a.utilizacao ? v : a)
+  );
+
+  const vao = critica.vao;
+  const flechaLimite = critica.flechaLimite;
 
   return {
     n, b, h, vao,
-    comprimento: geo.vao,
+    vaoX, vaoY, Lx, Ly,
+    comprimento: critica.comprimento,
+    comprimentoX: vaoX,
+    comprimentoY: vaoY,
     vazada: geo.vazada,
     parede: geo.parede,
     A, I,
+
+    /* Geometria e massa do quadro */
     volume, massa,
     massaTotal,
     pesoProprio,
-    cargaAssento, N, q,
-    M, V, c, W,
-    tensao, cisalhamento: tau,
+    cargaAssento,
+    cargaQuadro: Nbase * n,
+
+    /* Distribuicao biaxial */
+    fracX, fracY, eX, eY,
+    dNx, dNy,
+    Nbase,
+    porViga,
+    vigaCritica: critica.nome,
+    semContato: porViga.some(v => v.semContato),
+
+    /* Verificacao — os campos abaixo sao da VIGA CRITICA, que governa */
+    N: critica.cargaEf,
+    Ncritica: critica.cargaEf,
+    q: critica.q,
+    M: critica.M,
+    V: critica.V,
+    c: critica.c,
+    W: critica.W,
+    tensao: critica.tensao,
+    cisalhamento: critica.cisalhamento,
     sigmaAdm,
-    flecha, flechaLimite,
+    flecha: critica.flecha,
+    flechaLimite,
     divisorFlecha: TRAVESSAS.divisorFlecha,
-    utilizacaoTensao,
-    utilizacaoFlecha,
-    utilizacao: Math.max(utilizacaoTensao, utilizacaoFlecha)
+    utilizacaoTensao: critica.utilizacaoTensao,
+    utilizacaoFlecha: critica.utilizacaoFlecha,
+    utilizacao: critica.utilizacao
   };
 }

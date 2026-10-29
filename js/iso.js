@@ -10,11 +10,21 @@
  *
  * Com pecas paradas o resultado e identico ao anterior: das 6 faces de uma
  * caixa, exatamente 3 apontam para a camera (1,1,1).
+ *
+ * VEIOS E ROTACAO
+ * Só a face de topo de uma CAIXA carrega o campo `caixa`, e projetarFaces o
+ * preserva ate o montarSVG, que desenha o veio da madeira. O veio, porem, e
+ * calculado a partir das coordenadas da caixa SEM rotacao.
+ *
+ * Por isso `transformar` anula o `caixa`: uma caixa alinhada aos eixos nao
+ * representa um solido girado, e manter o campo faria o veio descolar da
+ * peca em movimento. Durante a ruina as pecas tombam rapido e o veio seria
+ * ruido visual de qualquer forma.
  */
-
 import { bboxPeca } from './chairModel.js';
 
 const COS30 = Math.cos(Math.PI / 6);
+
 const LADOS_COLUNA = 20;
 const LADOS_CONE = 44;
 const LADOS_TUBO = 28;
@@ -39,21 +49,32 @@ function anel(cx, cy, r, z, lados){
 }
 
 /* ---------- Geracao de faces ---------- */
-
 function facesDaCaixa(p){
   const X = p.x + p.dx, Y = p.y + p.dy, Z = p.z + p.dz;
   const x0 = p.x, y0 = p.y, z0 = p.z;
+
   return [
     { kind: 'top', luz: 1.16, normal: [0, 0, 1], caixa: p,
       quad: [[x0, y0, Z], [X, y0, Z], [X, Y, Z], [x0, Y, Z]] },
+
     { kind: 'front', luz: 0.94, normal: [0, 1, 0],
       quad: [[x0, Y, z0], [X, Y, z0], [X, Y, Z], [x0, Y, Z]] },
+
     { kind: 'side', luz: 0.70, normal: [1, 0, 0],
       quad: [[X, y0, z0], [X, Y, z0], [X, Y, Z], [X, y0, Z]] },
+
+    /*
+     * Duas faces compartilham o rotulo 'back': a de -X e a de -Y. Hoje e
+     * inofensivo, porque o unico consumidor de `kind` e o montarSVG, que
+     * testa apenas 'top'. Ficam registradas para quem for usar 'back' no
+     * futuro distinguir as duas.
+     */
     { kind: 'back', luz: 0.62, normal: [-1, 0, 0],
       quad: [[x0, y0, z0], [x0, Y, z0], [x0, Y, Z], [x0, y0, Z]] },
+
     { kind: 'back', luz: 0.62, normal: [0, -1, 0],
       quad: [[x0, y0, z0], [X, y0, z0], [X, y0, Z], [x0, y0, Z]] },
+
     { kind: 'bottom', luz: 0.52, normal: [0, 0, -1],
       quad: [[x0, y0, z0], [X, y0, z0], [X, Y, z0], [x0, Y, z0]] }
   ];
@@ -67,8 +88,8 @@ function facesDoCilindro(p, lados){
     const a0 = (2 * Math.PI * i) / lados;
     const a1 = (2 * Math.PI * (i + 1)) / lados;
     const am = (a0 + a1) / 2;
-    const nx = Math.cos(am), ny = Math.sin(am);
 
+    const nx = Math.cos(am), ny = Math.sin(am);
     const x0 = p.cx + p.r * Math.cos(a0), y0 = p.cy + p.r * Math.sin(a0);
     const x1 = p.cx + p.r * Math.cos(a1), y1 = p.cy + p.r * Math.sin(a1);
 
@@ -81,8 +102,10 @@ function facesDoCilindro(p, lados){
 
   out.push({ kind: 'top', luz: 1.16, normal: [0, 0, 1],
     quad: anel(p.cx, p.cy, p.r, z1, lados) });
+
   out.push({ kind: 'bottom', luz: 0.52, normal: [0, 0, -1],
     quad: anel(p.cx, p.cy, p.r, z0, lados) });
+
   return out;
 }
 
@@ -95,6 +118,7 @@ function facesDoCone(p, lados){
     const a0 = (2 * Math.PI * i) / lados;
     const a1 = (2 * Math.PI * (i + 1)) / lados;
     const am = (a0 + a1) / 2;
+
     const nx = Math.cos(am), ny = Math.sin(am);
     const m = Math.hypot(p.h * nx, p.h * ny, dr) || 1;
 
@@ -115,8 +139,10 @@ function facesDoCone(p, lados){
     out.push({ kind: 'top', luz: 1.16, normal: [0, 0, 1],
       quad: anel(p.cx, p.cy, p.rTopo, z1, lados) });
   }
+
   out.push({ kind: 'bottom', luz: 0.52, normal: [0, 0, -1],
     quad: anel(p.cx, p.cy, p.rBase, z0, lados) });
+
   return out;
 }
 
@@ -135,6 +161,7 @@ function facesDaPiramide(p){
     const j = (i + 1) % 4;
     const nx = nrm[i][0], ny = nrm[i][1];
     const m = Math.hypot(p.h * nx, p.h * ny, dr) || 1;
+
     const b0 = base[i], b1 = base[j], t0 = topo[i], t1 = topo[j];
 
     out.push({
@@ -154,8 +181,10 @@ function facesDaPiramide(p){
     out.push({ kind: 'top', luz: 1.16, normal: [0, 0, 1],
       quad: topo.map(c => [p.cx + c[0], p.cy + c[1], z1]) });
   }
+
   out.push({ kind: 'bottom', luz: 0.52, normal: [0, 0, -1],
     quad: base.map(c => [p.cx + c[0], p.cy + c[1], z0]) });
+
   return out;
 }
 
@@ -170,6 +199,7 @@ function facesDoTubo(p, lados){
       const a0 = (2 * Math.PI * i) / lados;
       const a1 = (2 * Math.PI * (i + 1)) / lados;
       const am = (a0 + a1) / 2;
+
       const nx = Math.cos(am), ny = Math.sin(am);
 
       const xe0 = p.cx + rExt * Math.cos(a0), ye0 = p.cy + rExt * Math.sin(a0);
@@ -194,6 +224,7 @@ function facesDoTubo(p, lados){
 
     out.push({ kind: 'interior', suave: true, normal: [0, 0, 1], luz: 0.24,
       quad: anel(p.cx, p.cy, rInt, z0, lados) });
+
   } else {
     const a = p.dim / 2;
     const ai = Math.max(0.5, a - p.parede);
@@ -204,6 +235,7 @@ function facesDoTubo(p, lados){
       const j = (i + 1) % 4;
       const nx = nrm[i][0], ny = nrm[i][1];
       const b0 = base[i], b1 = base[j];
+
       const P = (x, y, z) => [p.cx + x, p.cy + y, z];
 
       out.push({ kind: 'side', suave: false, normal: [nx, ny, 0],
@@ -255,12 +287,14 @@ export function faces3D(barras, corBase, detalhe){
     : { cilindro: LADOS_COLUNA, cone: LADOS_CONE, tubo: LADOS_TUBO };
 
   const faces = [];
+
   for (const p of barras) {
     const bb = bboxPeca(p);
     const profPeca = bb.max[0] + bb.max[1] + bb.max[2];
     const meiaExt = ((bb.max[0] - bb.min[0]) +
                      (bb.max[1] - bb.min[1]) +
                      (bb.max[2] - bb.min[2])) / 2;
+
     const cor = p.cor || corBase;
     const grupo = p.grupo || 'corpo';
     const centro = [
@@ -287,11 +321,11 @@ export function faces3D(barras, corBase, detalhe){
       });
     }
   }
+
   return faces;
 }
 
 /* ---------- Culling e ordenacao ---------- */
-
 export function filtrarOrdenar(faces){
   const visiveis = [];
 
@@ -318,12 +352,12 @@ export function filtrarOrdenar(faces){
 }
 
 /* ---------- Projecao ---------- */
-
 function sombrear(hex, k){
   const s = hex.replace('#', '');
   const full = s.length === 3
     ? s[0] + s[0] + s[1] + s[1] + s[2] + s[2]
     : s;
+
   const n = parseInt(full, 16);
   const canais = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 
@@ -355,8 +389,20 @@ export function projetarFaces(faces, escala, origem, modo){
 }
 
 /* ---------- Enquadramento ---------- */
-
 export function computeView(barras, largura, altura, margem = 48, folga = 1){
+  /*
+   * Guarda de lista vazia. Sem ela, os limites ficam em Infinity, a escala
+   * vira NaN e a origem tambem — o SVG sai inutilizavel em vez de vazio.
+   * O desenhoTecnico ja tem essa guarda; aqui ela faltava.
+   */
+  if (!Array.isArray(barras) || barras.length === 0) {
+    return {
+      escala: 1,
+      origem: [largura / 2, altura / 2],
+      bounds: { min: [0, 0, 0], max: [0, 0, 0] }
+    };
+  }
+
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
 
@@ -376,11 +422,13 @@ export function computeView(barras, largura, altura, margem = 48, folga = 1){
 
   const xs = cantos.map(c => c[0]);
   const ys = cantos.map(c => c[1]);
+
   const largProj = Math.max(...xs) - Math.min(...xs);
   const altProj = Math.max(...ys) - Math.min(...ys);
 
   const utilL = largura - 2 * margem;
   const utilA = altura - 2 * margem;
+
   const escala = Math.min(utilL / largProj, utilA / altProj) * folga;
 
   const origem = [
@@ -392,7 +440,6 @@ export function computeView(barras, largura, altura, margem = 48, folga = 1){
 }
 
 /* ---------- Transformacao rigida ---------- */
-
 export function matrizEuler(rx, ry, rz){
   const cx = Math.cos(rx), sx = Math.sin(rx);
   const cy = Math.cos(ry), sy = Math.sin(ry);
@@ -432,6 +479,15 @@ export function transformar(f, centro, R, desloc){
     quad,
     normal,
     centro: c,
+
+    /*
+     * O veio da madeira e calculado a partir do `caixa`, que fica nas
+     * coordenadas originais. Numa peca girada isso faria o veio descolar da
+     * superficie, entao o campo e anulado: peca em movimento nao desenha
+     * veio. Sem esta linha, o assento gira e a madeira fica parada.
+     */
+    caixa: null,
+
     profPeca: c[0] + c[1] + c[2] + (f.meiaExt || 0)
   };
 }

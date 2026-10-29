@@ -55,7 +55,6 @@ body{
 /* ==========================================================================
    Grade geral
    ========================================================================== */
-
 .layout{
   flex:1 1 auto;
   min-height:0;
@@ -92,7 +91,6 @@ body{
    O painel NÃO rola. Quem rola é o formulário, para que a barra de ações e o
    menu fiquem sempre ancorados no rodapé do painel.
    ========================================================================== */
-
 .painel--entradas{
   display:flex;
   flex-direction:column;
@@ -154,16 +152,106 @@ body{
 }
 
 .campo input[type="number"]{-moz-appearance:textfield}
+
 .campo input[type="number"]::-webkit-outer-spin-button,
 .campo input[type="number"]::-webkit-inner-spin-button{
   -webkit-appearance:none;
   margin:0;
 }
 
+/* Dica abaixo de um campo: explica o significado do valor, sem competir
+   visualmente com o rótulo. Usada nos controles do centro de carga. */
+.campo__dica{
+  display:block;
+  margin-top:5px;
+  font-size:.72rem;
+  line-height:1.4;
+  color:#8b9aad;
+}
+
+/* ---------- Controle deslizante do centro de carga ----------
+   Trilho + leitura numerica ao lado. O output mostra "centro", "+45%" ou
+   "−30%" e e atualizado pelo app a cada movimento. */
+.deslizante{
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
+
+.deslizante input[type="range"]{
+  flex:1 1 auto;
+  min-width:0;
+  height:22px;
+  padding:0;
+  background:transparent;
+  border:none;
+  accent-color:var(--acento);
+  cursor:pointer;
+}
+
+.deslizante input[type="range"]:focus-visible{
+  outline:2px solid var(--acento);
+  outline-offset:3px;
+  border-radius:4px;
+}
+
+.deslizante output{
+  flex:0 0 auto;
+  min-width:128px;
+  padding:3px 8px;
+  border:1px solid var(--borda);
+  border-radius:6px;
+  background:#0e1218;
+  color:var(--texto);
+  font-size:.71rem;
+  font-variant-numeric:tabular-nums;
+  text-align:center;
+  white-space:nowrap;
+}
+
+/* Entrada numerica de distancia especifica em centimetros abaixo do slider */
+.excent-cm{
+  margin-top:6px;
+  padding:6px 8px;
+  background:rgba(14,18,24,.55);
+  border:1px solid rgba(42,51,65,.75);
+  border-radius:7px;
+}
+
+.excent-cm__rotulo{
+  display:block;
+  margin-bottom:4px;
+  font-size:.71rem;
+  color:var(--fraco);
+}
+
+.excent-cm__linha{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.excent-cm__linha input[type="number"]{
+  width:82px;
+  flex:0 0 82px;
+  padding:4px 7px;
+  font-size:.82rem;
+}
+
+.excent-cm__direcao{
+  flex:1 1 auto;
+  min-width:0;
+  font-size:.71rem;
+  color:#c084fc;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
 /* ==========================================================================
    Barra de ações: Animar + menu
    ========================================================================== */
-
 .acoes-entrada{
   flex:0 0 auto;
   display:flex;
@@ -203,6 +291,7 @@ body{
   color:#fff;
   letter-spacing:.01em;
 }
+
 .botao--animar:hover{
   background:linear-gradient(180deg,#4fa3ff,#3a8ada);
   border-color:#4fa3ff;
@@ -221,7 +310,6 @@ body{
 /* ==========================================================================
    Menu hambúrguer
    ========================================================================== */
-
 .menu-lateral__botao{
   flex:0 0 auto;
   width:40px;
@@ -236,15 +324,18 @@ body{
   cursor:pointer;
   transition:border-color .16s ease, color .16s ease, background .16s ease;
 }
+
 .menu-lateral__botao:hover{
   border-color:var(--acento);
   color:var(--texto);
 }
+
 .menu-lateral__botao[aria-expanded="true"]{
   border-color:var(--acento);
   color:var(--acento);
   background:rgba(79,163,255,.08);
 }
+
 .menu-lateral__botao:focus-visible{
   outline:2px solid var(--acento);
   outline-offset:2px;
@@ -255,6 +346,7 @@ body{
   flex-direction:column;
   gap:3px;
 }
+
 .menu-lateral__icone i{
   display:block;
   width:14px;
@@ -263,6 +355,7 @@ body{
   border-radius:1px;
   transition:transform .2s ease, opacity .2s ease;
 }
+
 .menu-lateral__botao[aria-expanded="true"] .menu-lateral__icone i:nth-child(1){
   transform:translateY(5px) rotate(45deg);
 }
@@ -281,6 +374,7 @@ body{
   border:1px solid var(--borda);
   border-radius:8px;
 }
+
 .menu-lateral__painel[hidden]{display:none}
 
 .menu-lateral__item{
@@ -300,6 +394,7 @@ body{
   text-align:left;
   cursor:pointer;
 }
+
 .menu-lateral__item:hover{background:rgba(79,163,255,.12)}
 .menu-lateral__item:focus-visible{outline:2px solid var(--acento); outline-offset:-2px}
 
@@ -314,7 +409,6 @@ body{
 /* ==========================================================================
    Painel da vista isométrica
    ========================================================================== */
-
 .topo-vista{
   flex:0 0 auto;
   display:flex;
@@ -335,6 +429,7 @@ body{
 }
 
 .identidade{text-align:right; line-height:1.15}
+
 .identidade__nome{
   display:block;
   font-size:1.04rem;
@@ -342,6 +437,7 @@ body{
   letter-spacing:-.02em;
   color:var(--texto);
 }
+
 .identidade__subtitulo{
   display:block;
   font-size:.63rem;
@@ -368,6 +464,7 @@ body{
   border-color:var(--ok);
   box-shadow:inset 0 0 0 1px rgba(62,207,142,.26);
 }
+
 .palco--risco{
   border-color:var(--erro);
   box-shadow:inset 0 0 0 1px rgba(242,85,90,.26);
@@ -402,16 +499,19 @@ body{
   font-size:.79rem;
   line-height:1.45;
 }
+
 .situacao--ok{
   background:rgba(62,207,142,.1);
   border:1px solid rgba(62,207,142,.42);
   color:#b6ecd2;
 }
+
 .situacao--risco{
   background:rgba(242,85,90,.1);
   border:1px solid rgba(242,85,90,.42);
   color:#ffc7c9;
 }
+
 .situacao--aviso{
   background:rgba(79,163,255,.09);
   border:1px solid rgba(79,163,255,.42);
@@ -421,7 +521,6 @@ body{
 /* ==========================================================================
    Painel de resultados
    ========================================================================== */
-
 .painel--resultados{padding:14px 14px 14px 16px}
 
 .painel__cabecalho{
@@ -432,6 +531,7 @@ body{
   gap:10px;
   margin-bottom:10px;
 }
+
 .painel__cabecalho h2{
   margin:0;
   font-size:.74rem;
@@ -450,6 +550,7 @@ body{
   scrollbar-width:thin;
   scrollbar-color:rgba(139,154,173,.32) transparent;
 }
+
 .resultado::-webkit-scrollbar{width:8px}
 .resultado::-webkit-scrollbar-track{background:transparent}
 .resultado::-webkit-scrollbar-thumb{
@@ -470,7 +571,9 @@ body{
   font-size:.79rem;
   line-height:1.4;
 }
+
 .linha .rotulo{color:var(--fraco)}
+
 .linha .valor{
   color:var(--texto);
   font-weight:600;
@@ -504,6 +607,7 @@ body{
   text-align:left;
   cursor:pointer;
 }
+
 .gaveta__cabecalho:hover{background:rgba(79,163,255,.07)}
 .gaveta__cabecalho:focus-visible{outline:2px solid var(--acento); outline-offset:-2px}
 
@@ -518,6 +622,7 @@ body{
   transform:rotate(45deg);
   transition:transform .18s ease;
 }
+
 .gaveta.is-aberta .gaveta__seta{transform:rotate(-135deg)}
 
 .gaveta__corpo{padding:2px 11px 10px}
@@ -530,16 +635,19 @@ body{
   font-size:.8rem;
   line-height:1.5;
 }
+
 .veredito--ok{
   background:rgba(62,207,142,.1);
   border:1px solid rgba(62,207,142,.42);
   color:#b6ecd2;
 }
+
 .veredito--erro{
   background:rgba(242,85,90,.1);
   border:1px solid rgba(242,85,90,.42);
   color:#ffc7c9;
 }
+
 .veredito ul{margin:6px 0 0; padding-left:18px}
 .veredito li{margin-bottom:3px}
 
@@ -554,7 +662,6 @@ body{
 /* ==========================================================================
    Diálogo do memorial
    ========================================================================== */
-
 dialog.memorial{
   width:min(920px,94vw);
   max-height:90vh;
@@ -564,6 +671,7 @@ dialog.memorial{
   background:var(--painel);
   color:var(--texto);
 }
+
 dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 
 .memorial__barra{
@@ -578,12 +686,14 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   background:#11161d;
   border-bottom:1px solid var(--borda);
 }
+
 .memorial__barra strong{
   font-size:.78rem;
   text-transform:uppercase;
   letter-spacing:.08em;
   color:var(--acento);
 }
+
 .memorial__acoes{display:flex; gap:8px}
 
 .memorial__conteudo{
@@ -600,6 +710,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   font-size:1.2rem;
   letter-spacing:-.01em;
 }
+
 .memorial__conteudo h2{
   margin:24px 0 10px;
   font-size:.9rem;
@@ -607,7 +718,9 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   border-bottom:1px solid var(--borda);
   padding-bottom:5px;
 }
+
 .mem-sub{margin:0 0 18px; font-size:.78rem; color:var(--fraco)}
+
 .mem-alerta{
   padding:12px 14px;
   border-radius:8px;
@@ -615,6 +728,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   border:1px solid rgba(242,85,90,.42);
   color:#ffc7c9;
 }
+
 .mem-sec{margin-bottom:6px}
 
 .mem-tab{
@@ -623,6 +737,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   margin:10px 0 16px;
   font-size:.79rem;
 }
+
 .mem-tab caption{
   caption-side:top;
   text-align:left;
@@ -632,6 +747,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   text-transform:uppercase;
   letter-spacing:.05em;
 }
+
 .mem-tab th,
 .mem-tab td{
   padding:6px 9px;
@@ -639,6 +755,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   vertical-align:top;
   text-align:left;
 }
+
 .mem-tab thead th{
   background:#11161d;
   font-size:.7rem;
@@ -647,21 +764,26 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   color:var(--fraco);
   font-weight:600;
 }
+
 .mem-tab tbody th{
   font-weight:500;
   color:var(--fraco);
   width:26%;
 }
+
 .mem-tab .num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+
 .mem-tab .form,
 .mem-tab .subst{
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-size:.76rem;
 }
+
 .mem-tab .subst{color:var(--fraco)}
 .mem-tab .un{font-size:.72rem; color:var(--fraco)}
 
 .mem-figura{margin:14px 0 18px}
+
 .mem-figura__palco{
   background:#0e1218;
   border:1px solid var(--borda);
@@ -669,7 +791,9 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   padding:10px 8px;
   line-height:0;
 }
+
 .mem-figura__palco svg{display:block; width:100%; height:auto}
+
 .mem-figura__prancha{
   display:block;
   width:100%;
@@ -677,7 +801,9 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   margin:0 auto;
   line-height:0;
 }
+
 .mem-figura__prancha svg{display:block; width:100%; height:auto}
+
 .mem-figura--tecnico{max-width:none}
 
 .mem-figura__legenda{
@@ -687,6 +813,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   color:var(--fraco);
   text-align:center;
 }
+
 .mem-figura__legenda strong{color:var(--texto)}
 .mem-figura__eixos{color:#6f7d90}
 
@@ -698,22 +825,24 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   border-radius:8px;
   font-size:.82rem;
 }
+
 .mem-parecer--ok{
   background:rgba(62,207,142,.1);
   border:1px solid rgba(62,207,142,.42);
   color:#b6ecd2;
 }
+
 .mem-parecer--erro{
   background:rgba(242,85,90,.1);
   border:1px solid rgba(242,85,90,.42);
   color:#ffc7c9;
 }
+
 .mem-parecer ul{margin:6px 0 0; padding-left:18px}
 
 /* ==========================================================================
    Responsivo
    ========================================================================== */
-
 @media(max-width:1180px){
   .layout{grid-template-columns:270px minmax(300px,1fr) 300px; gap:10px; padding:10px}
   .painel{padding:12px 13px}
@@ -731,12 +860,11 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 }
 
 /* ==========================================================================
-   Impressão
+   Impressão — regras gerais
+   O @page desta seção foi removido de propósito: existe um único @page no
+   fim do arquivo, para que não haja duas declarações de margem brigando.
    ========================================================================== */
-
 @media print{
-  @page{size:A4 portrait; margin:16mm}
-
   body{
     height:auto;
     overflow:visible;
@@ -750,6 +878,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   .memorial__barra{display:none !important}
 
   .layout{display:block; padding:0}
+
   .painel{
     border:none;
     background:#fff;
@@ -762,6 +891,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
     background:#fff;
     overflow:visible;
   }
+
   .palco--seguro,
   .palco--risco{box-shadow:none}
 
@@ -780,6 +910,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
     background:#fff;
     color:#000;
   }
+
   .memorial__conteudo{
     max-height:none;
     overflow:visible;
@@ -787,8 +918,10 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
     color:#000;
     font-size:10.5pt;
   }
+
   .memorial__conteudo h1{font-size:15pt}
   .memorial__conteudo h2{color:#1a4f8f; border-bottom:1px solid #ccc}
+
   .mem-sub,
   .mem-tab .subst,
   .mem-tab .un,
@@ -810,7 +943,6 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 
 /* ==========================================================================
    Camada de ajuste — sobrepõe regras anteriores por ordem de cascata.
-
    1. Simetria do painel de Entradas: o scrollbar-gutter reservava espaço só
       à direita, o que empurrava os campos para a esquerda. "both-edges"
       reserva o mesmo de cada lado.
@@ -820,7 +952,6 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
    ========================================================================== */
 
 /* ---------- 1. Simetria dos painéis ---------- */
-
 .painel{padding:14px}
 
 .painel--entradas{
@@ -837,7 +968,6 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 
 .campo{margin-bottom:8px}
 .campo:last-of-type{margin-bottom:0}
-
 .campo label{margin-bottom:3px}
 .campo input,
 .campo select{padding:6px 9px}
@@ -845,9 +975,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 .acoes-entrada{margin-top:12px; padding-top:12px}
 
 /* ---------- 2. Resultados em lista plana ---------- */
-
 .painel--resultados{padding:14px}
-
 .painel__cabecalho{margin-bottom:8px}
 
 .resultado{
@@ -865,6 +993,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   margin:0;
   overflow:visible;
 }
+
 .gaveta:first-child{border-top:1px solid rgba(42,51,65,.7)}
 
 .gaveta__cabecalho{
@@ -875,10 +1004,12 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   background:transparent;
   transition:color .16s ease;
 }
+
 .gaveta__cabecalho:hover{
   background:transparent;
   color:var(--acento);
 }
+
 .gaveta.is-aberta .gaveta__cabecalho{color:var(--acento)}
 .gaveta.is-aberta .gaveta__seta{border-color:var(--acento)}
 
@@ -893,7 +1024,6 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 .veredito{margin-top:12px}
 
 /* ---------- 3. Joinhas flutuantes ---------- */
-
 #palco{position:relative}
 
 .camada-joinhas{
@@ -915,6 +1045,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   animation-fill-mode:forwards;
   will-change:transform,opacity;
 }
+
 .joinha-flutuante svg{
   display:block;
   width:100%;
@@ -959,13 +1090,11 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 
 /* ==========================================================================
    Memorial — dimensionamento das figuras
-
    A prancha de vistas ortográficas é larga por natureza (quatro vistas
    empilhadas), então pode usar mais largura. A isométrica não: sem limite,
    o SVG de viewBox 860x620 com width:100% cresce até a largura do diálogo e
    empurra todo o memorial para fora da tela.
    ========================================================================== */
-
 .mem-figura__palco{
   max-width:520px;
   margin:0 auto;
@@ -975,6 +1104,7 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   padding:10px 8px;
   line-height:0;
 }
+
 .mem-figura__palco svg{display:block; width:100%; height:auto}
 
 .mem-figura__prancha{
@@ -984,7 +1114,9 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
   margin:0 auto;
   line-height:0;
 }
+
 .mem-figura__prancha svg{display:block; width:100%; height:auto}
+
 .mem-figura--tecnico{max-width:none}
 
 @media print{
@@ -999,13 +1131,11 @@ dialog.memorial::backdrop{background:rgba(0,0,0,.68)}
 
 /* ==========================================================================
    Memorial — tema de papel (claro)
-
    O memorial é um documento técnico, não uma tela do app. Fundo branco,
    texto escuro, títulos em azul de tinta e tabelas limpas, com fio
    horizontal apenas. Este bloco fica no fim do arquivo de propósito: ele
    vence as regras do tema escuro por ordem de cascata.
    ========================================================================== */
-
 dialog.memorial{
   background:#fff;
   color:#222;
@@ -1017,11 +1147,14 @@ dialog.memorial{
   background:#0e1420;
   border-bottom:1px solid #24303f;
 }
+
 .memorial__barra strong{color:#8fc4ff}
+
 .memorial__barra .botao{
   color:#c8d6e6;
   border-color:#2f3d4f;
 }
+
 .memorial__barra .botao:hover{
   color:#fff;
   border-color:#4fa3ff;
@@ -1035,6 +1168,7 @@ dialog.memorial{
   scrollbar-width:thin;
   scrollbar-color:#c3cdd9 transparent;
 }
+
 .memorial__conteudo::-webkit-scrollbar{width:10px}
 .memorial__conteudo::-webkit-scrollbar-track{background:#f4f6f9}
 .memorial__conteudo::-webkit-scrollbar-thumb{
@@ -1044,6 +1178,7 @@ dialog.memorial{
 .memorial__conteudo::-webkit-scrollbar-thumb:hover{background:#a8b6c6}
 
 .memorial__conteudo h1{color:#12233a}
+
 .memorial__conteudo h2{
   color:#1a4f8f;
   border-bottom:1px solid #d8e0ea;
@@ -1103,6 +1238,7 @@ dialog.memorial{
   color:#12233a;
   font-weight:600;
 }
+
 .mem-tab .form{color:#33475c}
 .mem-tab .subst{color:#6b7a8c}
 .mem-tab .un{color:#7d8b9c}
@@ -1116,12 +1252,14 @@ dialog.memorial{
   padding:12px 10px;
   border-radius:6px;
 }
+
 .mem-figura__palco svg{display:block; width:100%; height:auto}
 
 .mem-figura__prancha{
   max-width:560px;
   margin:0 auto;
 }
+
 .mem-figura--tecnico .mem-figura__prancha{max-width:580px}
 
 .mem-figura__legenda{color:#5c6b7d}
@@ -1137,6 +1275,7 @@ dialog.memorial{
   border:1px solid #1c7a52;
   color:#1c7a52;
 }
+
 .mem-parecer--erro{
   background:#fdeeee;
   border:1px solid #b3272e;
@@ -1145,12 +1284,10 @@ dialog.memorial{
 
 /* ==========================================================================
    Memorial — tabelas de cálculo em duas colunas
-
    Cada item ocupa duas linhas: rotulo + resultado em cima, expressao e
    substituicao abaixo, em fonte mono discreta. Quatro colunas lado a lado
    estrangulavam o texto no papel.
    ========================================================================== */
-
 .mem-tab--calculo{
   border-collapse:collapse;
 }
@@ -1214,22 +1351,17 @@ dialog.memorial{
 
 /* ==========================================================================
    Impressão do memorial — documento completo
-
    O memorial na tela vive dentro de uma div com max-height em vh e
    overflow-y:auto. Na impressão, o navegador captura apenas a janela de
    rolagem atual: rolar até a seção 5 fazia o papel começar na seção 5.
    Além disso, o <dialog> fica na top layer, onde o recorte sobrevive à
    remoção do max-height.
-
    Por isso a impressão usa uma cópia do documento em #memorial-print, que
    está no fluxo normal do body: sem diálogo, sem rolagem, sem altura máxima.
    ========================================================================== */
-
 #memorial-print{display:none}
 
 @media print{
-  @page{size:A4 portrait; margin:16mm}
-
   html, body{
     height:auto !important;
     min-height:0 !important;
@@ -1237,6 +1369,7 @@ dialog.memorial{
     background:#fff !important;
     color:#000 !important;
   }
+
   body{display:block !important}
 
   /* Com o memorial aberto, imprime SÓ a cópia */
@@ -1274,11 +1407,13 @@ dialog.memorial{
     color:#12233a;
     letter-spacing:-.01em;
   }
+
   #memorial-print .mem-sub{
     margin:0 0 8mm;
     font-size:9pt;
     color:#5c6b7d;
   }
+
   #memorial-print h2{
     font-size:11pt;
     color:#1a4f8f;
@@ -1288,6 +1423,7 @@ dialog.memorial{
     break-after:avoid;
     page-break-after:avoid;
   }
+
   #memorial-print .mem-sec{
     margin-bottom:2mm;
     break-inside:auto;
@@ -1301,6 +1437,7 @@ dialog.memorial{
     font-size:9pt;
     margin:3mm 0 5mm;
   }
+
   #memorial-print .mem-tab caption{
     caption-side:top;
     text-align:left;
@@ -1310,6 +1447,7 @@ dialog.memorial{
     text-transform:uppercase;
     letter-spacing:.05em;
   }
+
   #memorial-print .mem-tab th,
   #memorial-print .mem-tab td{
     border:none;
@@ -1319,6 +1457,7 @@ dialog.memorial{
     color:#222;
     background:transparent;
   }
+
   #memorial-print .mem-tab thead th{
     color:#5c6b7d;
     border-bottom:1px solid #c3cdd9;
@@ -1326,14 +1465,17 @@ dialog.memorial{
     text-transform:uppercase;
     letter-spacing:.05em;
   }
+
   #memorial-print .mem-tab tbody th{
     color:#5c6b7d;
     font-weight:500;
   }
+
   #memorial-print .mem-tab tr{
     break-inside:avoid;
     page-break-inside:avoid;
   }
+
   #memorial-print .mem-tab .num{
     text-align:right;
     font-variant-numeric:tabular-nums;
@@ -1341,6 +1483,7 @@ dialog.memorial{
     font-weight:600;
     white-space:nowrap;
   }
+
   #memorial-print .mem-tab .un{font-size:7.5pt; color:#7d8b9c}
 
   /* Item de cálculo: rótulo e resultado em cima, conta embaixo */
@@ -1350,7 +1493,9 @@ dialog.memorial{
     padding:3mm 2mm 0.3mm;
     font-size:9pt;
   }
+
   #memorial-print .mem-tab--calculo .mem-item td.num{text-align:right}
+
   #memorial-print .mem-tab--calculo .mem-item__calc td{
     border:none;
     border-bottom:1px solid #eceff4;
@@ -1359,6 +1504,7 @@ dialog.memorial{
     color:#5c6b7d;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   }
+
   #memorial-print .mem-tab--calculo .form{color:#4a5f78}
   #memorial-print .mem-tab--calculo .subst{color:#7d8b9c}
   #memorial-print .mem-tab--calculo .sep{color:#a3b0c0}
@@ -1369,6 +1515,7 @@ dialog.memorial{
     break-inside:avoid;
     page-break-inside:avoid;
   }
+
   #memorial-print .mem-figura__palco{
     max-width:118mm;
     margin:0 auto;
@@ -1377,23 +1524,27 @@ dialog.memorial{
     background:#fff;
     line-height:0;
   }
+
   #memorial-print .mem-figura__prancha{
     max-width:150mm;
     margin:0 auto;
     line-height:0;
   }
+
   #memorial-print .mem-figura__palco svg,
   #memorial-print .mem-figura__prancha svg{
     display:block;
     width:100%;
     height:auto;
   }
+
   #memorial-print .mem-figura__legenda{
     margin-top:2mm;
     font-size:8.5pt;
     color:#5c6b7d;
     text-align:center;
   }
+
   #memorial-print .mem-figura__legenda strong{color:#12233a}
   #memorial-print .mem-figura__eixos{color:#8b98a8}
 
@@ -1404,28 +1555,34 @@ dialog.memorial{
     color:#33475c;
     break-inside:auto;
   }
+
   #memorial-print .mem-notas li{
     margin-bottom:2mm;
     orphans:3;
     widows:3;
   }
+
   #memorial-print .mem-parecer{
     padding:3mm 4mm;
     break-inside:avoid;
     page-break-inside:avoid;
     font-size:9.5pt;
   }
+
   #memorial-print .mem-parecer--ok{
     background:#eef8f2;
     border:1px solid #1c7a52;
     color:#1c7a52;
   }
+
   #memorial-print .mem-parecer--erro{
     background:#fdeeee;
     border:1px solid #b3272e;
     color:#b3272e;
   }
+
   #memorial-print .mem-parecer ul{margin:2mm 0 0; padding-left:6mm}
+
   #memorial-print .mem-alerta{
     padding:3mm 4mm;
     background:#fdeeee;
@@ -1434,89 +1591,202 @@ dialog.memorial{
   }
 }
 
-/* ---------- Gavetas do formulário ----------
- * O respiro vertical entre campos vem de uma regra de adjacencia
- * (.campo + .campo), que nao alcanca um <details>: ele nao e .campo.
- * Tambem pode existir um .campo:last-of-type { margin-bottom: 0 }, que
- * anula a margem do ultimo campo antes da gaveta, porque details nao e
- * div e o campo continua sendo o ultimo do seu tipo.
- *
- * As tres regras de adjacencia abaixo fecham esses buracos. O valor fica
- * numa variavel para voce ajustar em um lugar so, se quiser igualar ao
- * espacamento que o resto do formulario ja usa.
- */
-.painel--entradas {
-  --espaco-campo: 14px;
-  --borda-gaveta: rgba(128, 128, 128, 0.3);
+/* ==========================================================================
+   Gavetas do formulário
+   O respiro vertical entre campos vem de uma regra de adjacência
+   (.campo + .campo), que não alcança um <details>: ele não é .campo.
+   Também pode existir um .campo:last-of-type { margin-bottom: 0 }, que anula
+   a margem do último campo antes da gaveta, porque details não é div e o
+   campo continua sendo o último do seu tipo.
+
+   As três regras de adjacência abaixo fecham esses buracos. O valor fica
+   numa variável para ajustar em um lugar só.
+   ========================================================================== */
+.painel--entradas{
+  --espaco-campo:14px;
+  --borda-gaveta:rgba(128,128,128,.3);
 }
 
-.grupo-campos {
-  border: 1px solid var(--borda-gaveta);
-  border-radius: 10px;
-  margin: 0 0 var(--espaco-campo);
-  padding: 0;
+.grupo-campos{
+  border:1px solid var(--borda-gaveta);
+  border-radius:10px;
+  margin:0 0 var(--espaco-campo);
+  padding:0;
 }
 
-/* O respiro que faltava: campo antes da gaveta, gaveta antes de gaveta
-   e gaveta antes de campo. Margens verticais entre irmaos se fundem, entao
-   nao ha risco de espaco dobrado. */
+/* O respiro que faltava: campo antes da gaveta, gaveta antes de gaveta e
+   gaveta antes de campo. Margens verticais entre irmãos se fundem, então não
+   há risco de espaço dobrado. */
 .campo + .grupo-campos,
 .grupo-campos + .grupo-campos,
-.grupo-campos + .campo {
-  margin-top: var(--espaco-campo);
+.grupo-campos + .campo{
+  margin-top:var(--espaco-campo);
 }
 
-.grupo-campos > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  cursor: pointer;
-  list-style: none;
-  padding: 10px 12px;
-  font-size: 0.78rem;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  opacity: 0.85;
-  user-select: none;
+.grupo-campos > summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  cursor:pointer;
+  list-style:none;
+  padding:10px 12px;
+  font-size:.78rem;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  opacity:.85;
+  user-select:none;
 }
 
-.grupo-campos > summary::-webkit-details-marker { display: none; }
-.grupo-campos > summary::marker { content: ''; }
+.grupo-campos > summary::-webkit-details-marker{display:none}
+.grupo-campos > summary::marker{content:''}
 
-.grupo-campos > summary::after {
-  content: '+';
-  font-size: 1rem;
-  line-height: 1;
-  opacity: 0.55;
+.grupo-campos > summary::after{
+  content:'+';
+  font-size:1rem;
+  line-height:1;
+  opacity:.55;
 }
 
-.grupo-campos[open] > summary::after { content: '−'; }
+.grupo-campos[open] > summary::after{content:'−'}
 
 /* Sinal de foco preservado no teclado, sem contorno permanente ao clicar. */
-.grupo-campos > summary:focus { outline: none; }
+.grupo-campos > summary:focus{outline:none}
 
-.grupo-campos > summary:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: -2px;
-  border-radius: 10px;
+.grupo-campos > summary:focus-visible{
+  outline:2px solid currentColor;
+  outline-offset:-2px;
+  border-radius:10px;
 }
 
 /* Campos dentro da gaveta: recuo lateral igual, sem mexer na largura do
    input, e respiro entre eles. */
-.grupo-campos > .campo {
-  padding: 0 12px;
+.grupo-campos > .campo{padding:0 12px}
+.grupo-campos .campo + .campo{margin-top:var(--espaco-campo)}
+.grupo-campos > .campo.campo--dica{padding:0 12px 0 20px;margin-top:6px;margin-bottom:16px}
+.grupo-campos > .campo.campo--dica .campo__dica{margin-top:0}
+.grupo-campos .campo.campo--dica + .campo{margin-top:16px}
+.grupo-campos > .campo__dica{padding:0 12px 0 20px;margin-top:6px;margin-bottom:16px}
+.grupo-campos > .campo:first-of-type{padding-top:4px}
+
+/* Fecha a gaveta aberta com um respiro embaixo do último campo. */
+.grupo-campos[open]{padding-bottom:12px}
+
+/* ==========================================================================
+   Impressão em A4 — margens reais de página
+
+   CORREÇÃO DE UMA REGRESSÃO ANTERIOR
+
+   A versão anterior trocou a margem de página por padding no body, para
+   posicionar o cabeçalho em coordenadas absolutas do papel. Isso quebrou o
+   layout: o padding do body NÃO se repete a cada folha, ele existe apenas no
+   início do primeiro fluxo e no fim do último. Da segunda página em diante o
+   conteúdo começava na borda do papel e o cabeçalho fixo caía sobre ele.
+
+   A margem de @page é a única que o navegador reaplica em TODA folha. É ela
+   que volta a valer aqui.
+
+   O cabeçalho passa a ser um elemento ESTÁTICO no topo do documento — logo
+   abaixo da margem superior, alinhado à direita, com régua fina embaixo.
+   Aparece na primeira página e não pode se sobrepor a nada, porque não sai
+   do fluxo.
+
+   O @page é único no arquivo, de propósito: duas declarações com margens
+   diferentes brigam entre si e a última vence.
+   ========================================================================== */
+@media print{
+  @page{
+    size:A4 portrait;
+    margin:24mm 17mm 20mm 17mm;
+  }
+
+  /* O padding do body sai de cena: quem define a margem agora é o @page.
+     Zerar aqui evita espaço somado no topo da primeira folha. */
+  html,
+  body{
+    background:#fff !important;
+    padding:0 !important;
+    margin:0 !important;
+  }
+
+  body.imprimindo-memorial{
+    padding:0 !important;
+  }
+
+  /* Cabeçalho do memorial: estático, no topo do documento.
+     Fica FORA da área de conteúdo impressa por position, então não há risco
+     de sobreposição em nenhuma página. */
+  body.imprimindo-memorial #memorial-print::before{
+    content:"Apyca — Simulador Estrutural";
+    display:block;
+    margin:0 0 8mm;
+    padding:0 0 2mm;
+    border-bottom:.3mm solid #d0d0d0;
+    font-family:system-ui,-apple-system,sans-serif;
+    font-size:8.5pt;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:#555;
+    text-align:right;
+  }
+
+  #memorial-print{
+    padding:0;
+    margin:0;
+    max-width:none;
+  }
+
+  /* Evita que uma figura ou tabela grande force a quebra para a próxima
+     página deixando a anterior quase vazia. */
+  #memorial-print .mem-figura,
+  #memorial-print .mem-parecer{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  #memorial-print h2{
+    break-after:avoid;
+    page-break-after:avoid;
+  }
 }
 
-.grupo-campos .campo + .campo {
-  margin-top: var(--espaco-campo);
+/* A camada cobre o palco inteiro. Exige position:relative em #palco. */
+.camada-joinhas{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  pointer-events:none;
+  z-index:5;
 }
 
-.grupo-campos > .campo:first-of-type {
-  padding-top: 4px;
+.joinha-flutuante{
+  position:absolute;
+  bottom:-8%;
+  display:block;
+  color:var(--ok, #3ecf8e);
+  opacity:0;
+  will-change:transform, opacity;
+  animation-name:joinha-sobe;
+  animation-timing-function:cubic-bezier(.22,.61,.36,1);
+  animation-fill-mode:forwards;
 }
 
-/* Fecha a gaveta aberta com um respiro embaixo do ultimo campo. */
-.grupo-campos[open] {
-  padding-bottom: 12px;
+.joinha-flutuante svg{
+  display:block;
+  width:100%;
+  height:100%;
+}
+
+@keyframes joinha-sobe{
+  0%   { opacity:0; transform:translate(0, 0) rotate(0deg) scale(.7) }
+  18%  { opacity:1 }
+  70%  { opacity:1 }
+  100% { opacity:0;
+         transform:translate(var(--deriva, 0), -72vh)
+                   rotate(var(--giro, 0deg)) scale(1) }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .camada-joinhas{display:none}
 }

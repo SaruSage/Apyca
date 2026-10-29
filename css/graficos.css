@@ -1,202 +1,668 @@
+/* ==========================================================================
+   Página de gráficos e diagramas
+   Depende de css/style.css, que traz as variáveis de cor e a base tipográfica.
+   ========================================================================== */
+
 body.pagina-graficos{
-  height:auto; min-height:100vh; overflow-y:auto; scrollbar-gutter:stable;
+  height:auto;
+  min-height:100vh;
+  overflow-y:auto;
+  scrollbar-gutter:stable;
 }
 
 .graf-topo{
-  display:flex; align-items:flex-start; justify-content:space-between;
-  gap:20px; flex-wrap:wrap; padding:22px 28px 14px;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+  flex-wrap:wrap;
+  padding:22px 28px 14px;
   border-bottom:1px solid var(--borda);
 }
-.graf-topo h1{margin:0; font-size:1.32rem; letter-spacing:-.01em}
-.graf-sub{margin:6px 0 0; font-size:.86rem; color:var(--fraco); font-variant-numeric:tabular-nums}
+
+.graf-topo h1{
+  margin:0;
+  font-size:1.32rem;
+  letter-spacing:-.01em;
+}
+
+.graf-sub{
+  margin:6px 0 0;
+  font-size:.86rem;
+  color:var(--fraco);
+  font-variant-numeric:tabular-nums;
+}
+
 .graf-acoes{display:flex; gap:8px}
 
 .graf-conteudo{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr));
-  gap:16px; max-width:1180px; margin:0 auto; padding:20px 28px 48px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(400px,1fr));
+  gap:16px;
+  max-width:1180px;
+  margin:0 auto;
+  padding:20px 28px 48px;
   align-items:stretch;
 }
+
 @media(max-width:900px){
   .graf-conteudo{grid-template-columns:1fr; padding:16px 16px 36px}
   .graf-topo{padding:16px 16px 12px}
 }
 
-/* Trilha para leigos — recolhida por padrão */
+/* ==========================================================================
+   Trilha para leigos — recolhida por padrão
+   ========================================================================== */
 .graf-intro{
-  grid-column:1 / -1; background:var(--painel);
-  border:1px solid var(--borda); border-left:3px solid var(--acento);
-  border-radius:12px; padding:6px 20px;
+  grid-column:1 / -1;
+  background:var(--painel);
+  border:1px solid var(--borda);
+  border-left:3px solid var(--acento);
+  border-radius:12px;
+  padding:6px 20px;
 }
+
 .graf-intro[open]{padding-bottom:20px}
+
 .graf-intro summary{
-  padding:14px 0; font-size:.86rem; font-weight:600; color:var(--acento);
-  cursor:pointer; list-style:none; display:flex; align-items:center; gap:10px;
+  padding:14px 0;
+  font-size:.86rem;
+  font-weight:600;
+  color:var(--acento);
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:10px;
 }
+
 .graf-intro summary::-webkit-details-marker{display:none}
-.graf-intro summary::before{content:"▸"; font-size:.8rem; transition:transform .18s}
+
+.graf-intro summary::before{
+  content:"▸";
+  font-size:.8rem;
+  transition:transform .18s;
+}
+
 .graf-intro[open] summary::before{transform:rotate(90deg)}
-.graf-intro summary:focus-visible{outline:2px solid var(--acento); outline-offset:3px; border-radius:6px}
 
-.graf-intro__lead{margin:0 0 16px; font-size:.87rem; line-height:1.6; color:var(--fraco)}
+.graf-intro summary:focus-visible{
+  outline:2px solid var(--acento);
+  outline-offset:3px;
+  border-radius:6px;
+}
+
+.graf-intro__lead{
+  margin:0 0 16px;
+  font-size:.87rem;
+  line-height:1.6;
+  color:var(--fraco);
+}
+
 .graf-intro__lista{
-  margin:0; padding:0; list-style:none; counter-reset:passo;
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px;
-}
-@media(max-width:760px){ .graf-intro__lista{grid-template-columns:1fr} }
-.graf-intro__lista li{
-  counter-increment:passo; position:relative;
-  padding:12px 14px 14px 44px; background:#11161d;
-  border:1px solid var(--borda); border-radius:8px;
-}
-.graf-intro__lista li::before{
-  content:counter(passo); position:absolute; left:13px; top:12px;
-  width:22px; height:22px; display:flex; align-items:center; justify-content:center;
-  background:rgba(79,163,255,.14); border:1px solid rgba(79,163,255,.4);
-  border-radius:50%; font-size:.7rem; font-weight:700; color:var(--acento);
-}
-.graf-intro__tit{display:block; font-size:.86rem; font-weight:700; color:var(--texto); margin-bottom:6px; line-height:1.35}
-.graf-intro__ideia{margin:0 0 6px; font-size:.82rem; line-height:1.55; color:var(--texto)}
-.graf-intro__analogia{margin:0 0 6px; font-size:.8rem; line-height:1.5; color:var(--fraco)}
-.graf-intro__analogia strong{color:#b9c6d8}
-.graf-intro__onde{margin:0 0 8px; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:#6f7d90}
-.graf-intro__lista code{
-  display:block; padding:6px 9px; background:#0e1218; border-radius:5px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:.75rem; color:#8fd0a8; overflow-x:auto;
+  margin:0;
+  padding:0;
+  list-style:none;
+  counter-reset:passo;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
+  gap:14px;
 }
 
-/* Cartões */
-.graf-card{
-  position:relative; background:var(--painel); border:1px solid var(--borda);
-  border-radius:12px; padding:18px 20px 20px; min-width:0;
-  display:flex; flex-direction:column;
+@media(max-width:760px){
+  .graf-intro__lista{grid-template-columns:1fr}
 }
+
+.graf-intro__lista li{
+  counter-increment:passo;
+  position:relative;
+  padding:12px 14px 14px 44px;
+  background:#11161d;
+  border:1px solid var(--borda);
+  border-radius:8px;
+}
+
+.graf-intro__lista li::before{
+  content:counter(passo);
+  position:absolute;
+  left:13px;
+  top:12px;
+  width:22px;
+  height:22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(79,163,255,.14);
+  border:1px solid rgba(79,163,255,.4);
+  border-radius:50%;
+  font-size:.7rem;
+  font-weight:700;
+  color:var(--acento);
+}
+
+.graf-intro__tit{
+  display:block;
+  font-size:.86rem;
+  font-weight:700;
+  color:var(--texto);
+  margin-bottom:6px;
+  line-height:1.35;
+}
+
+.graf-intro__ideia{
+  margin:0 0 6px;
+  font-size:.82rem;
+  line-height:1.55;
+  color:var(--texto);
+}
+
+.graf-intro__analogia{
+  margin:0 0 6px;
+  font-size:.8rem;
+  line-height:1.5;
+  color:var(--fraco);
+}
+
+.graf-intro__analogia strong{color:#b9c6d8}
+
+.graf-intro__onde{
+  margin:0 0 8px;
+  font-size:.72rem;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  color:#6f7d90;
+}
+
+.graf-intro__lista code{
+  display:block;
+  padding:6px 9px;
+  background:#0e1218;
+  border-radius:5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.75rem;
+  color:#8fd0a8;
+  overflow-x:auto;
+}
+
+/* ==========================================================================
+   Cartões
+   ========================================================================== */
+.graf-card{
+  position:relative;
+  background:var(--painel);
+  border:1px solid var(--borda);
+  border-radius:12px;
+  padding:18px 20px 20px;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+
 .graf-card--largo{grid-column:1 / -1}
-.graf-card__topo{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px}
-.graf-card h2{margin:0; font-size:.82rem; text-transform:uppercase; letter-spacing:.08em;
-  color:var(--acento); font-weight:600; line-height:1.35}
+
+.graf-card__topo{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:6px;
+}
+
+.graf-card h2{
+  margin:0;
+  font-size:.82rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:var(--acento);
+  font-weight:600;
+  line-height:1.35;
+}
 
 .graf-simples{
-  margin:2px 0 12px; padding:9px 12px;
-  background:rgba(62,207,142,.08); border-left:2px solid rgba(62,207,142,.6);
-  border-radius:5px; font-size:.84rem; line-height:1.55; color:#c6d4c9;
+  margin:2px 0 12px;
+  padding:9px 12px;
+  background:rgba(62,207,142,.08);
+  border-left:2px solid rgba(62,207,142,.6);
+  border-radius:5px;
+  font-size:.84rem;
+  line-height:1.55;
+  color:#c6d4c9;
 }
-.graf-simples strong{color:var(--verde)}
 
-/* Menu de três pontos */
+/* O style.css nao define --verde: a variavel de sucesso e --ok.
+   Usar --verde aqui invalidava a declaracao e o texto herdava a cor do pai. */
+.graf-simples strong{color:var(--ok)}
+
+/* ==========================================================================
+   Menu de três pontos
+   ========================================================================== */
 .graf-menu{position:relative; flex:0 0 auto}
+
 .graf-menu__botao{
-  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
-  padding:0; background:transparent; border:1px solid transparent; border-radius:6px;
-  color:var(--fraco); font-size:1.1rem; line-height:1; cursor:pointer;
+  width:28px;
+  height:28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  background:transparent;
+  border:1px solid transparent;
+  border-radius:6px;
+  color:var(--fraco);
+  font-size:1.1rem;
+  line-height:1;
+  cursor:pointer;
   transition:border-color .18s, color .18s, background .18s;
 }
-.graf-menu__botao:hover{background:#11161d; border-color:var(--borda); color:var(--texto)}
-.graf-menu__botao[aria-expanded="true"]{background:#11161d; border-color:var(--acento); color:var(--acento)}
-.graf-menu__botao:focus-visible{outline:2px solid var(--acento); outline-offset:2px}
+
+.graf-menu__botao:hover{
+  background:#11161d;
+  border-color:var(--borda);
+  color:var(--texto);
+}
+
+.graf-menu__botao[aria-expanded="true"]{
+  background:#11161d;
+  border-color:var(--acento);
+  color:var(--acento);
+}
+
+.graf-menu__botao:focus-visible{
+  outline:2px solid var(--acento);
+  outline-offset:2px;
+}
+
 .graf-menu__lista{
-  position:absolute; right:0; top:calc(100% + 4px); z-index:20; min-width:176px;
-  padding:4px; background:#11161d; border:1px solid var(--borda);
-  border-radius:8px; box-shadow:0 12px 28px rgba(0,0,0,.45);
+  position:absolute;
+  right:0;
+  top:calc(100% + 4px);
+  z-index:20;
+  min-width:176px;
+  padding:4px;
+  background:#11161d;
+  border:1px solid var(--borda);
+  border-radius:8px;
+  box-shadow:0 12px 28px rgba(0,0,0,.45);
 }
+
 .graf-menu__lista[hidden]{display:none}
+
 .graf-menu__item{
-  width:100%; display:block; padding:8px 10px; background:transparent;
-  border:none; border-radius:6px; color:var(--acento); font-family:inherit;
-  font-size:.82rem; font-weight:600; text-align:left; cursor:pointer; white-space:nowrap;
+  width:100%;
+  display:block;
+  padding:8px 10px;
+  background:transparent;
+  border:none;
+  border-radius:6px;
+  color:var(--acento);
+  font-family:inherit;
+  font-size:.82rem;
+  font-weight:600;
+  text-align:left;
+  cursor:pointer;
+  white-space:nowrap;
 }
+
 .graf-menu__item:hover{background:rgba(79,163,255,.12)}
 
-.graf-cenario{margin:6px 0 14px; font-size:.87rem; line-height:1.6; color:var(--texto)}
-.graf-cenario strong{color:#fff}
-
-.graf-figura{margin:0 0 10px; background:#0e1218; border-radius:8px; padding:10px 8px; overflow:hidden}
-.graf-figura svg{display:block; width:100%; height:auto}
-.graf-card--largo .graf-figura{max-width:760px; margin-left:auto; margin-right:auto; width:100%}
-
-.graf-nota-figura{margin:0 0 12px; font-size:.76rem; line-height:1.5; color:#6f7d90; text-align:center}
-
-.graf-formula{
-  margin:0 0 12px; padding:10px 13px; background:#11161d;
-  border:1px solid var(--borda); border-left:2px solid var(--acento);
-  border-radius:6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:.8rem; line-height:1.65; color:#c9d6e6; white-space:pre-wrap; overflow-x:auto;
+/* ==========================================================================
+   Corpo dos cartões
+   ========================================================================== */
+.graf-cenario{
+  margin:6px 0 14px;
+  font-size:.87rem;
+  line-height:1.6;
+  color:var(--texto);
 }
 
-.graf-leitura{margin:auto 0 0; padding-top:4px; font-size:.87rem; line-height:1.6; color:var(--fraco)}
+.graf-cenario strong{color:#fff}
+
+.graf-figura{
+  margin:0 0 10px;
+  background:#0e1218;
+  border-radius:8px;
+  padding:10px 8px;
+  overflow:hidden;
+}
+
+.graf-figura svg{display:block; width:100%; height:auto}
+
+.graf-card--largo .graf-figura{
+  max-width:760px;
+  margin-left:auto;
+  margin-right:auto;
+  width:100%;
+}
+
+.graf-nota-figura{
+  margin:0 0 12px;
+  font-size:.76rem;
+  line-height:1.5;
+  color:#6f7d90;
+  text-align:center;
+}
+
+.graf-formula{
+  margin:0 0 12px;
+  padding:10px 13px;
+  background:#11161d;
+  border:1px solid var(--borda);
+  border-left:2px solid var(--acento);
+  border-radius:6px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.8rem;
+  line-height:1.65;
+  color:#c9d6e6;
+  white-space:pre-wrap;
+  overflow-x:auto;
+}
+
+.graf-leitura{
+  margin:auto 0 0;
+  padding-top:4px;
+  font-size:.87rem;
+  line-height:1.6;
+  color:var(--fraco);
+}
+
 .graf-leitura strong{color:var(--texto)}
 .graf-ok{color:var(--ok); font-weight:600}
 .graf-ruim{color:var(--erro); font-weight:600}
 
-.graf-tabela{width:100%; border-collapse:collapse; font-size:.86rem}
-.graf-tabela th,.graf-tabela td{padding:7px 9px; border-bottom:1px solid rgba(42,51,65,.7); text-align:left; vertical-align:top}
-.graf-tabela th{color:var(--fraco); font-weight:500; white-space:nowrap; width:34%}
-.graf-tabela td{text-align:right; font-variant-numeric:tabular-nums; font-weight:600}
+.graf-tabela{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.86rem;
+}
 
-/* Modal */
+.graf-tabela th,
+.graf-tabela td{
+  padding:7px 9px;
+  border-bottom:1px solid rgba(42,51,65,.7);
+  text-align:left;
+  vertical-align:top;
+}
+
+.graf-tabela th{
+  color:var(--fraco);
+  font-weight:500;
+  white-space:nowrap;
+  width:34%;
+}
+
+.graf-tabela td{
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+  font-weight:600;
+}
+
+/* ==========================================================================
+   Modal
+   ========================================================================== */
 dialog.graf-modal{
-  width:min(940px,94vw); max-height:88vh; padding:0;
-  border:1px solid var(--borda); border-radius:12px;
-  background:var(--painel); color:var(--texto);
+  width:min(940px,94vw);
+  max-height:88vh;
+  padding:0;
+  border:1px solid var(--borda);
+  border-radius:12px;
+  background:var(--painel);
+  color:var(--texto);
 }
+
 dialog.graf-modal::backdrop{background:rgba(0,0,0,.68)}
+
 .graf-modal__barra{
-  position:sticky; top:0; z-index:2; display:flex; align-items:center;
-  justify-content:space-between; gap:14px; padding:14px 22px;
-  background:#11161d; border-bottom:1px solid var(--borda);
+  position:sticky;
+  top:0;
+  z-index:2;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:14px 22px;
+  background:#11161d;
+  border-bottom:1px solid var(--borda);
 }
-.graf-modal__barra strong{font-size:.8rem; text-transform:uppercase; letter-spacing:.08em; color:var(--acento)}
-.graf-modal__corpo{padding:20px 22px 28px; overflow-y:auto; max-height:calc(88vh - 62px); scrollbar-gutter:stable}
-.graf-modal__sub{margin:22px 0 8px; font-size:.74rem; text-transform:uppercase;
-  letter-spacing:.07em; color:var(--fraco); font-weight:600}
+
+.graf-modal__barra strong{
+  font-size:.8rem;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  color:var(--acento);
+}
+
+.graf-modal__corpo{
+  padding:20px 22px 28px;
+  overflow-y:auto;
+  max-height:calc(88vh - 62px);
+  scrollbar-gutter:stable;
+}
+
+.graf-modal__sub{
+  margin:22px 0 8px;
+  font-size:.74rem;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  color:var(--fraco);
+  font-weight:600;
+}
+
 .graf-figura--ampla{max-width:100%; padding:14px 10px}
 
-.graf-simbolos{width:100%; border-collapse:collapse; font-size:.82rem}
-.graf-simbolos thead th{padding:6px 8px; text-align:left; font-size:.68rem;
-  text-transform:uppercase; letter-spacing:.05em; color:var(--fraco);
-  font-weight:600; border-bottom:1px solid var(--borda)}
-.graf-simbolos td{padding:6px 8px; border-bottom:1px solid rgba(42,51,65,.6);
-  vertical-align:top; line-height:1.45}
-.graf-simbolos .sim{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  color:var(--acento); font-weight:600; white-space:nowrap}
-.graf-simbolos .conc{color:var(--fraco)}
-.graf-simbolos .val{text-align:right; font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap}
-
-.graf-passos{margin:0; padding:0; list-style:none; counter-reset:passo}
-.graf-passos li{counter-increment:passo; position:relative;
-  padding:10px 0 12px 34px; border-bottom:1px solid rgba(42,51,65,.6)}
-.graf-passos li:last-child{border-bottom:none}
-.graf-passos li::before{
-  content:counter(passo); position:absolute; left:0; top:10px;
-  width:22px; height:22px; display:flex; align-items:center; justify-content:center;
-  background:rgba(79,163,255,.14); border:1px solid rgba(79,163,255,.4);
-  border-radius:50%; font-size:.7rem; font-weight:700; color:var(--acento);
+/* ---------- Tabela de símbolos ---------- */
+.graf-simbolos{
+  width:100%;
+  border-collapse:collapse;
+  font-size:.82rem;
 }
-.graf-passos .tit{display:block; font-size:.86rem; font-weight:600; color:var(--texto); margin-bottom:4px}
-.graf-passos code{display:block; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:.79rem; color:#c9d6e6; line-height:1.55}
-.graf-passos code.sub{color:var(--fraco); font-size:.76rem}
-.graf-passos .res{display:block; margin-top:4px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:.8rem; font-weight:600; color:var(--verde)}
 
-.graf-erro{max-width:640px; margin:40px auto; padding:20px 22px;
-  background:rgba(242,85,90,.12); border:1px solid rgba(242,85,90,.45);
-  border-radius:10px; font-size:.9rem; line-height:1.6}
+.graf-simbolos thead th{
+  padding:6px 8px;
+  text-align:left;
+  font-size:.68rem;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:var(--fraco);
+  font-weight:600;
+  border-bottom:1px solid var(--borda);
+}
+
+.graf-simbolos td{
+  padding:6px 8px;
+  border-bottom:1px solid rgba(42,51,65,.6);
+  vertical-align:top;
+  line-height:1.45;
+}
+
+.graf-simbolos .sim{
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--acento);
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.graf-simbolos .conc{color:var(--fraco)}
+
+.graf-simbolos .val{
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+/* ---------- Passo a passo ---------- */
+.graf-passos{
+  margin:0;
+  padding:0;
+  list-style:none;
+  counter-reset:passo;
+}
+
+.graf-passos li{
+  counter-increment:passo;
+  position:relative;
+  padding:10px 0 12px 34px;
+  border-bottom:1px solid rgba(42,51,65,.6);
+}
+
+.graf-passos li:last-child{border-bottom:none}
+
+.graf-passos li::before{
+  content:counter(passo);
+  position:absolute;
+  left:0;
+  top:10px;
+  width:22px;
+  height:22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(79,163,255,.14);
+  border:1px solid rgba(79,163,255,.4);
+  border-radius:50%;
+  font-size:.7rem;
+  font-weight:700;
+  color:var(--acento);
+}
+
+.graf-passos .tit{
+  display:block;
+  font-size:.86rem;
+  font-weight:600;
+  color:var(--texto);
+  margin-bottom:4px;
+}
+
+.graf-passos code{
+  display:block;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.79rem;
+  color:#c9d6e6;
+  line-height:1.55;
+}
+
+.graf-passos code.sub{color:var(--fraco); font-size:.76rem}
+
+/* Mesma correcao: --verde nao existe, a variavel de sucesso e --ok. */
+.graf-passos .res{
+  display:block;
+  margin-top:4px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:.8rem;
+  font-weight:600;
+  color:var(--ok);
+}
+
+.graf-erro{
+  max-width:640px;
+  margin:40px auto;
+  padding:20px 22px;
+  background:rgba(242,85,90,.12);
+  border:1px solid rgba(242,85,90,.45);
+  border-radius:10px;
+  font-size:.9rem;
+  line-height:1.6;
+}
+
 .graf-erro strong{display:block; margin-bottom:8px; color:var(--erro)}
 
+/* ==========================================================================
+   Impressão
+
+   O @page abaixo sobrepõe o do style.css por ordem de cascata: este arquivo é
+   linkado depois. A margem de 14 mm é intencional aqui — esta página não tem
+   o cabeçalho fixo do memorial, que exige margem superior maior.
+
+   NÃO usar break-inside:avoid no cartão inteiro. Os cartões de notas e do
+   quadro geral são mais altos que uma folha A4 útil, e proibir a quebra faz o
+   navegador empurrar o bloco e recortar o excedente. A proteção desce para os
+   blocos atômicos: figura, fórmula, linha de tabela e item de passo.
+   ========================================================================== */
 @media print{
-  @page{size:A4 portrait; margin:14mm}
-  body.pagina-graficos{background:#fff; color:#000; height:auto}
-  .graf-topo{display:none}
-  .graf-conteudo{display:block; max-width:none; padding:0}
-  .graf-card{background:#fff; border:1px solid #bbb; border-radius:0;
-    margin-bottom:8mm; break-inside:avoid; padding:5mm}
+  @page{
+    size:A4 portrait;
+    margin:14mm;
+  }
+
+  body.pagina-graficos{
+    background:#fff;
+    color:#000;
+    height:auto;
+  }
+
+  .graf-topo,
+  .graf-intro,
+  .graf-menu,
+  dialog.graf-modal{display:none !important}
+
+  .graf-conteudo{
+    display:block;
+    max-width:none;
+    padding:0;
+  }
+
+  .graf-card{
+    background:#fff;
+    border:1px solid #bbb;
+    border-radius:0;
+    margin-bottom:8mm;
+    padding:5mm;
+    break-inside:auto;
+    page-break-inside:auto;
+  }
+
+  .graf-figura,
+  .graf-formula,
+  .graf-tabela tr,
+  .graf-simbolos tr,
+  .graf-passos li{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
   .graf-card h2{color:#1a4f8f}
-  .graf-menu{display:none}
-  .graf-intro{display:none}
   .graf-figura{background:#fff; max-width:none !important}
   .graf-formula{background:#f5f7fa; color:#222; border-left-color:#1a4f8f}
-  .graf-leitura,.graf-cenario,.graf-simples,.graf-tabela td,.graf-tabela th{color:#222}
-  .graf-simples{background:#f2f8f4; border-left-color:#1c7a52}
+
+  /* Texto sobre papel: os tons claros do tema escuro ficam ilegíveis. */
+  .graf-leitura,
+  .graf-cenario,
+  .graf-simples,
+  .graf-nota-figura,
+  .graf-tabela td,
+  .graf-tabela th{color:#222}
+
+  .graf-simples{
+    background:#f2f8f4;
+    border-left-color:#1c7a52;
+  }
+
+  .graf-simples strong{color:#1c7a52}
+  .graf-ok{color:#1c7a52}
+  .graf-ruim{color:#b3272e}
+
+  .graf-tabela th{border-bottom:1px solid #ccc}
+  .graf-tabela td{border-bottom:1px solid #e3e8ef}
+
+  .graf-simbolos thead th{color:#5c6b7d; border-bottom:1px solid #ccc}
+  .graf-simbolos td{color:#222; border-bottom:1px solid #e3e8ef}
+  .graf-simbolos .sim{color:#1a4f8f}
+  .graf-simbolos .conc{color:#5c6b7d}
+  .graf-simbolos .val{color:#12233a}
+  .graf-modal__sub{color:#1a4f8f}
+
+  .graf-passos li{border-bottom:1px solid #e3e8ef}
+
+  .graf-passos li::before{
+    background:#eef4fc;
+    border-color:#9dc0e8;
+    color:#1a4f8f;
+  }
+
+  .graf-passos .tit{color:#12233a}
+
+  /* Sem esta correção, o texto da conta saía em #c9d6e6 sobre papel branco. */
+  .graf-passos code{color:#33475c}
+  .graf-passos code.sub{color:#6b7a8c}
+  .graf-passos .res{color:#1c7a52}
 }
