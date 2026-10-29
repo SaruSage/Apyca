@@ -1,3 +1,4 @@
+Este arquivo está desatualizado. Aguarde novo update dia 03/11.
 # Cadeira A3 — Simulador Estrutural
 
 Simulador de dimensionamento de uma cadeira de quatro pernas.
