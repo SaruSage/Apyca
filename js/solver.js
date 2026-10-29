@@ -43,7 +43,7 @@ import { G, HIPOTESES, CADEIRA, ASSENTO, TRAVESSAS } from './constantes.js';
 import { getMaterial, tensaoAdmissivel } from './materials.js';
 import { propriedadesSecao } from './geometry.js';
 import { construirBarras, massasPorParte } from './chairModel.js';
-import { verificarTravessas, secaoTravessa } from './travessas.js';
+import { verificarTravessas, secaoTravessa, dimensoesEsquadria } from './travessas.js';
 
 /** Menor braco resistente da base, em mm. */
 function bracoEstabilidade(R, forma){
@@ -79,20 +79,28 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     }
   }
 
-  /* Assento: dimensoes proprias, com as duas verificacoes de coerencia. */
+  /* Assento: dimensoes proprias. A comparacao com a esquadria formada pelas
+   * pernas e travessas (Lx, Ly) entra como verificacao de suporte do projeto,
+   * permitindo assentos menores que 40x40 cm desde que >= esquadria, e
+   * reprovando com aviso de falta de suporte caso contrario. */
+  if (!Number.isFinite(ASSENTO.largura) || ASSENTO.largura <= 0 ||
+      !Number.isFinite(ASSENTO.profundidade) || ASSENTO.profundidade <= 0) {
+    erros.push('A largura e a profundidade do assento devem ser maiores que zero.');
+  }
+
   if (!Number.isFinite(ASSENTO.espessura) ||
       ASSENTO.espessura < ASSENTO.espessuraMinima) {
     erros.push('A espessura do assento deve ser de pelo menos ' +
                ASSENTO.espessuraMinima.toLocaleString('pt-BR') + ' mm.');
   }
 
+  const esquadriaPrelim = Number.isFinite(espessuraMm) && espessuraMm > 0
+    ? dimensoesEsquadria(espessuraMm, HIPOTESES.L)
+    : { Lx: HIPOTESES.L, Ly: HIPOTESES.L, vaoX: HIPOTESES.L, vaoY: HIPOTESES.L };
+
   if (nPernasFinal === 4 &&
-      (ASSENTO.largura < HIPOTESES.L ||
-       ASSENTO.profundidade < HIPOTESES.L)) {
-    erros.push('O assento precisa cobrir o quadro de pernas: largura e ' +
-               'profundidade de pelo menos ' +
-               HIPOTESES.L.toLocaleString('pt-BR') + ' mm. Abaixo disso ele ' +
-               'cairia por dentro dos apoios.');
+      (esquadriaPrelim.vaoX <= 0 || esquadriaPrelim.vaoY <= 0)) {
+    erros.push('O comprimento das travessas deve ser maior que zero.');
   }
 
   /*
@@ -132,7 +140,11 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   const t = espessuraMm;
   const H = alturaMm;
   const m = massaKg;
-  const L = HIPOTESES.L;
+  const { Lx, Ly, vaoX: vaoTravessaX, vaoY: vaoTravessaY } =
+    n === 4
+      ? dimensoesEsquadria(t, HIPOTESES.L)
+      : { Lx: HIPOTESES.L, Ly: HIPOTESES.L, vaoX: 0, vaoY: 0 };
+  const L = Math.max(Lx, Ly);
   const K = n === 1 ? HIPOTESES.KPedestal : HIPOTESES.K;
 
   const sec = propriedadesSecao(t, formaFinal, vazadaFinal, paredeMm);
@@ -198,10 +210,12 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
      * anterior — a generalizacao e consistente, nao uma formula nova.
      */
     Nmedio = Ptotal / n;
-    bracoBinario = L - t;
+    const bracoBinarioX = Math.max(Lx - t, 1);
+    const bracoBinarioY = Math.max(Ly - t, 1);
+    bracoBinario = Math.min(bracoBinarioX, bracoBinarioY);
 
-    dNx = (P * Math.abs(eX)) / (2 * bracoBinario);
-    dNy = (P * Math.abs(eY)) / (2 * bracoBinario);
+    dNx = (P * Math.abs(eX)) / (2 * bracoBinarioX);
+    dNy = (P * Math.abs(eY)) / (2 * bracoBinarioY);
     dN = dNx + dNy;
 
     Nmax = Nmedio + dN;
@@ -209,8 +223,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     Mperna = 0;
     levantou = dN > Nmedio;
 
-    const deltaNx = (P * eX) / (2 * bracoBinario);
-    const deltaNy = (P * eY) / (2 * bracoBinario);
+    const deltaNx = (P * eX) / (2 * bracoBinarioX);
+    const deltaNy = (P * eY) / (2 * bracoBinarioY);
 
     const sinalX = [-1, +1, -1, +1];
     const sinalY = [+1, +1, -1, -1];
@@ -266,8 +280,11 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
    * o mesmo valor, mas ler a mesma fonte que o resto do calculo elimina o
    * risco de divergirem sem aviso.
    */
-  const folgaX = (aL - L) / 2;
-  const folgaY = (aP - L) / 2;
+  const folgaX = (aL - Lx) / 2;
+  const folgaY = (aP - Ly) / 2;
+  const semSuporteX = n === 4 ? (aL < Lx - 1e-6) : (aL < t - 1e-6);
+  const semSuporteY = n === 4 ? (aP < Ly - 1e-6) : (aP < t - 1e-6);
+  const semSuporte = semSuporteX || semSuporteY;
 
   /*
    * Faixa de placa: a MENOR dimensao do assento, que e o caso mais
@@ -311,6 +328,11 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     faixa: larguraFaixa,
     folgaX,
     folgaY,
+    semSuporte,
+    semSuporteX,
+    semSuporteY,
+    esquadriaX: n === 4 ? Lx : t,
+    esquadriaY: n === 4 ? Ly : t,
     fracX,
     fracY,
     eX,
@@ -329,7 +351,9 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     ? secaoTravessa(t, H).b
     : 0;
 
-  const vaoAssento = Math.max(L - 2 * bTravessa, 1);
+  const vaoAssentoX = Math.max(Lx - 2 * bTravessa, 1);
+  const vaoAssentoY = Math.max(Ly - 2 * bTravessa, 1);
+  const vaoAssento = Math.max(vaoAssentoX, vaoAssentoY);
 
   let assentoVao = null;
   if (n === 4) {
@@ -346,7 +370,11 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     assentoVao = {
       L: vaoAssento,
       vaoLivre: vaoAssento,
+      vaoX: vaoAssentoX,
+      vaoY: vaoAssentoY,
       ladoQuadro: L,
+      ladoQuadroX: Lx,
+      ladoQuadroY: Ly,
       bTravessa,
       area: areaAssento, h: hAssento, q,
       M: Mvao, I: Ivao,
@@ -404,6 +432,23 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
   // ---------- Veredito ----------
   const motivos = [];
 
+  if (semSuporte) {
+    if (n === 4) {
+      motivos.push(
+        'O assento não tem suporte: as medidas do assento (' +
+        fmt(aL / 10) + ' × ' + fmt(aP / 10) + ' cm) são menores do que o ' +
+        'tamanho da esquadria formada pelas pernas e travessas (' +
+        fmt(Lx / 10) + ' × ' + fmt(Ly / 10) + ' cm).'
+      );
+    } else {
+      motivos.push(
+        'O assento não tem suporte: as medidas do assento (' +
+        fmt(aL / 10) + ' × ' + fmt(aP / 10) + ' cm) são menores do que a ' +
+        'coluna de apoio (' + fmt(t / 10) + ' × ' + fmt(t / 10) + ' cm).'
+      );
+    }
+  }
+
   if (utilizacao > 1) {
     motivos.push('Tensao de ' + fmt(sigmaMax) + ' MPa na perna acima da admissivel de ' +
                  fmt(sigmaAdm) + ' MPa.');
@@ -453,7 +498,8 @@ export function calcular({ materialId, espessuraMm, alturaMm, massaKg,
     ok: true,
     entrada: {
       material, t, H, m,
-      L,
+      L, Lx, Ly,
+      vaoTravessaX, vaoTravessaY,
       forma: formaFinal,
       numPernas: n,
       vazada: vazadaFinal,

@@ -307,12 +307,19 @@ export function gerarMemorial(r, dimsExternas){
       num(CADEIRA.fracaoLadoPiramide, 3) + ' do diâmetro do cone'));
   }
   if (r.travessas) {
-    linhasPrem.push(linha('Quadro de travessas',
-      '4 vigas, seção ' + num(r.travessas.b, 1) + ' × ' +
-      num(r.travessas.h, 1) + ' mm, ' +
-      (r.travessas.vazada
-        ? 'tubular com parede ' + num(r.travessas.parede, 2) + ' mm'
-        : 'maciça')));
+    linhasPrem.push(
+      linha('Esquadria de apoio (L<sub>x</sub> × L<sub>y</sub>)',
+        num(r.travessas.Lx / 10, 1) + ' × ' + num(r.travessas.Ly / 10, 1) +
+        ' cm (' + num(r.travessas.Lx, 0) + ' × ' + num(r.travessas.Ly, 0) + ' mm)'),
+      linha('Quadro de travessas',
+        '4 vigas, seção ' + num(r.travessas.b, 1) + ' × ' +
+        num(r.travessas.h, 1) + ' mm, ' +
+        (r.travessas.vazada
+          ? 'tubular com parede ' + num(r.travessas.parede, 2) + ' mm'
+          : 'maciça') +
+        ' — comprimentos: ' + num(r.travessas.vaoX / 10, 1) + ' cm (X) e ' +
+        num(r.travessas.vaoY / 10, 1) + ' cm (Y)')
+    );
   }
 
   h += sec('Premissas de projeto',

@@ -38,7 +38,7 @@ import { HIPOTESES, CADEIRA, G } from './constantes.js';
 import { calcular } from './solver.js';
 import { construirBarras, dimensoesExternas, definirAssento,
          definirExcentricidade } from './chairModel.js';
-import { definirTravessaSecao } from './travessas.js';
+import { definirTravessaSecao, definirTravessaComprimento } from './travessas.js';
 
 const C = {
   grade:'#232b36', eixo:'#3a4658', texto:'#93a2b5', forte:'#e7edf5',
@@ -288,7 +288,7 @@ function graficoBarrasH(op){
  * frente — o desenho mostrava o numero errado no lugar errado.
  */
 function dclSVG(r, dims){
-  const L = HIPOTESES.L, e = r.entrada.eX;
+  const L = Number.isFinite(r.entrada.Lx) ? r.entrada.Lx : HIPOTESES.L, e = r.entrada.eX;
   const nEl = r.entrada.numPernas;
   const t = Math.min(r.entrada.t, CADEIRA.espessuraMaxima);
   const H = r.entrada.H;
@@ -543,23 +543,28 @@ function dclSVG(r, dims){
  */
 function assentoSVG(r){
   const nEl = r.entrada.numPernas;
-  const L = HIPOTESES.L;
+  const Lx = Number.isFinite(r.entrada.Lx) ? r.entrada.Lx : HIPOTESES.L;
+  const Ly = Number.isFinite(r.entrada.Ly) ? r.entrada.Ly : HIPOTESES.L;
   const P = r.forcas.P;
   const eX = r.entrada.eX, eY = r.entrada.eY;
   const centrada = Math.abs(r.entrada.fracX) < 0.005 &&
                    Math.abs(r.entrada.fracY) < 0.005;
   const aL = r.assento.b;
   const aP = Number.isFinite(r.assento.p) ? r.assento.p : r.assento.b;
-  const fX = Number.isFinite(r.assento.folgaX) ? r.assento.folgaX : (aL - L) / 2;
-  const fY = Number.isFinite(r.assento.folgaY) ? r.assento.folgaY : (aP - L) / 2;
+  const fX = Number.isFinite(r.assento.folgaX) ? r.assento.folgaX : (aL - Lx) / 2;
+  const fY = Number.isFinite(r.assento.folgaY) ? r.assento.folgaY : (aP - Ly) / 2;
   const tPerna = Math.min(r.entrada.t, CADEIRA.espessuraMaxima);
   const bTV = (r.assentoVao && Number.isFinite(r.assentoVao.bTravessa))
     ? r.assentoVao.bTravessa
     : (r.travessas ? r.travessas.b : 0);
-  const vaoLivre = r.assentoVao ? r.assentoVao.L : L;
+  const vaoLivreX = Math.max(0, Lx - 2 * bTV);
+  const vaoLivreY = Math.max(0, Ly - 2 * bTV);
+  const vaoLivre = r.assentoVao ? r.assentoVao.L : Math.max(vaoLivreX, vaoLivreY);
 
   const larg = 560, alt = 470;
-  const s = Math.min(238 / aL, 238 / aP);
+  const maxW = Math.max(aL, nEl === 4 ? Lx : aL);
+  const maxH = Math.max(aP, nEl === 4 ? Ly : aP);
+  const s = Math.min(238 / maxW, 238 / maxH);
   const w = aL * s, hh = aP * s;
   const x0 = (larg - w) / 2;
   const y0 = 74;
@@ -576,34 +581,39 @@ function assentoSVG(r){
 
   /* Placa do assento */
   g += `<rect x="${px(x0)}" y="${px(y0)}" width="${px(w)}" height="${px(hh)}" ` +
-    `fill="${C.azul}" fill-opacity="0.07" stroke="${C.azul}" stroke-width="1.6"/>`;
+    `fill="${C.azul}" fill-opacity="0.07" stroke="${r.assento.semSuporte ? C.vermelho : C.azul}" stroke-width="1.6"/>`;
 
   if (nEl === 4) {
-    /* Sobrepasso em balanco, fora do quadro */
-    g += caixa(x0, y0, fX * s, hh, C.vermelho, 0.13);
-    g += caixa(X(fX + L), y0, fX * s, hh, C.vermelho, 0.13);
-    g += caixa(X(fX), y0, L * s, fY * s, C.vermelho, 0.13);
-    g += caixa(X(fX), Y(fY + L), L * s, fY * s, C.vermelho, 0.13);
+    /* Sobrepasso em balanco, fora do quadro (so quando positivo) */
+    if (fX > 0) {
+      g += caixa(x0, y0, fX * s, hh, C.vermelho, 0.13);
+      g += caixa(X(fX + Lx), y0, fX * s, hh, C.vermelho, 0.13);
+    }
+    if (fY > 0) {
+      g += caixa(X(Math.max(0, fX)), y0, Math.min(aL, Lx) * s, fY * s, C.vermelho, 0.13);
+      g += caixa(X(Math.max(0, fX)), Y(fY + Ly), Math.min(aL, Lx) * s, fY * s, C.vermelho, 0.13);
+    }
 
     /* Abertura interna do quadro */
-    g += caixa(X(fX + bTV), Y(fY + bTV), vaoLivre * s, vaoLivre * s,
+    g += caixa(X(fX + bTV), Y(fY + bTV), vaoLivreX * s, vaoLivreY * s,
       C.roxo, 0.14, '5 4');
 
-    /* Travessas: SO no vao entre as faces internas das pernas */
+    /* Travessas: no vao entre as faces internas das pernas (compTvX e compTvY) */
     if (bTV > 0) {
-      const compTv = Math.max(0, L - 2 * tPerna) * s;
-      g += caixa(X(fX + tPerna), Y(fY), compTv, bTV * s, C.ambar, 0.42);
-      g += caixa(X(fX + tPerna), Y(fY + L - bTV), compTv, bTV * s, C.ambar, 0.42);
-      g += caixa(X(fX), Y(fY + tPerna), bTV * s, compTv, C.ambar, 0.42);
-      g += caixa(X(fX + L - bTV), Y(fY + tPerna), bTV * s, compTv, C.ambar, 0.42);
+      const compTvX = Math.max(0, Lx - 2 * tPerna) * s;
+      const compTvY = Math.max(0, Ly - 2 * tPerna) * s;
+      g += caixa(X(fX + tPerna), Y(fY), compTvX, bTV * s, C.ambar, 0.42);
+      g += caixa(X(fX + tPerna), Y(fY + Ly - bTV), compTvX, bTV * s, C.ambar, 0.42);
+      g += caixa(X(fX), Y(fY + tPerna), bTV * s, compTvY, C.ambar, 0.42);
+      g += caixa(X(fX + Lx - bTV), Y(fY + tPerna), bTV * s, compTvY, C.ambar, 0.42);
     }
 
     /* Topos das pernas: os apoios dos cantos, por cima de tudo */
     const tp = tPerna * s;
     g += caixa(X(fX), Y(fY), tp, tp, C.azul, 0.62);
-    g += caixa(X(fX + L - tPerna), Y(fY), tp, tp, C.azul, 0.62);
-    g += caixa(X(fX), Y(fY + L - tPerna), tp, tp, C.azul, 0.62);
-    g += caixa(X(fX + L - tPerna), Y(fY + L - tPerna), tp, tp, C.azul, 0.62);
+    g += caixa(X(fX + Lx - tPerna), Y(fY), tp, tp, C.azul, 0.62);
+    g += caixa(X(fX), Y(fY + Ly - tPerna), tp, tp, C.azul, 0.62);
+    g += caixa(X(fX + Lx - tPerna), Y(fY + Ly - tPerna), tp, tp, C.azul, 0.62);
   }
 
   /* Apoio central do pedestal */
@@ -676,12 +686,15 @@ function assentoSVG(r){
       'vão livre ' + n(vaoLivre, 0) + ' mm', C.texto, 10, 'start', 0, 500);
   }
   g += halo(x0 + w / 2, yLeg + 20,
-    centrada
-      ? 'carga no centro — quatro reações iguais'
-      : 'vetor P aplicado em: X ' +
-        rotuloExcentDirecao(r.entrada.fracX * 100, 'x') + ' · Y ' +
-        rotuloExcentDirecao(r.entrada.fracY * 100, 'y'),
-    C.roxo, 10.5);
+    r.assento.semSuporte
+      ? 'ASSENTO SEM SUPORTE — menor que a esquadria (' +
+        n(Lx / 10, 1) + ' × ' + n(Ly / 10, 1) + ' cm)'
+      : (centrada
+        ? 'carga no centro — quatro reações iguais'
+        : 'vetor P aplicado em: X ' +
+          rotuloExcentDirecao(r.entrada.fracX * 100, 'x') + ' · Y ' +
+          rotuloExcentDirecao(r.entrada.fracY * 100, 'y')),
+    r.assento.semSuporte ? C.vermelho : C.roxo, 10.5);
 
   return `<svg viewBox="0 0 ${larg} ${alt}" width="100%" role="img" ` +
     `aria-label="assento isolado com centro de carga deslocado">${g}</svg>`;
@@ -871,6 +884,12 @@ if (qs.has('travessaB') || qs.has('travessaH')) {
   );
 }
 
+if (qs.has('travessaCompX') || qs.has('travessaCompY')) {
+  const cX = numQS('travessaCompX', 32) * fator;
+  const cY = numQS('travessaCompY', numQS('travessaCompX', 32)) * fator;
+  definirTravessaComprimento(cX, cY);
+}
+
 /*
  * Centro de carga em DOIS eixos. O app envia percentual (-100 a +100);
  * o solver trabalha com fracao de meia dimensao (-1 a +1).
@@ -915,7 +934,9 @@ if (!r || !r.ok) {
 function desenhar(){
   const mat = r.entrada.material;
   const P = r.forcas.P, H = r.entrada.H;
-  const L = HIPOTESES.L;
+  const Lx = Number.isFinite(r.entrada.Lx) ? r.entrada.Lx : HIPOTESES.L;
+  const Ly = Number.isFinite(r.entrada.Ly) ? r.entrada.Ly : HIPOTESES.L;
+  const L = Math.max(Lx, Ly);
   const nEl = r.entrada.numPernas;
   const A = r.secao.A, I = r.secao.I, W = r.secao.W, E = mat.E;
   const Wpeso = r.massa.total * G;
@@ -984,13 +1005,18 @@ function desenhar(){
       ['Material', mat.nome + ' — E = ' + n(E, 0) + ' MPa, σ_adm = ' + n(r.tensoes.sigmaAdm, 2) + ' MPa'],
       ['Seção da perna', (r.entrada.vazada ? 'Tubular' : 'Maciça') + ' ' +
         (r.entrada.forma === 'redonda' ? 'redonda' : 'quadrada') + ', t = ' + n(tPerna / 10, 1) + ' cm'],
-      ['Apoios', nEl === 1 ? '1 perna (pedestal central)' : '4 pernas, L = ' + n(L / 10, 1) + ' cm'],
+      ['Apoios', nEl === 1
+        ? '1 perna (pedestal central)'
+        : '4 pernas — esquadria ' + n(Lx / 10, 1) + ' × ' + n(Ly / 10, 1) + ' cm'],
       ['Altura da perna', n(H / 10, 1) + ' cm'],
       ['Assento', n(r.assento.b / 10, 1) + ' × ' + n((r.assento.p || r.assento.b) / 10, 1) +
-        ' × ' + n(r.assento.h / 10, 1) + ' cm'],
+        ' × ' + n(r.assento.h / 10, 1) + ' cm' +
+        (r.assento.semSuporte ? ' — SEM SUPORTE (menor que a esquadria)' : '')],
       ['Travessas', r.travessas
         ? n(r.travessas.b / 10, 1) + ' × ' + n(r.travessas.h / 10, 1) + ' cm, ' +
-          (r.travessas.vazada ? 'tubular' : 'maciça') + ' — comprimento ' + n(r.travessas.comprimento, 0) + ' mm'
+          (r.travessas.vazada ? 'tubular' : 'maciça') + ' — X: ' +
+          n(r.travessas.vaoX / 10, 1) + ' cm (' + n(r.travessas.vaoX, 0) + ' mm) · Y: ' +
+          n(r.travessas.vaoY / 10, 1) + ' cm (' + n(r.travessas.vaoY, 0) + ' mm)'
         : 'não se aplica ao pedestal'],
       ['Apoio do assento', nEl === 4
         ? 'quadro: 4 topos de perna + 4 travessas, coplanares'
@@ -1875,6 +1901,13 @@ function desenhar(){
   ];
   if (r.flambagemLocal) {
     util.push({ rotulo:'Flambagem local', valor:r.flambagemLocal.utilizacao * 100 });
+  }
+  if (r.assento.semSuporte) {
+    const razaoSuporte = Math.max(
+      r.assento.esquadriaX / Math.max(r.assento.b, 1),
+      r.assento.esquadriaY / Math.max(r.assento.p, 1)
+    );
+    util.push({ rotulo:'Assento — suporte', valor:razaoSuporte * 100 });
   }
   util.push({ rotulo:'Assento — tensão', valor:r.assento.utilizacao * 100 });
   util.push({ rotulo:'Assento — flecha', valor:r.assento.utilizacaoFlecha * 100 });

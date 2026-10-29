@@ -24,7 +24,7 @@
     import { desenhoTecnico } from '../js/tecnico.js';
     import { svgCadeira } from '../js/render.js';
     import { gerarMemorial } from '../js/memorial.js';
-    import { geometriaTravessas } from '../js/travessas.js';
+    import { geometriaTravessas, definirTravessaComprimento } from '../js/travessas.js';
     import { MATERIAIS } from '../js/materials.js';
     import { G, CADEIRA, HIPOTESES, TRAVESSAS, ASSENTO }
       from '../js/constantes.js';
@@ -101,6 +101,7 @@
     function reiniciar(){
       definirAssento(440, 440, 20);
       definirExcentricidade(0, 0);
+      definirTravessaComprimento(null, null);
     }
 
     /*
@@ -841,6 +842,49 @@
       htmlMem.indexOf('5,5 cm para a esquerda') > 0 &&
       htmlMem.indexOf('9,9 cm para o fundo') > 0 &&
       htmlMem.indexOf('class="vetor-forca"') > 0);
+
+    /* ---------- Esquadria ajustavel e suporte do assento ---------- */
+    grupo('Esquadria ajustavel e suporte do assento');
+    reiniciar();
+    definirTravessaComprimento(200);
+    definirAssento(300, 300, 20);
+    const assentoMenorOk = calcular(ENTRADA);
+    verificar('assento menor que 40x40 cm (30x30 cm) aprova quando >= esquadria (28x28 cm)',
+      assentoMenorOk.ok && assentoMenorOk.veredito.aprovado &&
+      assentoMenorOk.assento.semSuporte === false &&
+      quase(assentoMenorOk.entrada.Lx, 280) &&
+      quase(assentoMenorOk.entrada.Ly, 280));
+
+    reiniciar();
+    definirTravessaComprimento(360, 240);
+    definirAssento(440, 340, 20);
+    const retangOk = calcular(ENTRADA);
+    verificar('travessas com comprimentos distintos (frontal/traseira vs laterais) geram esquadria retangular',
+      retangOk.ok && retangOk.veredito.aprovado &&
+      quase(retangOk.travessas.vaoX, 360) &&
+      quase(retangOk.travessas.vaoY, 240) &&
+      quase(retangOk.entrada.Lx, 440) &&
+      quase(retangOk.entrada.Ly, 320));
+
+    reiniciar();
+    definirTravessaComprimento(400, 320);
+    definirAssento(440, 440, 20);
+    const esquadriaMaior = calcular(ENTRADA);
+    verificar('esquadria maior que o assento falha e avisa que o assento nao tem suporte',
+      esquadriaMaior.ok &&
+      esquadriaMaior.veredito.aprovado === false &&
+      esquadriaMaior.assento.semSuporte === true &&
+      esquadriaMaior.veredito.motivos.some(m => m.toLowerCase().includes('não tem suporte')));
+
+    reiniciar();
+    definirTravessaComprimento(320, 320);
+    definirAssento(350, 440, 20);
+    const assentoMenorQueEsquadria = calcular(ENTRADA);
+    verificar('assento configurado menor que a esquadria falha e avisa que o assento nao tem suporte',
+      assentoMenorQueEsquadria.ok &&
+      assentoMenorQueEsquadria.veredito.aprovado === false &&
+      assentoMenorQueEsquadria.assento.semSuporte === true &&
+      assentoMenorQueEsquadria.veredito.motivos.some(m => m.toLowerCase().includes('não tem suporte')));
 
     /* ---------- Contorno ---------- */
     grupo('Validacao de entradas e contorno');

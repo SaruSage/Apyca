@@ -6,7 +6,7 @@ import { renderCadeira } from './render.js';
 import { animarRuina } from './animacao.js';
 import { animarJoinhas } from './joinhas.js';
 import { gerarMemorial } from './memorial.js';
-import { definirTravessaSecao } from './travessas.js';
+import { definirTravessaSecao, definirTravessaComprimento } from './travessas.js';
 
 /* ---------- Elementos ---------- */
 const form = document.getElementById('form-cadeira');
@@ -44,6 +44,15 @@ const dicaExcentY = document.getElementById('dica-excent-y');
 
 /* Travessas */
 const grupoTravessas = document.getElementById('grupo-travessas');
+const campoTravessaModoComp = document.getElementById('travessa-modo-comprimento');
+const campoTravessaCompUnico = document.getElementById('travessa-comprimento');
+const campoTravessaCompX = document.getElementById('travessa-comprimento-x');
+const campoTravessaCompY = document.getElementById('travessa-comprimento-y');
+const grupoTravessaCompUnico = document.getElementById('grupo-travessa-comp-unico');
+const grupoTravessaCompX = document.getElementById('grupo-travessa-comp-x');
+const grupoTravessaCompY = document.getElementById('grupo-travessa-comp-y');
+const dicaTravessaEsquadria = document.getElementById('dica-travessa-esquadria');
+const dicaAssentoEsquadria = document.getElementById('dica-assento-esquadria');
 const campoLarguraTravessa = document.getElementById('travessa-largura');
 const campoAlturaTravessa = document.getElementById('travessa-altura');
 const campoTravessaSecao = document.getElementById('travessa-secao');
@@ -96,6 +105,8 @@ const PADRAO = {
   assentoEspessuraCm: 2,
   excentXPct: 0,
   excentYPct: 0,
+  travessaModoComp: 'todas',
+  travessaComprimentoCm: 32,
   travessaLarguraCm: 4,
   travessaAlturaCm: 6,
   travessaSecao: 'macica',
@@ -131,6 +142,10 @@ if (campoExcentY) campoExcentY.value = PADRAO.excentYPct;
 if (campoExcentXCm) campoExcentXCm.value = '0';
 if (campoExcentYCm) campoExcentYCm.value = '0';
 
+if (campoTravessaModoComp) campoTravessaModoComp.value = PADRAO.travessaModoComp;
+if (campoTravessaCompUnico) campoTravessaCompUnico.value = PADRAO.travessaComprimentoCm;
+if (campoTravessaCompX) campoTravessaCompX.value = PADRAO.travessaComprimentoCm;
+if (campoTravessaCompY) campoTravessaCompY.value = PADRAO.travessaComprimentoCm;
 campoLarguraTravessa.value = PADRAO.travessaLarguraCm;
 campoAlturaTravessa.value = PADRAO.travessaAlturaCm;
 campoTravessaSecao.value = PADRAO.travessaSecao;
@@ -325,6 +340,7 @@ function utilizacaoMaxima(r){
     r.assento.utilizacao,
     r.assento.utilizacaoFlecha
   ];
+  if (r.assento && r.assento.semSuporte) us.push(1.5);
   if (r.flambagemLocal) us.push(r.flambagemLocal.utilizacao);
   if (r.assentoVao) {
     us.push(r.assentoVao.utilizacao, r.assentoVao.utilizacaoFlecha);
@@ -345,6 +361,15 @@ function mensagemSegura(r){
 }
 
 function mensagemRisco(r){
+  if (r.assento && r.assento.semSuporte) {
+    if (r.entrada.numPernas === 4) {
+      return 'O assento não tem suporte: o tamanho da esquadria formada pelas pernas e travessas (' +
+        n(r.entrada.Lx / 10, 1) + ' × ' + n(r.entrada.Ly / 10, 1) +
+        ' cm) é maior do que as medidas do assento (' +
+        n(r.assento.b / 10, 1) + ' × ' + n(r.assento.p / 10, 1) + ' cm).';
+    }
+    return 'O assento não tem suporte: o assento é menor do que a coluna de apoio.';
+  }
   if (r.forcas.levantou) {
     return 'A carga está fora da base de apoio: as pernas do lado oposto ' +
            'levantam do chão.';
@@ -579,8 +604,17 @@ function renderResultado(r, dims){
 
   const lAssento = [
     linha('Dimensões (L × P × h)',
+      n(r.assento.b / 10, 1) + ' × ' + n(r.assento.p / 10, 1) + ' × ' +
+      n(r.assento.h / 10, 1) + ' cm (' +
       n(r.assento.b, 0) + ' × ' + n(r.assento.p, 0) + ' × ' +
-      n(r.assento.h, 1) + ' mm'),
+      n(r.assento.h, 1) + ' mm)'),
+    linha('Esquadria de apoio',
+      n(r.assento.esquadriaX / 10, 1) + ' × ' +
+      n(r.assento.esquadriaY / 10, 1) + ' cm'),
+    linha('Suporte do assento',
+      r.assento.semSuporte
+        ? 'Sem suporte (assento menor que a esquadria)'
+        : 'Apoiado sobre a esquadria'),
     linha('Sobrepasso em X (a)', n(r.assento.folgaX, 1) + ' mm'),
     linha('Sobrepasso em Y (a)', n(r.assento.folgaY, 1) + ' mm')
   ];
@@ -620,7 +654,12 @@ function renderResultado(r, dims){
       linha('Seção', r.travessas.vazada
         ? 'Tubular — parede ' + n(r.travessas.parede, 2) + ' mm'
         : 'Maciça'),
-      linha('Vão livre (entre faces internas)', n(r.travessas.vao, 1) + ' mm'),
+      linha('Comprimento — frontal e traseira (X)',
+        n(r.travessas.vaoX / 10, 1) + ' cm (' + n(r.travessas.vaoX, 0) + ' mm)'),
+      linha('Comprimento — laterais (Y)',
+        n(r.travessas.vaoY / 10, 1) + ' cm (' + n(r.travessas.vaoY, 0) + ' mm)'),
+      linha('Esquadria externa (Lx × Ly)',
+        n(r.travessas.Lx / 10, 1) + ' × ' + n(r.travessas.Ly / 10, 1) + ' cm'),
       linha('Seção (b × h)', n(r.travessas.b, 1) + ' × ' +
         n(r.travessas.h, 1) + ' mm'),
       linha('Área da seção (A)', n(r.travessas.A, 1) + ' mm²'),
@@ -753,9 +792,66 @@ function atualizarParedeTravessa(){
   if (vazada && grupoTravessas) grupoTravessas.open = true;
 }
 
+function sincronizarComprimentoTravessas(origemEvento){
+  const modo = campoTravessaModoComp ? campoTravessaModoComp.value : 'todas';
+
+  if (grupoTravessaCompUnico) {
+    grupoTravessaCompUnico.hidden = modo !== 'todas';
+  }
+  if (grupoTravessaCompX) {
+    grupoTravessaCompX.hidden = (modo !== 'frontal-traseira' && modo !== 'independente');
+  }
+  if (grupoTravessaCompY) {
+    grupoTravessaCompY.hidden = (modo !== 'laterais' && modo !== 'independente');
+  }
+
+  if (modo === 'todas') {
+    const valUnico = campoTravessaCompUnico
+      ? campoTravessaCompUnico.value
+      : String(PADRAO.travessaComprimentoCm);
+    if (campoTravessaCompX) campoTravessaCompX.value = valUnico;
+    if (campoTravessaCompY) campoTravessaCompY.value = valUnico;
+  } else if (origemEvento === campoTravessaCompX && campoTravessaCompUnico && campoTravessaCompX) {
+    campoTravessaCompUnico.value = campoTravessaCompX.value;
+  } else if (origemEvento === campoTravessaCompY && campoTravessaCompUnico && campoTravessaCompY) {
+    campoTravessaCompUnico.value = campoTravessaCompY.value;
+  }
+
+  const tCm = numOu(campoEspessura ? campoEspessura.value : 0, PADRAO.espessuraCm);
+  const compXCm = numOu(
+    modo === 'todas'
+      ? (campoTravessaCompUnico && campoTravessaCompUnico.value)
+      : (campoTravessaCompX && campoTravessaCompX.value),
+    PADRAO.travessaComprimentoCm
+  );
+  const compYCm = numOu(
+    modo === 'todas'
+      ? (campoTravessaCompUnico && campoTravessaCompUnico.value)
+      : (campoTravessaCompY && campoTravessaCompY.value),
+    PADRAO.travessaComprimentoCm
+  );
+
+  const esqXCm = compXCm + 2 * tCm;
+  const esqYCm = compYCm + 2 * tCm;
+  const nPernas = parseInt(campoPernas ? campoPernas.value : '4', 10);
+
+  if (dicaTravessaEsquadria) {
+    dicaTravessaEsquadria.textContent =
+      '* Esquadria resultante (pernas + travessas): ' +
+      n(esqXCm, 1) + ' × ' + n(esqYCm, 1) + ' cm';
+  }
+  if (dicaAssentoEsquadria) {
+    dicaAssentoEsquadria.textContent = nPernas === 1
+      ? 'Apoio mínimo (coluna): ' + n(tCm, 1) + ' × ' + n(tCm, 1) + ' cm'
+      : 'Esquadria de apoio (pernas + travessas): ' +
+        n(esqXCm, 1) + ' × ' + n(esqYCm, 1) + ' cm';
+  }
+}
+
 function atualizarTravessa(){
   const visivel = campoPernas.value !== '1';
   if (grupoTravessas) grupoTravessas.hidden = !visivel;
+  sincronizarComprimentoTravessas();
 }
 
 campoSecao.addEventListener('change', () => {
@@ -772,6 +868,14 @@ campoPernas.addEventListener('change', () => {
   atualizarTravessa();
   simular();
 });
+
+if (campoTravessaModoComp) {
+  campoTravessaModoComp.addEventListener('change', (ev) => {
+    sincronizarComprimentoTravessas(ev.target);
+    if (grupoTravessas) grupoTravessas.open = true;
+    simular();
+  });
+}
 
 /* ---------- Leitura dos campos ----------
  * Campos opcionais caem no padrão quando vêm vazios ou inválidos, em vez de
@@ -824,6 +928,24 @@ function lerCampos(){
     faltando.push('parede da travessa');
   }
 
+  const modoComp = campoTravessaModoComp ? campoTravessaModoComp.value : 'todas';
+  const rawCompUnico = campoTravessaCompUnico ? parseFloat(campoTravessaCompUnico.value) : PADRAO.travessaComprimentoCm;
+  const rawCompX = modoComp === 'todas'
+    ? rawCompUnico
+    : (campoTravessaCompX ? parseFloat(campoTravessaCompX.value) : PADRAO.travessaComprimentoCm);
+  const rawCompY = modoComp === 'todas'
+    ? rawCompUnico
+    : (campoTravessaCompY ? parseFloat(campoTravessaCompY.value) : PADRAO.travessaComprimentoCm);
+
+  if (numPernas !== 1) {
+    if (!Number.isFinite(rawCompX) || rawCompX <= 0) {
+      faltando.push('comprimento das travessas (frontal/traseira)');
+    }
+    if (!Number.isFinite(rawCompY) || rawCompY <= 0) {
+      faltando.push('comprimento das travessas (laterais)');
+    }
+  }
+
   const excent = lerExcent();
 
   return {
@@ -836,6 +958,8 @@ function lerCampos(){
       numOu(campoAssentoEspessura.value, PADRAO.assentoEspessuraCm),
     excentX: excent.x,
     excentY: excent.y,
+    travessaCompXCm: numOu(rawCompX, PADRAO.travessaComprimentoCm),
+    travessaCompYCm: numOu(rawCompY, PADRAO.travessaComprimentoCm),
     travessaLarguraCm:
       numOu(campoLarguraTravessa.value, PADRAO.travessaLarguraCm),
     travessaAlturaCm:
@@ -949,6 +1073,9 @@ function simular(){
                        campos.travessaVazada,
                        campos.travessaParedeMm);
 
+  definirTravessaComprimento(campos.travessaCompXCm * 10,
+                             campos.travessaCompYCm * 10);
+
   const r = calcular({
     materialId: campos.materialId,
     espessuraMm: campos.espessuraCm * 10,
@@ -1023,6 +1150,7 @@ form.addEventListener('submit', ev => {
 });
 
 form.addEventListener('input', (ev) => {
+  sincronizarComprimentoTravessas(ev.target);
   atualizarSaidasExcent(ev.target);
   simular();
 });
@@ -1072,6 +1200,15 @@ function urlGraficos(){
   q.set('excentX', String(Number((fracExcentX * 100).toFixed(4))));
   q.set('excentY', String(Number((fracExcentY * 100).toFixed(4))));
 
+  const modoComp = campoTravessaModoComp ? campoTravessaModoComp.value : 'todas';
+  const compXVal = modoComp === 'todas'
+    ? (campoTravessaCompUnico ? campoTravessaCompUnico.value : '32')
+    : (campoTravessaCompX ? campoTravessaCompX.value : '32');
+  const compYVal = modoComp === 'todas'
+    ? (campoTravessaCompUnico ? campoTravessaCompUnico.value : '32')
+    : (campoTravessaCompY ? campoTravessaCompY.value : '32');
+  q.set('travessaCompX', compXVal);
+  q.set('travessaCompY', compYVal);
   q.set('travessaB', campoLarguraTravessa.value);
   q.set('travessaH', campoAlturaTravessa.value);
   q.set('travessaSecao', campoTravessaSecao.value);

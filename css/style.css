@@ -1663,6 +1663,10 @@ dialog.memorial{
    input, e respiro entre eles. */
 .grupo-campos > .campo{padding:0 12px}
 .grupo-campos .campo + .campo{margin-top:var(--espaco-campo)}
+.grupo-campos > .campo.campo--dica{padding:0 12px 0 20px;margin-top:6px;margin-bottom:16px}
+.grupo-campos > .campo.campo--dica .campo__dica{margin-top:0}
+.grupo-campos .campo.campo--dica + .campo{margin-top:16px}
+.grupo-campos > .campo__dica{padding:0 12px 0 20px;margin-top:6px;margin-bottom:16px}
 .grupo-campos > .campo:first-of-type{padding-top:4px}
 
 /* Fecha a gaveta aberta com um respiro embaixo do último campo. */

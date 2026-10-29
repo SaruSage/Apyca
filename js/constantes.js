@@ -175,6 +175,16 @@ export const TRAVESSAS = {
   largura: 40,
   altura: 60,
 
+  /*
+   * Comprimento livre de cada par de travessas (entre faces internas das
+   * pernas), em mm:
+   *   comprimentoX : travessas frontal e traseira (eixo X)
+   *   comprimentoY : travessas laterais de cada lado (eixo Y)
+   * Quando null, deriva de L_QUADRO - 2*t (mantendo L = 400 mm por padrao).
+   */
+  comprimentoX: null,
+  comprimentoY: null,
+
   vazada: false,
   parede: 2,
 

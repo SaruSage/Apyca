@@ -40,7 +40,7 @@
  */
 
 import { CADEIRA, ASSENTO, TRAVESSAS } from './constantes.js';
-import { geometriaTravessas } from './travessas.js';
+import { geometriaTravessas, dimensoesEsquadria } from './travessas.js';
 
 export function caixa(x, y, z, dx, dy, dz, camada, cor, grupo){
   return { tipo: 'caixa', x, y, z, dx, dy, dz, camada, cor, grupo };
@@ -361,6 +361,9 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
   const zBaseEncosto = zTopoAssento + alturaAbertura;
 
   const barras = [];
+  const { Lx, Ly } = n === 4
+    ? dimensoesEsquadria(t, L)
+    : { Lx: L, Ly: L };
   const xCentro = L / 2 - t / 2;
   const cCentro = L / 2;
 
@@ -393,10 +396,10 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
    * Quem rotular as reacoes por perna precisa respeitar isso.
    */
   if (n === 4) {
-    perna(0,     L - t, 0, H, 0, 'perna0');
-    perna(L - t, L - t, 0, H, 0, 'perna1');
-    perna(0,     0,     0, H, 0, 'perna2');
-    perna(L - t, 0,     0, H, 0, 'perna3');
+    perna(0,      Ly - t, 0, H, 0, 'perna0');
+    perna(Lx - t, Ly - t, 0, H, 0, 'perna1');
+    perna(0,      0,      0, H, 0, 'perna2');
+    perna(Lx - t, 0,      0, H, 0, 'perna3');
   } else {
     const hPe = Math.min(coneAltura, H * 0.4);
     const R = coneRaioBase;
@@ -443,7 +446,7 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
    * com as faces externas das pernas; maior que L, sobra sobrepasso dos dois
    * lados. Em z = H, apoia no topo das pernas e no topo das travessas.
    */
-  barras.push(caixa((L - aL) / 2, (L - aP) / 2, H,
+  barras.push(caixa((Lx - aL) / 2, (Ly - aP) / 2, H,
                     aL, aP, tAssento, 2,
                     render.assento, 'assento'));
 
@@ -454,10 +457,10 @@ export function construirBarras(espessura, altura, material, forma = 'quadrada',
    */
   if (temEncosto) {
     const hPoste = zTopoEncosto - zTopoAssento;
-    perna(0,     0, zTopoAssento, hPoste, 3, 'poste0');
-    perna(L - t, 0, zTopoAssento, hPoste, 3, 'poste1');
+    perna(0,      0, zTopoAssento, hPoste, 3, 'poste0');
+    perna(Lx - t, 0, zTopoAssento, hPoste, 3, 'poste1');
 
-    const largPainel = L - 2 * t;
+    const largPainel = Lx - 2 * t;
     const altPainel = zTopoEncosto - zBaseEncosto;
     const spec = render.encosto || RENDER_PADRAO.encosto;
     const corEnc = spec.cor || render.pernas;
